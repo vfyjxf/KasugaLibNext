@@ -1,0 +1,13 @@
+{
+  "itemGroup.kasuga_lib": "Example Mod Tab",
+  "block.kasuga_lib.example_block": "Example Block",
+  "item.kasuga_lib.example_item": "Example Item",
+
+  "kasuga_lib.configuration.title": "KasugaLib Next Configs",
+  "kasuga_lib.configuration.section.kasuga_lib.common.toml": "KasugaLib Next Configs",
+  "kasuga_lib.configuration.section.kasuga_lib.common.toml.title": "KasugaLib Next Configs",
+  "kasuga_lib.configuration.items": "Item List",
+  "kasuga_lib.configuration.logDirtBlock": "Log Dirt Block",
+  "kasuga_lib.configuration.magicNumberIntroduction": "Magic Number Text",
+  "kasuga_lib.configuration.magicNumber": "Magic Number"
+}

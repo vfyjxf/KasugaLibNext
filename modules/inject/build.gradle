@@ -1,0 +1,77 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.107'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+
+repositories {
+}
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+test {
+    useJUnitPlatform()
+    systemProperty "logger.level.io.micronaut.context", "DEBUG"
+    systemProperty "logger.level.io.micronaut.inject", "DEBUG"
+}
+
+neoForge {
+    // Specify the version of NeoForge to use.
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {}
+
+
+    unitTest {
+        // Enable JUnit support in the moddev plugin
+        enable()
+    }
+}
+
+
+// Sets up a dependency configuration called 'localRuntime'.
+// This configuration should be used instead of 'runtimeOnly' to declare
+// a dependency that will be present for runtime testing but that is
+// "optional", meaning it will not be pulled by dependents of this mod.
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    implementation("io.micronaut:micronaut-inject:4.9.10") {
+        exclude group : 'org.slf4j', module: 'slf4j-api'
+    }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    testImplementation ("net.neoforged:testframework:${project.neo_version}"){
+        transitive = false
+    }
+    testImplementation("io.micronaut.test:micronaut-test-junit5:4.8.1"){
+        exclude group : 'org.slf4j', module: 'slf4j-api'
+        exclude group : 'io.micronaut', module: 'micronaut-core-bom'
+    }
+    implementation ("io.micronaut:micronaut-aop:4.9.10") {
+        exclude group : 'org.slf4j', module: 'slf4j-api'
+    }
+    annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+    options.compilerArgs += ['-Amicronaut.processing.group=lib.kasuga.test.inject', '-Xlint:processing']
+}
