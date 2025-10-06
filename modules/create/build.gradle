@@ -100,7 +100,7 @@ dependencies {
     }
 
     implementation project(":modules:inject")
-    additionalRuntimeClasspath project(":modules:inject")
+    implementation project(":modules:inject")
 
     annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
 

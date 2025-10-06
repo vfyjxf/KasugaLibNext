@@ -4,7 +4,7 @@ import com.mojang.logging.LogUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import lib.kasuga.inject.BeanOnlyIn;
+import lib.kasuga.inject.class_loader.BeanOnlyIn;
 import net.minecraft.client.Minecraft;
 import net.neoforged.fml.ModContainer;
 import org.slf4j.Logger;

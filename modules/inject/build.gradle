@@ -75,3 +75,11 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
     options.compilerArgs += ['-Amicronaut.processing.group=lib.kasuga.test.inject', '-Xlint:processing']
 }
+
+jar {
+    manifest {
+        attributes(
+                'FMLModType': "GAMELIBRARY"
+        )
+    }
+}

@@ -1,7 +1,6 @@
 package lib.kasuga.create;
 
 import io.micronaut.context.annotation.Requires;
-import lib.kasuga.inject.MinecraftDist;
 
 import java.lang.annotation.*;
 

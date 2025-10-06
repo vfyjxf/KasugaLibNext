@@ -1,4 +1,4 @@
-package lib.kasuga.inject;
+package lib.kasuga.inject.class_loader;
 
 import io.micronaut.context.annotation.Requires;
 

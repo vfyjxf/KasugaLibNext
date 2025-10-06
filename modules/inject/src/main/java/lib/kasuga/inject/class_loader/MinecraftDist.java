@@ -1,9 +1,8 @@
-package lib.kasuga.inject;
+package lib.kasuga.inject.class_loader;
 
 import io.micronaut.context.condition.Condition;
 import io.micronaut.context.condition.ConditionContext;
 import net.neoforged.fml.ModList;
-import net.neoforged.fml.loading.FMLLoader;
 
 public interface MinecraftDist {
     public static class IsClient implements Condition {
