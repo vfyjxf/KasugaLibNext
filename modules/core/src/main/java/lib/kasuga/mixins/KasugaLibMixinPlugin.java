@@ -1,5 +1,5 @@
 package lib.kasuga.mixins;
 
-import lib.kasuga.annotations.ServiceMixinPlugin;
+import lib.kasuga.inject.mixins.ServiceMixinPlugin;
 
 public class KasugaLibMixinPlugin extends ServiceMixinPlugin {}

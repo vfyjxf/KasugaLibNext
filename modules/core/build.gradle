@@ -26,6 +26,23 @@ test {
     useJUnitPlatform()
 }
 
+sourceSets {
+    generator
+}
+
+tasks.register('runGenerator', JavaExec) {
+    classpath = sourceSets.generator.runtimeClasspath
+    mainClass = 'lib.kasuga.internal.generator.KasugaCodeGen'
+    args = [project.sourceSets.main.java.srcDirs.first().absolutePath, "$buildDir/generated/sources/codegen/java/main"]
+}
+
+configurations {
+    generatorImplementation.extendsFrom implementation
+    generatorRuntimeOnly.extendsFrom runtimeOnly
+}
+
+compileJava.dependsOn(runGenerator)
+sourceSets.main.java.srcDir("$buildDir/generated/sources/codegen/java/main")
 
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -98,6 +115,7 @@ neoForge {
         // multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(project(":modules:inject").sourceSets.main)
         }
     }
 
@@ -161,15 +179,17 @@ dependencies {
     testImplementation "net.neoforged:testframework:${project.neo_version}"
 
     shadowLibrary project(":modules:inject")
-    additionalRuntimeClasspath project(":modules:inject")
+    implementation project(":modules:inject")
 
     shadowLibrary project(":modules:utils")
-    additionalRuntimeClasspath project(":modules:utils")
+    implementation project(":modules:utils")
 
     annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    generatorImplementation 'com.github.javaparser:javaparser-core:3.25.4'
 
 }
 

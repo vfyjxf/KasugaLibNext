@@ -16,5 +16,6 @@ include ':modules:create'
 include ':modules:scripting'
 include ':modules:modelling'
 include ':modules:annotation-processor'
+include ':modules:multiversion'
 
 

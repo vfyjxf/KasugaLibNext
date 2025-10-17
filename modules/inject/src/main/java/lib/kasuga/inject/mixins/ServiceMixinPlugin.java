@@ -1,4 +1,4 @@
-package lib.kasuga.annotations;
+package lib.kasuga.inject.mixins;
 
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;

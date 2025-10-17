@@ -69,6 +69,9 @@ dependencies {
     }
     annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    implementation project(":modules:utils")
+    additionalRuntimeClasspath project(":modules:utils")
 }
 
 tasks.withType(JavaCompile).configureEach {
