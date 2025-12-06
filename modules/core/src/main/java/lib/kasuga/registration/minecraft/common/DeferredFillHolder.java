@@ -6,9 +6,9 @@ import net.minecraft.core.HolderOwner;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
-import net.neoforged.neoforge.registries.DeferredHolder;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -99,5 +99,18 @@ public class DeferredFillHolder<R> implements Holder<R> {
     public boolean canSerializeIn(@NotNull HolderOwner<R> holderOwner) {
         checkInitialized();
         return originalHolder.canSerializeIn(holderOwner);
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) return true;
+        if (object instanceof Holder<?> holder && !(object instanceof DeferredFillHolder<?> that)) return holder.equals(originalHolder);
+        if (!(object instanceof DeferredFillHolder<?> that)) return false;
+        return Objects.equals(originalHolder, that.originalHolder);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(originalHolder);
     }
 }

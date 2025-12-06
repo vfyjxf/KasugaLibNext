@@ -1,0 +1,22 @@
+plugins {
+    id 'java'
+}
+
+group = 'lib.kasuga.generator'
+version = 'unspecified'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.github.javaparser:javaparser-core:3.27.1'
+    implementation 'com.github.javaparser:javaparser-symbol-solver-core:3.27.1'
+    implementation project(":modules:utils")
+}
+
+test {
+    useJUnitPlatform()
+}

@@ -8,16 +8,18 @@ import lib.kasuga.inject.class_loader.Envs;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforgespi.language.IModInfo;
 
 public class ModApplicationContext {
     public static ApplicationContext create(Class<?> modMainClass) {
         if(Envs.isDevEnvironment()) {
-            return ApplicationContext.builder(new CombinedClassLoader(
+            ClassLoader classLoader = new CombinedClassLoader(
                     modMainClass.getClassLoader(),
                     ApplicationContext.class.getClassLoader()
-            )).build();
+            );
+            return ApplicationContext.builder().mainClass(modMainClass).classLoader(classLoader).beanResolutionTrace(BeanResolutionTraceMode.STANDARD_OUT).build();
         }
-        return ApplicationContext.builder(modMainClass.getClassLoader()).build();
+        return ApplicationContext.builder().mainClass(modMainClass).beanResolutionTrace(BeanResolutionTraceMode.STANDARD_OUT).packages().build();
     }
 
     public static void init(ApplicationContext context, IEventBus modEventBus, ModContainer modContainer) {
@@ -26,5 +28,9 @@ public class ModApplicationContext {
         context.registerSingleton(ModContainer.class, modContainer, Qualifiers.byName("modContainer"));
         context.start();
         Configurable.configure(context, modEventBus, modContainer);
+
+        // ModLoader.modList.getModFileById("kasuga_lib").getFile().findResource("META-INF/micronaut/io.micronaut.inject.BeanDefinitionReference").toUri().toURL()
+
     }
+
 }

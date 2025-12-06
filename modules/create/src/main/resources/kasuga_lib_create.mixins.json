@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "package": "lib.kasuga.create.mixins",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "EdgeDataMixin",
+    "GlobalRailwayManagerMixin",
+    "SignalPropagatorMixin",
+    "TrackGraphAccessor",
+    "TrackGraphMixin",
+    "TrainMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "client": [
+  ]
+}

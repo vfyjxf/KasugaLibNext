@@ -1,0 +1,200 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.107'
+    id("com.gradleup.shadow")
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+
+repositories {
+}
+
+base {
+    archivesName = mod_id
+}
+
+configurations {
+    shadowLibrary
+    implementation.extendsFrom shadowLibrary
+}
+
+test {
+    useJUnitPlatform()
+}
+
+sourceSets {
+    contentTesting {
+        java {
+            srcDir 'src/contentTesting/java'
+        }
+        resources {
+            srcDir 'src/contentTesting/resources'
+        }
+
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
+
+// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    // Specify the version of NeoForge to use.
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+
+            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        // applies to all the run configs above
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+            sourceSet(sourceSets.contentTesting)
+        }
+    }
+
+    unitTest {
+        enable()
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    implementation ("io.micronaut:micronaut-inject:4.9.10") {
+        exclude group : 'org.slf4j', module: 'slf4j-api'
+    }
+
+    additionalRuntimeClasspath ("io.micronaut:micronaut-inject:4.9.10") {
+        exclude group : 'org.slf4j', module: 'slf4j-api'
+    }
+
+    additionalRuntimeClasspath ("io.micronaut:micronaut-aop:4.9.10") {
+        exclude group : 'org.slf4j', module: 'slf4j-api'
+    }
+
+
+    compileOnly project(":modules:core")
+    compileOnly project(":modules:inject")
+    compileOnly project(":modules:utils")
+    compileOnly project(":modules:annotations")
+    compileOnly project(":modules:modelling")
+    compileOnly project(":modules:scripting")
+
+    runtimeOnly (project(":modules:library")) {
+        transitive = false
+        attributes {
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
+        }
+    }
+
+    implementation 'com.caoccao.javet:javet:5.0.1'
+    additionalRuntimeClasspath 'com.caoccao.javet:javet:5.0.1'
+    additionalRuntimeClasspath 'com.caoccao.javet:javet-v8-windows-x86_64:5.0.1'
+    testRuntimeOnly 'com.caoccao.javet:javet-v8-windows-x86_64:5.0.1'
+
+    annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
+
+    contentTestingAnnotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
+
+    implementation("com.google.guava:guava:32.1.2-jre")
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    compileOnly("org.projectlombok:lombok:1.18.42")
+    annotationProcessor("org.projectlombok:lombok:1.18.42")
+
+    testCompileOnly("org.projectlombok:lombok:1.18.42")
+    testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
+}
+
+
+// This block of code expands all declared replace properties in the specified resource targets.
+// A missing property will result in an error. Properties are expanded using ${} Groovy notation.
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            kasuga_lib_version_range: kasuga_lib_version_range
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+// Include the output of "generateModMetadata" as an input directory for the build
+// this works with both building through Gradle and the IDE.
+sourceSets.main.resources.srcDir generateModMetadata
+// To avoid having to run "generateModMetadata" manually, make it run on every project reload
+neoForge.ideSyncTask generateModMetadata
+
+// Example configuration to allow publishing using the maven-publish plugin
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+

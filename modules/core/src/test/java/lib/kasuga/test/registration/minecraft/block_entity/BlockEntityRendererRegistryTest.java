@@ -4,7 +4,7 @@ import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
 import lib.kasuga.registration.beans.rendering.RenderingRegistry;
-import lib.kasuga.registration.minecraft.block_entity.renderer.BlockEntityRendererReg;
+import lib.kasuga.registration.minecraft_old.block_entity.renderer.BlockEntityRendererReg;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.testframework.junit.EphemeralTestServerProvider;
 import org.junit.jupiter.api.Test;

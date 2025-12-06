@@ -1,5 +1,6 @@
 package lib.kasuga.registration.minecraft.common;
 
+import com.mojang.logging.LogUtils;
 import lib.kasuga.registration.Reg;
 import lib.kasuga.registration.core.RegisterContext;
 import lib.kasuga.registration.core.ResourceLocationModifiers;
@@ -9,9 +10,10 @@ import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.registries.DeferredHolder;
+import org.slf4j.Logger;
 
 public abstract class MinecraftDeferRegistryReg<S extends Reg<S, T>, R, T extends R> extends Reg<S, T> {
-
+    private static Logger LOGGER = LogUtils.getLogger();
     private final String name;
     private final ResourceKey<Registry<R>> entryKey;
     protected T value;
@@ -21,16 +23,19 @@ public abstract class MinecraftDeferRegistryReg<S extends Reg<S, T>, R, T extend
     protected MinecraftDeferRegistryReg(String name, ResourceKey<Registry<R>> entryKey) {
         this.name = name;
         this.entryKey = entryKey;
+
     }
 
     @Override
     public void register(RegisterContext<?> context) {
         context.onStage(RegistrationStage.REGISTER_EVENT, (ctx)-> {
             if (ctx.getRegistryKey() != entryKey) return;
+
             ResourceLocation id = transform(
                     ResourceLocationModifiers.ID,
                     ResourceLocation.fromNamespaceAndPath("minecraft", name)
             );
+            LOGGER.info("Posting deferred registry entry: {} to {}", id, entryKey.location());
             value = this.createObject(id);
             Holder<R> localHolder = DeferredHolder.create(entryKey, id);
             if(this.holder instanceof DeferredFillHolder<R> dfh) {

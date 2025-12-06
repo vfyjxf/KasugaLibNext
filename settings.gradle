@@ -8,6 +8,7 @@ plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '0.9.0'
 }
 
+rootProject.name = 'KasugaLibNext'
 
 include ':modules:utils'
 include ':modules:core'
@@ -15,7 +16,10 @@ include ':modules:inject'
 include ':modules:create'
 include ':modules:scripting'
 include ':modules:modelling'
-include ':modules:annotation-processor'
+include ':modules:generator'
 include ':modules:multiversion'
+include ':modules:annotations'
+include ':modules:library'
+include ':external:slp:javet'
 
 

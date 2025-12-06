@@ -1,7 +1,7 @@
 package lib.kasuga.core.networking.rpc;
 
 import lib.kasuga.registration.Reg;
-import lib.kasuga.registration.minecraft.payload.PayloadReg;
+import lib.kasuga.registration.minecraft_old.payload.PayloadReg;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -14,7 +14,6 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.concurrent.CompletableFuture;
-
 public abstract class RpcApi<T extends CustomPacketPayload, S extends RpcApi<T, S>> {
     PayloadReg<T> requestRegistration;
     private boolean mainThread = false;
@@ -112,7 +111,7 @@ public abstract class RpcApi<T extends CustomPacketPayload, S extends RpcApi<T, 
         protected RpcSessionManager<R> sessionManager = new RpcSessionManager<>();
         PayloadReg<IdentifiedRpcPacketType<R>.Packet> responseRegistration;
         PayloadReg<IdentifiedRpcPacketType<Error>.Packet> errorRegistration;
-        WithResponse(String name) {
+        public WithResponse(String name) {
             super(name);
 
             requestSerializer = new IdentifiedRpcPacketType<>(()->requestRegistration.getEntry(), this::getRequestPayloadCodec);

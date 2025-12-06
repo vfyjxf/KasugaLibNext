@@ -1,12 +1,10 @@
 package lib.kasuga.test.registration.minecraft.payload;
 
-import com.mojang.serialization.Codec;
-import io.netty.buffer.ByteBuf;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
-import lib.kasuga.registration.minecraft.payload.PayloadReg;
-import lib.kasuga.registration.minecraft.payload.PayloadStage;
+import lib.kasuga.registration.minecraft_old.payload.PayloadReg;
+import lib.kasuga.registration.minecraft_old.payload.PayloadStage;
 import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;

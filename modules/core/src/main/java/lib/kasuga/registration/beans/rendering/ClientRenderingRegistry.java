@@ -3,10 +3,13 @@ package lib.kasuga.registration.beans.rendering;
 import com.mojang.logging.LogUtils;
 import io.micronaut.context.annotation.Replaces;
 import jakarta.inject.Singleton;
+import lib.kasuga.content.document.DocumentComponentType;
+import lib.kasuga.content.document.DocumentItemRenderer;
 import lib.kasuga.inject.class_loader.BeanOnlyIn;
 import lib.kasuga.inject.auto_configure.Configurable;
-import lib.kasuga.registration.minecraft.block_entity.renderer.BlockEntityRendererBuilder;
-import lib.kasuga.registration.minecraft.entity.renderer.EntityRendererBuilder;
+import lib.kasuga.registration.kasuga.document.DocumentComponentRendererSupplier;
+import lib.kasuga.registration.minecraft_old.block_entity.renderer.BlockEntityRendererBuilder;
+import lib.kasuga.registration.minecraft_old.entity.renderer.EntityRendererBuilder;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -45,5 +48,10 @@ public class ClientRenderingRegistry implements RenderingRegistry, Configurable 
     @Override
     public <E extends Entity> void registerEntityRenderer(EntityType<E> validEntity, Supplier<EntityRendererBuilder<E>> provider) {
         EntityRenderers.register(validEntity, provider.get()::build);
+    }
+
+    @Override
+    public <T, S extends DocumentComponentType<T>> void registerDocumentComponentRenderer(S componentType, Supplier<DocumentComponentRendererSupplier<T>> rendererSupplier) {
+        DocumentItemRenderer.registerComponentRenderer(componentType, rendererSupplier.get().get());
     }
 }

@@ -3,7 +3,7 @@ package lib.kasuga.test.registration.minecraft.block;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
-import lib.kasuga.registration.minecraft.block.BlockReg;
+import lib.kasuga.registration.minecraft_old.block.BlockReg;
 import lib.kasuga.test.registration.minecraft.block_entity.TestBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;

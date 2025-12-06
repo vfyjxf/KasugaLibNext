@@ -9,8 +9,19 @@ plugins {
 version = mod_version
 group = mod_group_id
 
+// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+apply plugin: builder.kasuga.KasugaGeneratorPlugin
+
 repositories {
     // Add here additional repositories if required by some of the dependencies below.
+    maven {
+        url "https://maven.squiddev.cc"
+        content {
+            includeGroup("cc.tweaked")
+        }
+    }
 }
 
 base {
@@ -27,25 +38,26 @@ test {
 }
 
 sourceSets {
-    generator
+    contentTesting {
+        java {
+            srcDir 'src/contentTesting/java'
+        }
+        resources {
+            srcDir 'src/contentTesting/resources'
+        }
+
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
 }
 
-tasks.register('runGenerator', JavaExec) {
-    classpath = sourceSets.generator.runtimeClasspath
-    mainClass = 'lib.kasuga.internal.generator.KasugaCodeGen'
-    args = [project.sourceSets.main.java.srcDirs.first().absolutePath, "$buildDir/generated/sources/codegen/java/main"]
-}
-
-configurations {
-    generatorImplementation.extendsFrom implementation
-    generatorRuntimeOnly.extendsFrom runtimeOnly
-}
-
-compileJava.dependsOn(runGenerator)
 sourceSets.main.java.srcDir("$buildDir/generated/sources/codegen/java/main")
 
-// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+useGenerator()
+
 
 neoForge {
     // Specify the version of NeoForge to use.
@@ -64,7 +76,6 @@ neoForge {
     runs {
         client {
             client()
-
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
@@ -115,6 +126,7 @@ neoForge {
         // multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.contentTesting)
             sourceSet(project(":modules:inject").sourceSets.main)
         }
     }
@@ -186,11 +198,24 @@ dependencies {
 
     annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
 
+
+    // implementation 'org.jgrapht:jgrapht-core:1.5.2'
+
+    // implementation("cc.tweaked:cc-tweaked-$minecraft_version-forge:$cct_version")
+
+    additionalRuntimeClasspath 'org.jgrapht:jgrapht-core:1.5.2'
+    shadowLibrary 'org.jgrapht:jgrapht-core:1.5.2'
+
+    additionalRuntimeClasspath 'com.google.zxing:core:3.5.3'
+    shadowLibrary 'com.google.zxing:core:3.5.3'
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-    generatorImplementation 'com.github.javaparser:javaparser-core:3.25.4'
+    testAnnotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
 
+    contentTestingAnnotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
+    // generatorImplementation 'org.jetbrains.annotations:24.1.0'
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -219,6 +244,7 @@ sourceSets.main.resources.srcDir generateModMetadata
 // To avoid having to run "generateModMetadata" manually, make it run on every project reload
 neoForge.ideSyncTask generateModMetadata
 
+
 // Example configuration to allow publishing using the maven-publish plugin
 publishing {
     publications {
@@ -233,19 +259,22 @@ publishing {
     }
 }
 
-import kasuga.MicronautServiceShadowTransformer
+import builder.kasuga.MicronautServiceShadowTransformer
+import org.gradle.api.internal.tasks.TaskDependencyResolveContext
 
 shadowJar {
     mergeServiceFiles()
     configurations = [project.configurations.shadowLibrary]
-    archiveClassifier.set('')
+    archiveClassifier.set('all')
 
     transform(MicronautServiceShadowTransformer) {}
 
     relocate 'io.micronaut', 'lib.kasuga.vendors.io.micronaut'
     relocate 'jakarta.inject', 'lib.kasuga.vendors.jakarta.inject'
     relocate 'jakarta.annotation', 'lib.kasuga.vendors.jakarta.annotation'
+    relocate 'lib.kasuga.inject', 'lib.kasuga.vendors.inject'
 }
+
 
 assemble.dependsOn shadowJar
 

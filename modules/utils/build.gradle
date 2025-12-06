@@ -5,8 +5,8 @@ plugins {
     id 'idea'
 }
 
-group = 'lib.kasuga.annotation'
-version = 'unspecified'
+group = mod_group_id
+version = mod_version
 
 repositories {
     mavenCentral()
@@ -22,7 +22,7 @@ test {
 }
 
 base {
-    archivesName = mod_id
+    archivesName = 'utils'
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -63,4 +63,12 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes(
+                'FMLModType': "GAMELIBRARY"
+        )
+    }
 }

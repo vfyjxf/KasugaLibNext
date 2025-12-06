@@ -28,6 +28,23 @@ test {
     useJUnitPlatform()
 }
 
+sourceSets {
+    contentTesting {
+        java {
+            srcDir 'src/contentTesting/java'
+        }
+        resources {
+            srcDir 'src/contentTesting/resources'
+        }
+
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
 
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -78,7 +95,12 @@ neoForge {
             // Inlcude the core subproject as a dependency.
             sourceSet(project(':modules:core').sourceSets.main)
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.contentTesting)
         }
+    }
+
+    unitTest {
+        enable()
     }
 }
 
@@ -99,20 +121,29 @@ dependencies {
         exclude group : 'org.slf4j', module: 'slf4j-api'
     }
 
+
+    implementation project(":modules:core")
+
     implementation project(":modules:inject")
-    additionalRuntimeClasspath project(":modules:inject")
+
+    implementation project(":modules:utils")
+
+    implementation project(":modules:annotations")
 
     annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
 
+    contentTestingAnnotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
 
-    implementation("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
-    implementation("net.createmod.ponder:Ponder-NeoForge-${minecraft_version}:${ponder_version}")
-    compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-${minecraft_version}:${flywheel_version}")
-    runtimeOnly("dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}")
-    implementation("com.tterrag.registrate:Registrate:${registrate_version}")
+    implementation("com.google.guava:guava:32.1.2-jre")
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    compileOnly("org.projectlombok:lombok:1.18.42")
+    annotationProcessor("org.projectlombok:lombok:1.18.42")
+
+    testCompileOnly("org.projectlombok:lombok:1.18.42")
+    testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

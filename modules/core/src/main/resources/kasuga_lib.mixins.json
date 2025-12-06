@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "package": "lib.kasuga.mixins",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CompositePackResourcesAccess",
+    "FilePackResourcesMixin",
+    "MinecraftServerAccess",
+    "MinecraftServerMixin",
+    "PathPackResourcesMixin",
+    "SharedZipFileAccessAccess"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "client": [
+    "ItemInHandRendererAccess",
+    "MixinItemInHandRenderer"
+  ]
+}

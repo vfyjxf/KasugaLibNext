@@ -1,0 +1,8 @@
+name = "@kasugalibnext/test"
+version = "0.0.1"
+description = "Test package for KasugaLibNext"
+authors = ["KasugaLibNext Contributors"]
+license = "MIT"
+workspaces = [
+    "./packages/*"
+]

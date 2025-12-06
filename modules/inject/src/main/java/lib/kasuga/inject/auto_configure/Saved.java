@@ -5,6 +5,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,18 +33,27 @@ public interface Saved<T extends SavedData> {
                 if(level == null) {
                     throw new IllegalArgumentException("The dimension " + dim + " is not loaded.");
                 }
-                return level.getDataStorage().get(factory, name);
+                return level.getDataStorage().computeIfAbsent(factory, name);
             });
         }
 
 
         public void onLoad(MinecraftServer server) {
+            onUnload();
             this.server = server;
         }
 
         public void onUnload() {
             this.server = null;
             this.dataMap.clear();
+        }
+
+        public void onServerStart(ServerStartedEvent startedEvent) {
+            this.onLoad(startedEvent.getServer());
+        }
+
+        public void onServerStop(ServerStoppingEvent event) {
+            this.onUnload();
         }
 
         @Override
@@ -54,4 +65,6 @@ public interface Saved<T extends SavedData> {
     T get();
 
     T get(ResourceKey<Level> levelResourceKey);
+
+    public void onLoad(MinecraftServer server);
 }
