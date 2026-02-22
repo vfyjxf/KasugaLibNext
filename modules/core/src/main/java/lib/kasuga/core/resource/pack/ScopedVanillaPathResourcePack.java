@@ -55,8 +55,7 @@ public class ScopedVanillaPathResourcePack implements HierarchicalScopedPackReso
     public Path resolve(String prefix, String path){
         if(path.startsWith("/"))
             path = path.substring(1);
-        path = "/" + path;
-        return this.source.resolve(path);
+        return this.source.resolve(prefix).resolve(path);
     }
 }
 

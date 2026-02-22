@@ -22,6 +22,15 @@ import java.util.zip.ZipInputStream;
 
 public class JavetDownloader implements IJavetLibLoadingListener {
     private static Logger LOGGER = LogUtils.getLogger();
+
+    protected static volatile boolean isLibraryPresent = false;
+
+    protected static final Object lock = new Object();
+
+    public static boolean libraryDownloaded() {
+        return isLibraryPresent;
+    }
+
     public record Source(String sourceName, MessageFormat normalUrl){
         private String getOSArch() {
             // Copied from JaVeT's Lib Loader (JavetLibLoader.java)
@@ -86,7 +95,7 @@ public class JavetDownloader implements IJavetLibLoadingListener {
 
     public static File tryDownload(JSRuntimeType runtimeType) {
         JavetLibLoader loader = new JavetLibLoader(runtimeType);
-        File v8Path = new File(FMLLoader.getGamePath().toFile().getParentFile(), "native-libraries/javet");
+        File v8Path = new File(FMLLoader.getGamePath().toFile(), "native-libraries/javet");
 
         if(!v8Path.exists()){
             v8Path.mkdirs();
@@ -185,6 +194,9 @@ public class JavetDownloader implements IJavetLibLoadingListener {
                                 outputStream.close();
                                 progress.complete(); // 传输完成
 
+                                if(v8File.exists())
+                                    return v8File;
+
                                 if(!downloadFile.renameTo(v8File)) {
                                     throw new RuntimeException("Failed to move the download file! Check the permission");
                                 }
@@ -207,7 +219,24 @@ public class JavetDownloader implements IJavetLibLoadingListener {
 
     @Override
     public File getLibPath(JSRuntimeType jsRuntimeType) {
-        return tryDownload(jsRuntimeType);
+        File f = tryDownload(jsRuntimeType);
+        isLibraryPresent = true;
+        synchronized (lock) {
+            lock.notifyAll();
+        }
+        return f;
+    }
+
+    public static void waitForDownload() {
+        synchronized (lock) {
+            while (!isLibraryPresent) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
     }
 
     @Override

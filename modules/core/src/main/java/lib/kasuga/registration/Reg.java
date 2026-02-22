@@ -29,7 +29,7 @@ public abstract class Reg<S extends Reg<?, ?>, T> implements TransformerProvider
         return self();
     }
 
-    public S configure(Consumer<S> consumer) {
+    public S configure(Consumer<? super S> consumer) {
         consumer.accept(self());
         return self();
     }

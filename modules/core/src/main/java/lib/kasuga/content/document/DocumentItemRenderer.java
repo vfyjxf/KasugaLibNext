@@ -42,7 +42,7 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
         }
     }
 
-    public static void renderItemInOneHand(
+    public void renderItemInOneHand(
             ItemInHandRenderer itemInHandRenderer,
             PoseStack poseStack,
             MultiBufferSource buffer,
@@ -84,7 +84,7 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
         return -Mth.cos(f * 3.1415927F) * 0.5F + 0.5F;
     }
 
-    public static void renderItemInTwoHand(
+    public void renderItemInTwoHand(
             ItemInHandRenderer itemInHandRenderer,
             PoseStack poseStack,
             MultiBufferSource buffer,
@@ -117,7 +117,7 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
         renderItem(stack, buffer, poseStack, packedLight);
     }
 
-    public static void renderArm(PoseStack poseStack, MultiBufferSource buffer, int packedLight, HumanoidArm side){
+    public void renderArm(PoseStack poseStack, MultiBufferSource buffer, int packedLight, HumanoidArm side){
         AbstractClientPlayer player = Minecraft.getInstance().player;
         assert player != null;
         PlayerRenderer playerRenderer = (PlayerRenderer) Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(
@@ -138,7 +138,7 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
         poseStack.popPose();
     }
 
-    public static void renderItem(ItemStack stack, MultiBufferSource bufferSource, PoseStack poseStack, int light) {
+    public void renderItem(ItemStack stack, MultiBufferSource bufferSource, PoseStack poseStack, int light) {
         if(!stack.getComponents().has(DocumentItem.DOCUMENT_COMPONENT.get()))
             return;
         Map<Holder<DocumentComponentType<?>>, Object> components =
@@ -153,6 +153,8 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
         poseStack.translate(-0.5F, -0.5F, 0.0F);
         poseStack.scale(0.0078125F, 0.0078125F, 0.0078125F);
 
+        this.renderBackground(stack, bufferSource, poseStack, light);
+
         for (Map.Entry<Holder<DocumentComponentType<?>>, Object> entries : components.entrySet()) {
             Holder<DocumentComponentType<?>> holder = entries.getKey();
             Object componentValue = entries.getValue();
@@ -161,6 +163,11 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
                 continue;
             castRender(renderer,componentValue, stack, bufferSource, poseStack, light);
         }
+
+    }
+
+    protected void renderBackground(ItemStack stack, MultiBufferSource bufferSource, PoseStack poseStack, int light) {
+
     }
 
     @SuppressWarnings("unchecked")

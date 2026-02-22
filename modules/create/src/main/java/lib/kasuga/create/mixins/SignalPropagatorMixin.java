@@ -14,6 +14,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class SignalPropagatorMixin {
     @Inject(method = "notifySignalsOfNewNode", at = @At("TAIL"))
     private static void onNotifySignalsOfNewNode(TrackGraph graph, TrackNode node, CallbackInfo callbackInfo){
-        KasugaLib.getContext().getBean(CustomTrackSegmentPropagator.class).notifyNewNode(graph, node);
+        KasugaLib.getBean(CustomTrackSegmentPropagator.class).notifyNewNode(graph, node);
     }
 }

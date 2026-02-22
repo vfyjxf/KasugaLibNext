@@ -1,6 +1,6 @@
 package lib.kasuga.test.registration.minecraft.entity;
 
-import lib.kasuga.registration.minecraft_old.entity.renderer.EntityRendererBuilder;
+import lib.kasuga.registration.minecraft.entity.EntityRendererBuilder;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;

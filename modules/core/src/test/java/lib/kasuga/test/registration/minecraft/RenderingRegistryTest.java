@@ -5,8 +5,8 @@ import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
 import lib.kasuga.registration.beans.rendering.DefaultRenderingRegistry;
 import lib.kasuga.registration.beans.rendering.RenderingRegistry;
-import lib.kasuga.registration.minecraft_old.block_entity.renderer.BlockEntityRendererReg;
-import lib.kasuga.registration.minecraft_old.entity.renderer.EntityRendererReg;
+import lib.kasuga.registration.minecraft.block_entity.BlockEntityRendererReg;
+import lib.kasuga.registration.minecraft.entity.EntityRendererReg;
 import lib.kasuga.test.registration.minecraft.block_entity.BlockEntityRegistryTest;
 import lib.kasuga.test.registration.minecraft.block_entity.TestBlockEntityRenderer;
 import lib.kasuga.test.registration.minecraft.block_entity.TestCustomBlockEntity;
@@ -27,19 +27,19 @@ public class RenderingRegistryTest {
     
     // 实体渲染器注册
     public static EntityRendererReg<TestEntity> TEST_ENTITY_RENDERER =
-            new EntityRendererReg<>(() -> new TestEntityRenderer(null))
-            .withEntity(EntityRegistryTest.TEST_CREATURE_ENTITY)
+            new EntityRendererReg<>(() -> TestEntityRenderer::new)
+            .withEntity(EntityRegistryTest.TEST_CREATURE_ENTITY::getEntry)
             .setParent(registry);
     
-    public static EntityRendererReg<TestProjectileEntity> TEST_PROJECTILE_RENDERER =
-            new EntityRendererReg<>(() -> new TestProjectileEntityRenderer(null))
-            .withEntity(EntityRegistryTest.TEST_PROJECTILE_ENTITY)
+    public static EntityRendererReg<TestEntity> TEST_PROJECTILE_RENDERER =
+            new EntityRendererReg<>(() -> TestEntityRenderer::new)
+            .withEntity(EntityRegistryTest.TEST_PROJECTILE_ENTITY::getEntry)
             .setParent(registry);
     
     // 方块实体渲染器注册
     public static BlockEntityRendererReg<TestCustomBlockEntity> TEST_BLOCK_ENTITY_RENDERER =
             new BlockEntityRendererReg<>(() -> new TestBlockEntityRenderer(null))
-            .withBlockEntity(BlockEntityRegistryTest.TEST_CUSTOM_BLOCK_ENTITY)
+            .withBlockEntity(BlockEntityRegistryTest.TEST_CUSTOM_BLOCK_ENTITY::getEntry)
             .setParent(registry);
 
     @Test
@@ -55,7 +55,7 @@ public class RenderingRegistryTest {
             LOGGER.info("All renderer registration objects created successfully");
             
             // 获取RenderingRegistry bean
-            RenderingRegistry renderingRegistry = KasugaLib.getContext().getBean(RenderingRegistry.class);
+            RenderingRegistry renderingRegistry = KasugaLib.getBean(RenderingRegistry.class);
             assert renderingRegistry != null;
             
             // 在服务端，这应该是DefaultRenderingRegistry实例

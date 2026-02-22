@@ -1,6 +1,8 @@
 package lib.kasuga.scripting;
 
 import io.micronaut.context.annotation.Context;
+import jakarta.inject.Inject;
+import lib.kasuga.KasugaLib;
 import lib.kasuga.core.resource.ScopedResourceManager;
 import lib.kasuga.core.resource.ScopedResourceManagerConsumer;
 import net.minecraft.server.MinecraftServer;
@@ -19,6 +21,7 @@ public class ScriptingSystem implements ScopedResourceManagerConsumer {
     @Override
     public void onResourceManagerAdded(@Nullable MinecraftServer server, ScopedResourceManager resourceManager) {
         ScriptRuntime rt = new ScriptRuntime(server, resourceManager);
+        KasugaLib.getContext().inject(rt);
         runtime.put(resourceManager, rt);
         resourceManager.addListener(rt);
         serverRuntime.put(server, rt);

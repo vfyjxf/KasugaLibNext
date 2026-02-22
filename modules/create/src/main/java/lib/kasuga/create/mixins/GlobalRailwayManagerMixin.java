@@ -25,8 +25,8 @@ public class GlobalRailwayManagerMixin {
 
     @Inject(method = "loadTrackData", at = @At("TAIL"))
     public void onLoadTrackData(MinecraftServer server, CallbackInfo ci){
-        KasugaLib.getContext().getBean(RailwayManager.class).load(server);
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().syncExtraData(Create.RAILWAYS.trackNetworks.keySet());
+        KasugaLib.getBean(RailwayManager.class).load(server);
+        KasugaLib.getBean(RailwayManager.class).getData().syncExtraData(Create.RAILWAYS.trackNetworks.keySet());
         trackNetworks.forEach(((uuid, graph) -> {
             HashSet<TrackEdge> edges = new HashSet<>();
             for (Map<TrackNode, TrackEdge> value : ((TrackGraphAccessor) graph).getConnectionsByNode().values()) {
@@ -34,24 +34,24 @@ public class GlobalRailwayManagerMixin {
                     edges.add(edge);
                 }
             }
-            KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(graph).syncWithExternal(edges);
+            KasugaLib.getBean(RailwayManager.class).getData().withGraph(graph).syncWithExternal(edges);
         }));
     }
 
     @Inject(method = "putGraph", at = @At("TAIL"))
     public void onPutGraph(TrackGraph graph, CallbackInfo ci){
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().createExtraData(graph.id);
+        KasugaLib.getBean(RailwayManager.class).getData().createExtraData(graph.id);
     }
 
     @Inject(method = "removeGraph", at = @At("TAIL"))
     public void onRemoveGraph(TrackGraph graph, CallbackInfo ci){
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().removeExtraData(graph.id);
+        KasugaLib.getBean(RailwayManager.class).getData().removeExtraData(graph.id);
     }
 
     @Inject(method = "tick", at=@At("HEAD"))
     public void onTick(Level level, CallbackInfo ci){
         if(level.dimension() != Level.OVERWORLD)
             return;
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().onEarlyGlobalTick(level);
+        KasugaLib.getBean(RailwayManager.class).getData().onEarlyGlobalTick(level);
     }
 }

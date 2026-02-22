@@ -4,7 +4,7 @@ import io.micronaut.context.annotation.Context;
 import lib.kasuga.registration.kasuga.document.DocumentComponentReg;
 import lib.kasuga.registration.kasuga.document.DocumentComponentRendererReg;
 import lib.kasuga.registration.kasuga.document.DocumentComponentTypes;
-import lib.kasuga.registration.minecraft_old.item.ItemReg;
+import lib.kasuga.registration.minecraft.item.ItemReg;
 import test.kasuga.core.CoreTestApplication;
 
 @Context()

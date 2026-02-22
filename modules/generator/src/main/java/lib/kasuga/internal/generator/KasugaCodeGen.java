@@ -36,9 +36,6 @@ public class KasugaCodeGen {
         String mainSrcDir = args[0];
         String generatedDir = args[1];
         String classPath = args[2];
-        System.out.println(mainSrcDir);
-        System.out.println(generatedDir);
-        System.out.println(classPath);
         doGeneration(Path.of(mainSrcDir).toFile(), Path.of(generatedDir).toFile(), classPath);
     }
 
@@ -61,7 +58,6 @@ public class KasugaCodeGen {
         for (String path : classPathEntries) {
             File file = new File(path);
 
-            // 确保路径存在且有效
             if (!file.exists()) {
                 System.out.println("Warning: Classpath entry not found: " + path);
                 continue;
@@ -69,17 +65,13 @@ public class KasugaCodeGen {
 
             try {
                 if (file.isDirectory()) {
-                    // 对于目录，使用 JavaParserTypeSolver (它能解析编译后的 .class 文件和未编译的 .java 文件)
-                    // 如果这些目录只包含编译后的 .class 文件，它也能工作。
                     combinedTypeSolver.add(new JavaParserTypeSolver(file));
                     combinedTypeSolver.add(new JarTypeSolver(file));
                 } else if (file.getName().toLowerCase().endsWith(".jar")) {
-                    // 对于 JAR 文件，使用 JarTypeSolver
                     combinedTypeSolver.add(new JarTypeSolver(path));
                 }
             } catch (Exception e) {
                 System.err.println("Error adding TypeSolver for " + path + ": " + e.getMessage());
-                // 可以选择在这里跳过错误的 TypeSolver，继续处理下一个
             }
         }
 
@@ -100,6 +92,9 @@ public class KasugaCodeGen {
         }).toList();
 
         HashMap<String, List<GenerationPair>> toGenerate = new HashMap<>();
+
+        System.out.println("Compiling " + parseResults.size() + " files.");
+
 
         for (int i = 0; i < parseResults.size(); i++) {
             ParseResult<CompilationUnit> parseResult = parseResults.get(i);
@@ -130,13 +125,15 @@ public class KasugaCodeGen {
                     if(Objects.equals(expr.getQualifiedName(), CodeTemplate.class.getName())){
                         List<MemberValuePair> pair = annotation.asAnnotationExpr().getChildNodes().stream().filter(x->x instanceof MemberValuePair).map(x->(MemberValuePair)x).toList();
                         for (MemberValuePair memberValuePair : pair) {
-                            if(Objects.equals(memberValuePair.getNameAsString(), "lib/kasuga/internal/generator") && memberValuePair.getValue().isStringLiteralExpr()) {
+                            if(Objects.equals(memberValuePair.getNameAsString(), "generator") && memberValuePair.getValue().isStringLiteralExpr()) {
                                 generatorName = memberValuePair.getValue().asStringLiteralExpr().getValue();
                                 break;
                             }
                         }
                     }
-                }catch (UnsolvedSymbolException e) {}
+                }catch (UnsolvedSymbolException e) {
+                    e.printStackTrace();
+                }
                 if(generatorName != null) break;
             }
             if(generatorName == null)
@@ -147,6 +144,10 @@ public class KasugaCodeGen {
 
             parseResult.getResult().get().setStorage(src.toPath().relativize(f.toPath()));
         }
+
+
+        System.out.println("Generating code for " + toGenerate.size() + " generators.");
+
 
         for (String gen : toGenerate.keySet()) {
             for (GenerationPair generationPair : toGenerate.get(gen)) {
@@ -183,19 +184,27 @@ public class KasugaCodeGen {
                                 generationPair.unit().getPrimaryType().get().addAnnotation(annotation);
                             }
                         }
-                    }catch(UnsolvedSymbolException exception) {}
+                    }catch(UnsolvedSymbolException exception) {
+                        exception.printStackTrace();
+                    }
                     break;
                 }
 
-                CompilationUnit generated = generator.generate(generationPair.unit(), writer);
-                SourceCodeWriter.postProcess(generated);
 
-                outFile.getParent().toFile().mkdirs();
-                try {
+
+                try{
+                    CompilationUnit generated = generator.generate(generationPair.unit(), writer);
+
+                    SourceCodeWriter.postProcess(generated);
+
+                    outFile.getParent().toFile().mkdirs();
+
+                    System.out.println("Writing generated file from " +generationPair.in().toString() + " to " + outFile.toString());
+
                     Files.writeString(outFile, generated.toString());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                } catch (Exception e) {
+                throw new RuntimeException("Failed to generate file " + outFile.toString(), e);
+            }
             }
         }
     }

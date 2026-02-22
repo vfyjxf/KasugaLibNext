@@ -4,7 +4,7 @@ import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
 import lib.kasuga.registration.beans.rendering.RenderingRegistry;
-import lib.kasuga.registration.minecraft_old.block_entity.renderer.BlockEntityRendererReg;
+import lib.kasuga.registration.minecraft.block_entity.BlockEntityRendererReg;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.testframework.junit.EphemeralTestServerProvider;
 import org.junit.jupiter.api.Test;
@@ -21,8 +21,8 @@ public class BlockEntityRendererRegistryTest {
     
     // 为测试方块实体注册渲染器
     public static BlockEntityRendererReg<TestCustomBlockEntity> TEST_BLOCK_ENTITY_RENDERER =
-            new BlockEntityRendererReg<>(() -> new TestBlockEntityRenderer(null))
-            .withBlockEntity(BlockEntityRegistryTest.TEST_CUSTOM_BLOCK_ENTITY)
+            new BlockEntityRendererReg<>(() -> TestBlockEntityRenderer::new)
+            .withBlockEntity(BlockEntityRegistryTest.TEST_CUSTOM_BLOCK_ENTITY::getEntry)
             .setParent(registry);
 
     @Test
@@ -35,7 +35,7 @@ public class BlockEntityRendererRegistryTest {
             assert TEST_BLOCK_ENTITY_RENDERER != null;
             
             // 获取RenderingRegistry bean
-            RenderingRegistry renderingRegistry = KasugaLib.getContext().getBean(RenderingRegistry.class);
+            RenderingRegistry renderingRegistry = KasugaLib.getBean(RenderingRegistry.class);
             assert renderingRegistry != null;
             
             // 在服务端，这应该是DefaultRenderingRegistry实例，会输出日志但不实际注册
@@ -44,7 +44,7 @@ public class BlockEntityRendererRegistryTest {
             // 手动触发注册以验证日志输出
             renderingRegistry.registerBlockEntityRenderer(
                 BlockEntityRegistryTest.TEST_CUSTOM_BLOCK_ENTITY.getEntry(),
-                () -> new TestBlockEntityRenderer(null)
+                () -> TestBlockEntityRenderer::new
             );
             
             LOGGER.info("Block entity renderer registration test completed - should see debug logs for ignored registrations");

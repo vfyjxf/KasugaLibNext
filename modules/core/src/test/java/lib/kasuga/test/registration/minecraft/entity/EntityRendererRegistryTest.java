@@ -4,7 +4,7 @@ import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
 import lib.kasuga.registration.beans.rendering.RenderingRegistry;
-import lib.kasuga.registration.minecraft_old.entity.renderer.EntityRendererReg;
+import lib.kasuga.registration.minecraft.entity.EntityRendererReg;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.testframework.junit.EphemeralTestServerProvider;
 import org.junit.jupiter.api.Test;
@@ -20,15 +20,15 @@ public class EntityRendererRegistryTest {
     public static Registry registry = KasugaLibRegistry.getRegistryOf(KasugaLib.MODID);
     
     // 为测试实体注册渲染器
-    public static EntityRendererReg<TestEntity> TEST_ENTITY_RENDERER = 
-            new EntityRendererReg<>(() -> new TestEntityRenderer(null))
-            .withEntity(EntityRegistryTest.TEST_CREATURE_ENTITY)
+    public static EntityRendererReg<TestEntity> TEST_ENTITY_RENDERER =
+            new EntityRendererReg<>(() -> TestEntityRenderer::new)
+            .withEntity(EntityRegistryTest.TEST_CREATURE_ENTITY::getEntry)
             .setParent(registry);
     
     // 为投射物实体注册渲染器  
     public static EntityRendererReg<TestProjectileEntity> TEST_PROJECTILE_RENDERER = 
-            new EntityRendererReg<>(() -> new TestProjectileEntityRenderer(null))
-            .withEntity(EntityRegistryTest.TEST_PROJECTILE_ENTITY)
+            new EntityRendererReg<>(() -> TestProjectileEntityRenderer::new)
+            .withEntity(EntityRegistryTest.TEST_PROJECTILE_ENTITY::getEntry)
             .setParent(registry);
 
     @Test
@@ -42,7 +42,7 @@ public class EntityRendererRegistryTest {
             assert TEST_PROJECTILE_RENDERER != null;
             
             // 获取RenderingRegistry bean
-            RenderingRegistry renderingRegistry = KasugaLib.getContext().getBean(RenderingRegistry.class);
+            RenderingRegistry renderingRegistry = KasugaLib.getBean(RenderingRegistry.class);
             assert renderingRegistry != null;
             
             // 在服务端，这应该是DefaultRenderingRegistry实例，会输出日志但不实际注册
@@ -50,13 +50,13 @@ public class EntityRendererRegistryTest {
             
             // 手动触发注册以验证日志输出
             renderingRegistry.registerEntityRenderer(
-                EntityRegistryTest.TEST_CREATURE_ENTITY.getEntry(), 
-                () -> new TestEntityRenderer(null)
+                EntityRegistryTest.TEST_CREATURE_ENTITY.getEntry(),
+                () -> TestEntityRenderer::new
             );
             
             renderingRegistry.registerEntityRenderer(
                 EntityRegistryTest.TEST_PROJECTILE_ENTITY.getEntry(),
-                () -> new TestProjectileEntityRenderer(null)
+                () -> TestProjectileEntityRenderer::new
             );
             
             LOGGER.info("Entity renderer registration test completed - should see debug logs for ignored registrations");

@@ -18,7 +18,7 @@ public abstract class CustomBoundary extends SingleBlockEntityEdgePoint {
     Map<Boolean, Boolean> dirty = new HashMap<>();
 
     protected CustomBoundary(){
-        this.propagator = KasugaLib.getContext().getBean(CustomTrackSegmentPropagator.class);
+        this.propagator = KasugaLib.getBean(CustomTrackSegmentPropagator.class);
         dirty.put(false,true);
         dirty.put(true,true);
     }

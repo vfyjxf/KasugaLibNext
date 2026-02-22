@@ -1,9 +1,12 @@
 package lib.kasuga.internal.generator.generators.reg;
 
+import com.github.javaparser.JavaParser;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.*;
 import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.*;
+import com.github.javaparser.ast.nodeTypes.NodeWithSimpleName;
+import com.github.javaparser.ast.nodeTypes.NodeWithTypeParameters;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
@@ -15,8 +18,10 @@ import com.github.javaparser.resolution.types.ResolvedReferenceType;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.utils.Pair;
 import com.google.common.base.CaseFormat;
+import javassist.compiler.ast.NewExpr;
 import lib.kasuga.internal.generator.CodeGenerator;
 import lib.kasuga.internal.generator.SourceCodeWriter;
+import lib.kasuga.internal.generator.annotations.Prototype;
 import lib.kasuga.internal.generator.annotations.RegGenerator;
 
 import java.nio.file.Path;
@@ -25,6 +30,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RegCodeGen implements CodeGenerator {
     @Override
@@ -57,6 +63,30 @@ public class RegCodeGen implements CodeGenerator {
                 }
             });
         }
+
+        if(units.containsKey("Configurations")) {
+            ClassOrInterfaceDeclaration declaration = units.get("Configurations").getPrimaryType().orElseThrow().asClassOrInterfaceDeclaration();
+            ClassOrInterfaceDeclaration adapterType = new ClassOrInterfaceDeclaration(NodeList.nodeList(Modifier.publicModifier(), Modifier.staticModifier()), false, "Adapter");
+
+            adapterType.addExtendedType("lib.kasuga.registration.core.ConfigureAdapter<Adapter>");
+            adapterType.addImplementedType(new ClassOrInterfaceType(null, new SimpleName(declaration.getNameAsString()), NodeList.nodeList(new ClassOrInterfaceType(null, "Adapter"))));
+
+            MethodDeclaration adapterAdoptMethod = new MethodDeclaration(NodeList.nodeList(Modifier.publicModifier(), Modifier.staticModifier()), new ClassOrInterfaceType(null, "Adapter"), "toAdapter");
+
+            adapterAdoptMethod.addParameter(StaticJavaParser.parseType("IModifierConfigure<?>"), "configure");
+
+            adapterType.addConstructor().addParameter(StaticJavaParser.parseType("IModifierConfigure<?>"), "configure").setBody(new BlockStmt(NodeList.nodeList(StaticJavaParser.parseStatement("super(configure);"))));
+
+            adapterAdoptMethod.setBody(new BlockStmt(NodeList.nodeList(StaticJavaParser.parseStatement("return new Adapter(configure);"))));
+
+            declaration.getMembers().addLast(adapterType);
+            declaration.getMembers().addLast(adapterAdoptMethod);
+
+            units.get("Configurations").addImport(Consumer.class);
+
+            declaration.getMembers().addLast(StaticJavaParser.parseMethodDeclaration("public static Consumer<IModifierConfigure<?>> adopt(Consumer<Adapter> transformed) { return (u)->transformed.accept(toAdapter(u)); }"));
+        }
+
         units.forEach((k, v)->writer.write(Path.of(v.getStorage().orElseThrow().getFileName()), v));
         return source;
     }
@@ -130,6 +160,10 @@ public class RegCodeGen implements CodeGenerator {
     protected static String MODIFY_FUNCTION = RegGenerator.ModifyFunction.class.getName().replace("$", ".");
     protected static String CHILDREN_CONFIGURATION = RegGenerator.ChildrenConfiguration.class.getName().replace("$", ".");
 
+    protected static String MODIFY_APPLIER = RegGenerator.ModifierApplier.class.getCanonicalName();
+    protected static String CONFIGURE_MEMBER = RegGenerator.ConfigureMember.class.getCanonicalName();
+    protected static String PROTOTYPE = Prototype.class.getCanonicalName();
+
     protected static DataKey<Boolean> SELF_REFERENCE_PROCESSED = new DataKey<Boolean>() {};
 
     private void onAnnotation(AnnotationExpr annotationExpr, ResolvedAnnotationDeclaration annotationDeclaration, CompilationUnit source, Function<String, CompilationUnit> function) {
@@ -137,22 +171,102 @@ public class RegCodeGen implements CodeGenerator {
 
         if(Objects.equals(annotationName, MODIFIER)) {
             onModifierAnnotation(annotationExpr, annotationDeclaration, source, function);
+            return;
         }
 
         if(Objects.equals(annotationName, MODIFY_FUNCTION)) {
             onModifierFunctionAnnotation(annotationExpr, annotationDeclaration, source, function);
+            return;
         }
 
         if(Objects.equals(annotationName, SELF_REFERENCE)){
             onSelfReferenceAnnotation(annotationExpr, annotationDeclaration, source);
+            return;
         }
 
+        if(Objects.equals(annotationName, CONFIGURE_MEMBER)) {
+            onConfigureMember(annotationExpr, annotationDeclaration, source, function);
+            return;
+        }
+
+        if(Objects.equals(annotationName, CHILDREN_CONFIGURATION)) {
+            onChildrenConfiguration(annotationExpr, annotationDeclaration, source, function);
+        }
+
+        if(Objects.equals(annotationName, PROTOTYPE)) {
+            annotationExpr.getParentNode().ifPresent(Node::remove);
+        }
+
+    }
+
+    private void onChildrenConfiguration(AnnotationExpr annotationExpr, ResolvedAnnotationDeclaration annotationDeclaration, CompilationUnit source, Function<String, CompilationUnit> function) {
+        Node node = annotationExpr;
+        while(!(node instanceof MethodDeclaration methodDeclaration)) {
+            node = node.getParentNode().orElse(null);
+            if(node == null)
+                return;
+        }
+        annotationExpr.remove();
+        methodDeclaration.remove();
+        function.apply("ChildrenConfigurations").getPrimaryType().orElseThrow().addMember(methodDeclaration);
+        methodDeclaration.setDefault(true);
+        methodDeclaration.setFinal(false);
+        methodDeclaration.setType(new TypeParameter("S"));
+
+        methodDeclaration.getBody().orElseThrow().walk(ReturnStmt.class, r->{
+            Node p = r;
+            while(!(p instanceof MethodDeclaration declaration)) {
+                p = p.getParentNode().orElse(null);
+                if(p == null)
+                    return;
+                if(p instanceof LambdaExpr)
+                    return;
+            }
+            if(declaration != methodDeclaration)
+                return;
+            MethodCallExpr expr = new MethodCallExpr("addChild");
+            expr.setArguments(NodeList.nodeList(r.getExpression().orElseThrow()));
+            r.setExpression(expr);
+        });
+    }
+
+    private void onConfigureMember(AnnotationExpr annotationExpr, ResolvedAnnotationDeclaration annotationDeclaration, CompilationUnit source, Function<String, CompilationUnit> function) {
+        Node node = annotationExpr;
+        while(!(node instanceof MethodDeclaration methodDeclaration)) {
+            node = node.getParentNode().orElse(null);
+            if(node == null)
+                return;
+        }
+        annotationExpr.remove();
+        methodDeclaration.remove();
+        function.apply("Configurations").getPrimaryType().orElseThrow().addMember(methodDeclaration);
+        methodDeclaration.setDefault(true);
+        methodDeclaration.setFinal(false);
+        methodDeclaration.setType(new TypeParameter("S"));
+
+        methodDeclaration.getBody().orElseThrow().walk(MethodCallExpr.class, (expr)->{
+            if(!Objects.equals(expr.getNameAsString(), "callConfigure")) {
+                return;
+            }
+
+            NodeList<Expression> args = NodeList.nodeList(expr.getArguments());
+
+            Expression scope = args.removeFirst();
+            SimpleName name = new SimpleName(args.removeFirst().asStringLiteralExpr().getValue());
+
+            expr.replace(new MethodCallExpr(
+                    scope,
+                    name,
+                    args
+            ));
+        });
     }
 
     private void onModifierAnnotation(AnnotationExpr annotationExpr, ResolvedAnnotationDeclaration annotationDeclaration, CompilationUnit source, Function<String, CompilationUnit> function) {
         String type = null;
         ClassExpr target = null;
         ArrayInitializerExpr enumration = null;
+        String prefix = null;
         for (Node childNode : annotationExpr.getChildNodes()) {
             if(!(childNode instanceof MemberValuePair pair))
                 continue;
@@ -176,6 +290,10 @@ public class RegCodeGen implements CodeGenerator {
                     break;
                 case "enumeration":
                     enumration = pair.getValue().asArrayInitializerExpr();
+                    break;
+                case "prefix":
+                    prefix = pair.getValue().asStringLiteralExpr().getValue();
+                    break;
             }
         }
         if(type == null || target == null)
@@ -273,14 +391,14 @@ public class RegCodeGen implements CodeGenerator {
 
                 MethodDeclaration virtualMethod = new MethodDeclaration(
                     NodeList.nodeList(Modifier.publicModifier()),
-                    method.getName(),
+                    prefix == null ? method.getName() : prefix + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, method.getName()),
                     target.getType(),
                     virtualListParameter
                 );
 
                 virtualMethod.setBody(new BlockStmt(stmt));
 
-                createModifierInstance(type, virtualMethod, function, addImports);
+                createModifierInstance(type, virtualMethod, function, addImports, Set.of(), List.of());
             }
         }
     }
@@ -345,6 +463,7 @@ public class RegCodeGen implements CodeGenerator {
     private void onModifierFunctionAnnotation(AnnotationExpr annotationExpr, ResolvedAnnotationDeclaration annotationDeclaration, CompilationUnit source, Function<String, CompilationUnit> function) {
 
         String type = null;
+        List<Type> overrideParameterTypes = new ArrayList<>();
         for (Node childNode : annotationExpr.getChildNodes()) {
             if(!(childNode instanceof MemberValuePair pair))
                 continue;
@@ -352,6 +471,16 @@ public class RegCodeGen implements CodeGenerator {
                 case "type":
                     type = pair.getValue().asStringLiteralExpr().getValue();
                     break;
+                case "parameterTypes":
+                    StringBuilder builder = new StringBuilder("TypeInference<");
+                    boolean i = false;
+                    for (Expression value : pair.getValue().asArrayInitializerExpr().getValues()) {
+                        if(i) builder.append(",");
+                        builder.append(value.asStringLiteralExpr().getValue());
+                        i = true;
+                    };
+                    builder.append(">");
+                    overrideParameterTypes.addAll(StaticJavaParser.parseClassOrInterfaceType(builder.toString()).getTypeArguments().orElseThrow());
             }
         }
         if(type == null)
@@ -363,11 +492,12 @@ public class RegCodeGen implements CodeGenerator {
             if(node == null)
                 return;
         }
+        Set<String> tAs = collectTypeArgumentNames(methodDeclaration);
         methodDeclaration.remove();
-        createModifierInstance(type, methodDeclaration, function, List.of());
+        createModifierInstance(type, methodDeclaration, function, List.of(), tAs, overrideParameterTypes);
     }
 
-    private void createModifierInstance(String type, MethodDeclaration methodDeclaration, Function<String, CompilationUnit> function, Collection<String> newImports) {
+    private void createModifierInstance(String type, MethodDeclaration methodDeclaration, Function<String, CompilationUnit> function, Collection<String> newImports, Set<String> typeArguments, List<Type> overrideParameterTypes) {
         CompilationUnit configurationUnit = function.apply("Configurations");
         CompilationUnit modifierUnit = function.apply("Modifiers");
 
@@ -420,14 +550,23 @@ public class RegCodeGen implements CodeGenerator {
 
         if(methodDeclaration.getParameters().isNonEmpty()) {
             if(methodDeclaration.getParameters().size() > 2)
-                throw new RuntimeException("Too much arguments!");
+                throw new RuntimeException("Too much arguments for " + methodDeclaration.getNameAsString() + "in" + type + "!");
             modifierUnit.addImport("net.minecraft.Util");
             NodeList<Parameter> parameters = new NodeList<>(methodDeclaration.getParameters());
             NodeList<Type> parameterTypes = new NodeList<>();
-            for (Parameter parameter : parameters) {
+
+            for (int i = 0; i < parameters.size(); i++) {
+                Parameter parameter = parameters.get(i);
                 Type pT = parameter.getType();
-                if(pT.isPrimitiveType()) pT = pT.asPrimitiveType().toBoxedType();
-                parameterTypes.add(pT);
+                if (pT.isPrimitiveType())
+                    pT = pT.asPrimitiveType().toBoxedType();
+                Type fT = pT.clone();
+                replaceWildcard(fT, typeArguments);
+                if(overrideParameterTypes.size() <= i || overrideParameterTypes.get(i) == null) {
+                    parameterTypes.add(fT);
+                } else {
+                    parameterTypes.add(overrideParameterTypes.get(i));
+                }
                 copyParam.add(parameter.clone());
                 parameter.setType(new UnknownType());
             }
@@ -475,6 +614,7 @@ public class RegCodeGen implements CodeGenerator {
         );
 
         modifierConf.setDefault(true);
+        methodDeclaration.setFinal(false);
 
         modifierConf.setBody(new BlockStmt(
                 NodeList.nodeList(
@@ -486,8 +626,65 @@ public class RegCodeGen implements CodeGenerator {
                 )
         ));
 
+        modifierConf.setTypeParameters(cloneList(methodDeclaration.getTypeParameters()));
+
 
         configurationDecl.addMember(modifierConf);
+    }
+
+    private Set<String> collectTypeArgumentNames(MethodDeclaration methodDeclaration) {
+        Collection<TypeParameter> args = new ArrayList<>(methodDeclaration.getTypeParameters());
+        Node n = methodDeclaration;
+        while(n != null) {
+            if(n instanceof NodeWithTypeParameters<?> typeParameters) {
+                args.addAll(new ArrayList<>(typeParameters.getTypeParameters()));
+            }
+
+            n = n.getParentNode().orElse(null);
+        }
+        return args.stream().map(NodeWithSimpleName::getNameAsString).collect(Collectors.toUnmodifiableSet());
+    }
+
+    private void replaceWildcard(Type fT, Set<String> typeArgumentList) {
+        if(fT instanceof ClassOrInterfaceType t) {
+            if(typeArgumentList.contains(t.getNameAsString())) {
+                fT.replace(new WildcardType());
+                return;
+            }
+            t.getTypeArguments().ifPresent(s->s.forEach((u)->replaceWildcard(u, typeArgumentList)));
+            return;
+        }
+
+        if(fT instanceof TypeParameter) {
+            fT.replace(new WildcardType());
+            System.out.println("Warning: Replacing " + fT.asString() + "-> wildcard");
+            return;
+        }
+
+        if(fT instanceof ArrayType t) {
+            replaceWildcard(t.getComponentType(), typeArgumentList);
+            return;
+        }
+
+        if(fT instanceof WildcardType wt){
+            if(wt.getExtendedType().map(s-> s instanceof TypeParameter).orElse(false)) {
+                wt.replace(new WildcardType());
+                return;
+            } else if(wt.getSuperType().map(s-> s instanceof TypeParameter).orElse(false)) {
+                wt.replace(new WildcardType());
+                return;
+            } else if(wt.getSuperType().filter(s->s instanceof ClassOrInterfaceType).map(s->s.asClassOrInterfaceType().getNameAsString()).filter(typeArgumentList::contains).isPresent()) {
+                wt.replace(new WildcardType());
+                return;
+            } else if(wt.getExtendedType().filter(s->s instanceof ClassOrInterfaceType).map(s->s.asClassOrInterfaceType().getNameAsString()).filter(typeArgumentList::contains).isPresent()) {
+                wt.replace(new WildcardType());
+                return;
+            }
+            System.out.println("Warning: Replacing " + fT.asString() + "-> wildcard");
+            wt.getExtendedType().ifPresent((s)->replaceWildcard(s, typeArgumentList));
+            wt.getSuperType().ifPresent((s)->replaceWildcard(s, typeArgumentList));
+            return;
+        }
     }
 
     private String describeType(Type s) {

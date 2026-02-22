@@ -7,6 +7,6 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public class TestBlockEntity extends BlockEntity {
     public TestBlockEntity(BlockPos pos, BlockState blockState) {
-        super(BlockRegistryTest.TEST_BLOCK.getBlockEntityType("test_block_entity"), pos, blockState);
+        super(BlockEntityRegistryTest.TEST_CUSTOM_BLOCK_ENTITY.getEntry(), pos, blockState);
     }
 }

@@ -3,8 +3,8 @@ package lib.kasuga.registration.beans.rendering;
 
 import lib.kasuga.content.document.DocumentComponentType;
 import lib.kasuga.registration.kasuga.document.DocumentComponentRendererSupplier;
-import lib.kasuga.registration.minecraft_old.block_entity.renderer.BlockEntityRendererBuilder;
-import lib.kasuga.registration.minecraft_old.entity.renderer.EntityRendererBuilder;
+import lib.kasuga.registration.minecraft.block_entity.BlockEntityRendererBuilder;
+import lib.kasuga.registration.minecraft.entity.EntityRendererBuilder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.entity.BlockEntity;

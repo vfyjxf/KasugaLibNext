@@ -10,6 +10,7 @@ plugins {
 
 rootProject.name = 'KasugaLibNext'
 
+includeBuild './modules/gradle-plugin'
 include ':modules:utils'
 include ':modules:core'
 include ':modules:inject'
@@ -21,5 +22,4 @@ include ':modules:multiversion'
 include ':modules:annotations'
 include ':modules:library'
 include ':external:slp:javet'
-
-
+include ':external:uip:ldlib'

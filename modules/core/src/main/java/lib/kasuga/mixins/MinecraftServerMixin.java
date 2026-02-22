@@ -26,7 +26,7 @@ public class MinecraftServerMixin {
                 action.accept(object);
                 if(!(object instanceof MinecraftServer.ReloadableResources))
                     return;
-                KasugaLib.getContext().getBean(ResourceSystem.class)
+                KasugaLib.getBean(ResourceSystem.class)
                         .onServerReloading(server);
             }
         }, executor);

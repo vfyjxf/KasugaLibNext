@@ -16,14 +16,7 @@ import net.neoforged.fml.common.Mod;
 @Mod(KasugaLibJavet.MODID)
 public class TestJavetModule {
     protected JavetScriptEngine engine = new JavetScriptEngine();
-    public TestJavetModule() {
-        JavetLibLoader.setLibLoadingListener(new JavetDownloader());
-        try{
-            this.test();
-        }catch (ScriptException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    public TestJavetModule() {}
 
     private void test() throws ScriptException {
         System.out.println("Test javet module!");

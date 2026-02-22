@@ -7,8 +7,10 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
@@ -20,12 +22,29 @@ public final class Registry extends RegistryGroup {
     public void register(IEventBus modEventBus) {
         modEventBus.addListener(EventPriority.HIGHEST, this::onRegisterEvent);
         modEventBus.addListener(this::onRegisterNetworkPayload);
+        modEventBus.addListener(this::onRegisterCapabilities);
+        modEventBus.addListener(this::onBuildCreativeTabs);
     }
 
     @OnlyIn(Dist.CLIENT)
     public void registerClient(IEventBus modEventBus) {
         modEventBus.addListener(this::onRegisterMenuScreensEvent);
         modEventBus.addListener(this::onModelBakingComplete);
+    }
+
+    private void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
+        this.dispatchRegister(new RegisterContext<CapabilityRegistration>(
+                RegistrationStage.REGISTER_CAPABILITIES,
+                new CapabilityRegistration(event)
+        ));
+    }
+
+    private void onBuildCreativeTabs(BuildCreativeModeTabContentsEvent event) {
+        RegisterContext<CreativeTabContentRegistration> context = new RegisterContext<>(
+                RegistrationStage.CREATIVE_TAB_CONTENT_REGISTRATION,
+                new CreativeTabContentRegistration(event.getTabKey(), event.getTab(), event)
+        );
+        this.dispatchRegister(context);
     }
 
     private void onRegisterNetworkPayload(RegisterPayloadHandlersEvent event) {

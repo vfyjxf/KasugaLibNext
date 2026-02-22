@@ -3,7 +3,7 @@ package lib.kasuga.test.registration.minecraft.entity;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
-import lib.kasuga.registration.minecraft_old.entity.EntityReg;
+import lib.kasuga.registration.minecraft.entity.EntityReg;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -17,9 +17,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class EntityRegistryTest {
     
     public static Registry registry = KasugaLibRegistry.getRegistryOf(KasugaLib.MODID);
-    
-    public static EntityReg<TestEntity> TEST_CREATURE_ENTITY = EntityReg.of("test_creature", 
-            MobCategory.CREATURE, TestEntity::new)
+
+    public static EntityReg<TestEntity> TEST_CREATURE_ENTITY = EntityReg.of("test_creature",
+                    TestEntity::new)
+            .category(MobCategory.CREATURE)
             .size(0.6f, 1.8f)
             .setParent(registry);
     

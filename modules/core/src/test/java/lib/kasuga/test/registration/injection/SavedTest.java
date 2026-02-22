@@ -16,6 +16,6 @@ public class SavedTest {
 
     @Test()
     public void mySavedData(MinecraftServer server) {
-        Saved<MySavedData> data = KasugaLib.getContext().getBean(SavedTestModule.class).getMyData();
+        Saved<MySavedData> data = KasugaLib.getBean(SavedTestModule.class).getMyData();
     }
 }

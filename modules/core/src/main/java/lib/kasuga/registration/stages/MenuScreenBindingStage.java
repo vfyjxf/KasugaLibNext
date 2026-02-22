@@ -1,6 +1,6 @@
 package lib.kasuga.registration.stages;
 
-import lib.kasuga.registration.minecraft_old.menu.MenuRendererBuilder;
+import lib.kasuga.registration.minecraft.menu.MenuRendererBuilder;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.MenuAccess;
 import net.minecraft.world.inventory.AbstractContainerMenu;

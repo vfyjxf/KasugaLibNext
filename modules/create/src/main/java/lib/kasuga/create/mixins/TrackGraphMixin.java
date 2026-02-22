@@ -34,8 +34,8 @@ public abstract class TrackGraphMixin {
 
     @Inject(method = "transferAll", at = @At("TAIL"))
     public void onTransferAll(TrackGraph toOther, CallbackInfo ci){
-        GraphExtraData toOtherExtra = KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(toOther);
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).transferAll(toOtherExtra);
+        GraphExtraData toOtherExtra = KasugaLib.getBean(RailwayManager.class).getData().withGraph(toOther);
+        KasugaLib.getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).transferAll(toOtherExtra);
     }
 
     @Inject(method = "transfer", at = @At("HEAD"), locals = LocalCapture.CAPTURE_FAILHARD)
@@ -48,8 +48,8 @@ public abstract class TrackGraphMixin {
         if(level == null || level.isClientSide())
             return;
         Map<TrackNode, TrackEdge> connections = this.getConnectionsFrom(node);
-        GraphExtraData targetExtraData = KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(target);
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).transfer(level, node, connections, targetExtraData);
+        GraphExtraData targetExtraData = KasugaLib.getBean(RailwayManager.class).getData().withGraph(target);
+        KasugaLib.getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).transfer(level, node, connections, targetExtraData);
     }
 
     @Inject(method = "connectNodes", at = @At("TAIL"))
@@ -67,8 +67,8 @@ public abstract class TrackGraphMixin {
         TrackNode node2 = locateNode(location2);
         TrackEdge edge = ((TrackGraph)(Object)this).getConnection(Couple.create(node1, node2));
         TrackEdge edgeReverse = ((TrackGraph)(Object)this).getConnection(Couple.create(node2, node1));
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).createEdge(edge);
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).createEdge(edgeReverse);
+        KasugaLib.getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).createEdge(edge);
+        KasugaLib.getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).createEdge(edgeReverse);
     }
 
     @Inject(method = "removeNode", at = @At("HEAD"))
@@ -84,13 +84,13 @@ public abstract class TrackGraphMixin {
             return;
         Map<TrackNode, TrackEdge> connections = getConnectionsFrom(node);
         connections.forEach((_node,edge)->{
-            KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).removeEdge(edge);
+            KasugaLib.getBean(RailwayManager.class).getData().withGraph(((TrackGraph)(Object)this)).removeEdge(edge);
         });
         // @TODO: Create's code, add MIT's LICENSE
         for (TrackNode fromNodes : connections.keySet())
             if (connectionsByNode.containsKey(fromNodes)) {
                 TrackEdge edge = connectionsByNode.get(fromNodes).get(node);
-                KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(((TrackGraph) (Object) this)).removeEdge(edge);
+                KasugaLib.getBean(RailwayManager.class).getData().withGraph(((TrackGraph) (Object) this)).removeEdge(edge);
             }
     }
 }

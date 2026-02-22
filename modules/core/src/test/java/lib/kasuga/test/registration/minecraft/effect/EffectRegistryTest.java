@@ -3,7 +3,7 @@ package lib.kasuga.test.registration.minecraft.effect;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
-import lib.kasuga.registration.minecraft_old.effect.EffectReg;
+import lib.kasuga.registration.minecraft.effect.EffectReg;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -19,19 +19,20 @@ public class EffectRegistryTest {
     
     public static EffectReg<TestMobEffect> TEST_BENEFICIAL_EFFECT = EffectReg.of("test_beneficial_effect",
                     TestMobEffect::new)
-            .beneficial()
+            .category(MobEffectCategory.BENEFICIAL)
             .color(0x00ff00)
             .setParent(registry);
     
     public static EffectReg<TestMobEffect> TEST_HARMFUL_EFFECT = EffectReg.of("test_harmful_effect",
                     TestMobEffect::new)
-            .harmful()
-            .color(255, 0, 0)
+            .category(MobEffectCategory.HARMFUL)
+            .color(0xff0000)
             .setParent(registry);
-    
-    public static EffectReg<TestMobEffect> TEST_NEUTRAL_EFFECT = EffectReg.of("test_neutral_effect", 
-            MobEffectCategory.NEUTRAL, 0x0000ff,
+
+    public static EffectReg<TestMobEffect> TEST_NEUTRAL_EFFECT = EffectReg.of("test_neutral_effect",
                     TestMobEffect::new)
+            .category(MobEffectCategory.NEUTRAL)
+            .color(0x0000ff)
             .setParent(registry);
 
     @Test
@@ -39,7 +40,6 @@ public class EffectRegistryTest {
         // Test that effects are registered
         assert TEST_BENEFICIAL_EFFECT.getEntry() != null;
         assert TEST_HARMFUL_EFFECT.getEntry() != null;
-        assert TEST_NEUTRAL_EFFECT.getEntry() != null;
         
         // Test registry contains the effects
         var effectRegistry = server.registryAccess().registryOrThrow(Registries.MOB_EFFECT);
@@ -51,6 +51,7 @@ public class EffectRegistryTest {
         assert TEST_BENEFICIAL_EFFECT.getEntry().getCategory() == MobEffectCategory.BENEFICIAL;
         assert TEST_HARMFUL_EFFECT.getEntry().getCategory() == MobEffectCategory.HARMFUL;
         assert TEST_NEUTRAL_EFFECT.getEntry().getCategory() == MobEffectCategory.NEUTRAL;
+
         
         // Test effect colors
         assert TEST_BENEFICIAL_EFFECT.getEntry().getColor() == 0x00ff00;

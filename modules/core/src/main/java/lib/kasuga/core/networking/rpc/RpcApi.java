@@ -1,7 +1,7 @@
 package lib.kasuga.core.networking.rpc;
 
 import lib.kasuga.registration.Reg;
-import lib.kasuga.registration.minecraft_old.payload.PayloadReg;
+import lib.kasuga.registration.minecraft.payload.PayloadReg;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;

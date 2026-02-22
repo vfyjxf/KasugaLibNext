@@ -27,7 +27,7 @@ public class DocumentComponentRendererReg<T> extends Reg<DocumentComponentRender
             Collection<DocumentComponentType<?>> types = transform(DocumentComponentRendererModifiers.DOCUMENT_COMPONENTS, new ArrayList<>());
             for (DocumentComponentType<?> type : types) {
                 //noinspection unchecked
-                KasugaLib.getContext().getBean(RenderingRegistry.class).registerDocumentComponentRenderer(
+                KasugaLib.getBean(RenderingRegistry.class).registerDocumentComponentRenderer(
                         (DocumentComponentType<T>) type, this.renderer
                 );
             }

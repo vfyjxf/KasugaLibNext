@@ -2,7 +2,7 @@ package lib.kasuga.core.saved;
 
 import io.micronaut.context.annotation.Context;
 import lib.kasuga.KasugaLibApplication;
-import lib.kasuga.registration.minecraft_old.data_component.DataComponentReg;
+import lib.kasuga.registration.minecraft.data_component.DataComponentReg;
 import net.minecraft.core.UUIDUtil;
 
 import java.util.UUID;

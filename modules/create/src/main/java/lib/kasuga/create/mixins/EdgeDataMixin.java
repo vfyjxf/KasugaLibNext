@@ -33,7 +33,7 @@ public class EdgeDataMixin {
         if(boundaryFeature == null)
             return;
 
-        KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(graph).getOrComputeEdgeData(edge).setBoundaryFeature(boundaryFeature, null);
+        KasugaLib.getBean(RailwayManager.class).getData().withGraph(graph).getOrComputeEdgeData(edge).setBoundaryFeature(boundaryFeature, null);
     }
 
     @Inject(method = "removePoint",at=@At("TAIL"))
@@ -50,7 +50,7 @@ public class EdgeDataMixin {
             return;
 
         UUID nextId = self.next(point.getType(), 0) == null ? EdgeExtraData.passiveBoundaryGroup : null;
-        EdgeExtraData edgeData = KasugaLib.getContext().getBean(RailwayManager.class).getData().withGraph(graph).getEdgeData(edge);
+        EdgeExtraData edgeData = KasugaLib.getBean(RailwayManager.class).getData().withGraph(graph).getEdgeData(edge);
         if(edgeData == null)
             return;
         edgeData.setBoundaryFeature(boundaryFeature, nextId);

@@ -11,8 +11,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 public class DocumentItem extends Item implements ISpecialRenderingItem {
@@ -34,7 +36,23 @@ public class DocumentItem extends Item implements ISpecialRenderingItem {
         return 2;
     }
 
+    @Override
+    public int getMaxStackSize(ItemStack stack) {
+        return (stack.has(DOCUMENT_COMPONENT) && Optional.ofNullable(stack.get(DOCUMENT_COMPONENT)).filter(Map::isEmpty).isEmpty()) ? 1 : getMaxStackSize();
+    }
+
+    protected int getMaxStackSize() {
+        return 64;
+    }
+
     public boolean canComponentStore(ItemStack stack, DocumentComponentType<?> holder) {
         return true;
+    }
+
+    public static boolean isEmptyLike(ItemStack stack) {
+        if(stack.isEmpty() || !(stack.getItem() instanceof DocumentItem documentItem)) {
+            return false;
+        }
+        return (stack.has(DOCUMENT_COMPONENT) && Optional.ofNullable(stack.get(DOCUMENT_COMPONENT)).filter(Map::isEmpty).isPresent());
     }
 }

@@ -3,7 +3,7 @@ package lib.kasuga.test.registration.minecraft.item;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
-import lib.kasuga.registration.minecraft_old.item.ItemReg;
+import lib.kasuga.registration.minecraft.item.ItemReg;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -22,9 +22,9 @@ public class ItemRegistryTest {
             .setParent(registry);
     
     public static ItemReg<TestFoodItem> TEST_FOOD_ITEM = ItemReg.of("test_food_item", TestFoodItem::new)
-            .food()
+            .isFood(true)
             .foodNutrition(5)
-            .foodSaturation(0.6f)
+            .foodSaturationModifier(0.6f)
             .foodFast()
             .stacksTo(16)
             .rarity(Rarity.UNCOMMON)

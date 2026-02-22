@@ -19,11 +19,11 @@ public abstract class MinecraftDeferRegistryReg<S extends Reg<S, T>, R, T extend
     protected T value;
 
     protected Holder<R> holder = new DeferredFillHolder<>();
+    private ResourceLocation resourceLocation;
 
     protected MinecraftDeferRegistryReg(String name, ResourceKey<Registry<R>> entryKey) {
         this.name = name;
         this.entryKey = entryKey;
-
     }
 
     @Override
@@ -35,6 +35,9 @@ public abstract class MinecraftDeferRegistryReg<S extends Reg<S, T>, R, T extend
                     ResourceLocationModifiers.ID,
                     ResourceLocation.fromNamespaceAndPath("minecraft", name)
             );
+
+            this.resourceLocation = id;
+
             LOGGER.info("Posting deferred registry entry: {} to {}", id, entryKey.location());
             value = this.createObject(id);
             Holder<R> localHolder = DeferredHolder.create(entryKey, id);
@@ -62,5 +65,9 @@ public abstract class MinecraftDeferRegistryReg<S extends Reg<S, T>, R, T extend
 
     public Holder<R> getHolder() {
         return holder;
+    }
+
+    public ResourceLocation getResourceLocation() {
+        return resourceLocation;
     }
 }

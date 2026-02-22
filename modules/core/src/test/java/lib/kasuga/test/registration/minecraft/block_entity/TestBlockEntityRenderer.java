@@ -1,6 +1,6 @@
 package lib.kasuga.test.registration.minecraft.block_entity;
 
-import lib.kasuga.registration.minecraft_old.block_entity.renderer.BlockEntityRendererBuilder;
+import lib.kasuga.registration.minecraft.block_entity.BlockEntityRendererBuilder;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;

@@ -1,7 +1,11 @@
 package lib.kasuga.registration.stages;
 
+import lib.kasuga.registration.CreativeTabContentRegistration;
+
 public class RegistrationStage<T> {
     public static final RegistrationStage<MenuScreenBindingStage> MENU_SCREEN_BINDING = new RegistrationStage<>();
+    public static final RegistrationStage<CapabilityRegistration> REGISTER_CAPABILITIES = new RegistrationStage<CapabilityRegistration>();
+    public static final RegistrationStage<CreativeTabContentRegistration> CREATIVE_TAB_CONTENT_REGISTRATION = new RegistrationStage<>();
     public static RegistrationStage<RegisterStageContext> REGISTER_EVENT = new RegistrationStage<>();
 
     public static RegistrationStage<RegisterStageContext> COMMON_SETUP = new RegistrationStage<>();

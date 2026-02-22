@@ -3,9 +3,9 @@ package lib.kasuga.test.registration;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
-import lib.kasuga.registration.minecraft_old.block.BlockReg;
-import lib.kasuga.registration.minecraft_old.item.ItemReg;
-import lib.kasuga.registration.minecraft_old.effect.EffectReg;
+import lib.kasuga.registration.minecraft.block.BlockReg;
+import lib.kasuga.registration.minecraft.item.ItemReg;
+import lib.kasuga.registration.minecraft.effect.EffectReg;
 import lib.kasuga.test.registration.minecraft.block.TestAdvancedBlock;
 import lib.kasuga.test.registration.minecraft.effect.TestAdvancedEffect;
 import lib.kasuga.test.registration.minecraft.item.TestAdvancedItem;
@@ -50,11 +50,9 @@ public class ConfigurationTest {
     // Test complex effect configurations with custom attributes
     public static EffectReg<TestAdvancedEffect> ADVANCED_EFFECT = EffectReg.of("advanced_test_effect",
             (category, color) -> new TestAdvancedEffect(category, color))
-            .harmful()
-            .color(128, 0, 128) // Purple color
-            .attribute(effect -> {
-                // Add custom effect logic here if needed
-            })
+            .category(MobEffectCategory.HARMFUL)
+            .color(0x800080) // Purple color
+            .attribute(effect -> {})
             .setParent(registry);
 
     @Test

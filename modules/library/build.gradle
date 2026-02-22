@@ -1,12 +1,12 @@
-import builder.kasuga.MicronautServiceShadowTransformer
-
 plugins {
     id 'java-library'
     id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.107'
-    id("com.gradleup.shadow")
+    id("com.gradleup.shadow") version '9.0.2'
     id 'idea'
+    id 'builder.kasuga.generator'
 }
+import builder.kasuga.MicronautServiceShadowTransformer
 
 version = mod_version
 group = mod_group_id
@@ -202,6 +202,19 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
+
+// === 核心逻辑 ===
+def includedProjects = [
+        ":modules:core",
+        ":modules:create",
+        ":modules:modelling",
+        ":modules:scripting",
+]
+
+includedProjects.each {
+    evaluationDependsOn(it)
+}
+
 shadowJar {
     mergeServiceFiles()
     configurations = [project.configurations.shadowLibrary]
@@ -209,17 +222,10 @@ shadowJar {
 
     transform(MicronautServiceShadowTransformer) {}
 
-    // === 核心逻辑 ===
-    def includedProjects = [
-            project(":modules:core"),
-            project(":modules:create"),
-            project(":modules:modelling"),
-            project(":modules:scripting"),
-    ]
 
     includedProjects.each { p ->
         // 包含源码输出
-        from(p.sourceSets.main.output)
+        from(project(p).sourceSets.main.output)
     }
 
     from(sourceSets.main.output)
