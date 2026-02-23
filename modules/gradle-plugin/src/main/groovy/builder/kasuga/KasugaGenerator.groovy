@@ -31,11 +31,11 @@ public class KasugaGenerator {
             }
         }
         var runGenerator = project.tasks.register('runGenerator', JavaExec) {
-//
-//            inputs.files(project.sourceSets.codeTemplate.allSource)
-//                    .withPropertyName("sources");
-//
-//            outputs.dir("$project.buildDir/generated/sources/codegen/java/main")
+
+            inputs.files(project.sourceSets.codeTemplate.allSource)
+                    .withPropertyName("sources");
+
+            outputs.dir("$project.buildDir/generated/sources/codegen/java/main")
 
             classpath = project.configurations.codeGenDependency
             mainClass = 'lib.kasuga.internal.generator.KasugaCodeGen'

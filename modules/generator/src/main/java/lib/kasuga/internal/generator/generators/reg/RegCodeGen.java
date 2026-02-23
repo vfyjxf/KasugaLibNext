@@ -657,7 +657,6 @@ public class RegCodeGen implements CodeGenerator {
 
         if(fT instanceof TypeParameter) {
             fT.replace(new WildcardType());
-            System.out.println("Warning: Replacing " + fT.asString() + "-> wildcard");
             return;
         }
 
@@ -680,7 +679,6 @@ public class RegCodeGen implements CodeGenerator {
                 wt.replace(new WildcardType());
                 return;
             }
-            System.out.println("Warning: Replacing " + fT.asString() + "-> wildcard");
             wt.getExtendedType().ifPresent((s)->replaceWildcard(s, typeArgumentList));
             wt.getSuperType().ifPresent((s)->replaceWildcard(s, typeArgumentList));
             return;

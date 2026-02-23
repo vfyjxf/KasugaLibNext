@@ -23,5 +23,13 @@ gradlePlugin {
             id = 'builder.kasuga.generator'
             implementationClass = 'builder.kasuga.KasugaGeneratorPlugin'
         }
+        kasugaMonorepo {
+            id = 'builder.kasuga.monorepo'
+            implementationClass = 'builder.kasuga.KasugaMonorepoPlugin'
+        }
+        kasugaResourceCompiler {
+            id = 'builder.kasuga.resource-compiler'
+            implementationClass = 'builder.kasuga.KasugaResourceCompilerPlugin'
+        }
     }
 }
