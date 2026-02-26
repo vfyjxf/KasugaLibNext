@@ -84,11 +84,18 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
 
 
         project.ext.useModProject = { Project targetProject ->
+
+            project.evaluationDependsOn(targetProject.path)
+
+
             if (targetProject == null) {
                 throw new IllegalArgumentException("targetProject must not be null")
             }
 
             def modId = project.findProperty("mod_id") ?: "main"
+
+            System.out.println(project.projectDir.toString() + "-> " + targetProject.projectDir.toString() + "@" + Objects.hashCode(targetProject.sourceSets.main))
+
             project.neoForge {
                 mods {
                     "${modId}" {
@@ -114,6 +121,39 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
 
             project.tasks.named("processResources").configure {
                 dependsOn(targetProject.tasks.named("processResources"))
+            }
+
+
+            project.afterEvaluate {
+                if(targetProject.sourceSets.hasProperty("contentTesting")) {
+                    project.neoForge {
+                        mods {
+                            "${modId}" {
+                                sourceSet targetProject.sourceSets.contentTesting
+                            }
+                        }
+                    }
+                }
+                if(project.sourceSets.hasProperty("contentTesting") && targetProject.sourceSets.hasProperty("contentTesting")) {
+                    project.sourceSets {
+                        contentTesting {
+                            System.out.println("Add contentTesting classpath from " + targetProject.path + " to " + project.path)
+                            compileClasspath += targetProject.sourceSets.contentTesting.output
+                            runtimeClasspath += targetProject.sourceSets.contentTesting.output
+
+                            compileClasspath += targetProject.sourceSets.contentTesting.compileClasspath
+                            runtimeClasspath += targetProject.sourceSets.contentTesting.runtimeClasspath
+                        }
+                    }
+                }
+
+                def shadowExtension = project.getTasks().findByName('shadowJar')
+
+                if (shadowExtension != null) {
+                    shadowExtension.configure {
+                        from(targetProject.sourceSets.main.output)
+                    }
+                }
             }
         }
     }

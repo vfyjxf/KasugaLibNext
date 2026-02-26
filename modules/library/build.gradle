@@ -5,6 +5,7 @@ plugins {
     id("com.gradleup.shadow") version '9.0.2'
     id 'idea'
     id 'builder.kasuga.generator'
+    id 'builder.kasuga.monorepo'
 }
 import builder.kasuga.MicronautServiceShadowTransformer
 
@@ -27,6 +28,10 @@ base {
     archivesName = mod_id
 }
 
+useModProject(project(':modules:scripting'))
+useModProject(project(':modules:modelling'))
+useModProject(project(':modules:core'))
+useModProject(project(':modules:create'))
 
 test {
     useJUnitPlatform()
@@ -102,9 +107,6 @@ neoForge {
     mods {
         "${mod_id}" {
             // Inlcude the core subproject as a dependency.
-            sourceSet(project(':modules:core').sourceSets.main)
-            sourceSet(project(':modules:create').sourceSets.main)
-            sourceSet(project(':modules:modelling').sourceSets.main)
             sourceSet(sourceSets.main)
             sourceSet(sourceSets.contentTesting)
         }
@@ -129,12 +131,6 @@ dependencies {
 
     implementation project(":modules:utils")
     shadowLibrary project(":modules:utils")
-
-    implementation project(":modules:core")
-
-    implementation project(":modules:create")
-
-    implementation project(":modules:scripting")
 
 
     implementation("cc.tweaked:cc-tweaked-$minecraft_version-forge:$cct_version")
@@ -202,19 +198,6 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
-
-// === 核心逻辑 ===
-def includedProjects = [
-        ":modules:core",
-        ":modules:create",
-        ":modules:modelling",
-        ":modules:scripting",
-]
-
-includedProjects.each {
-    evaluationDependsOn(it)
-}
-
 shadowJar {
     mergeServiceFiles()
     configurations = [project.configurations.shadowLibrary]
@@ -222,11 +205,6 @@ shadowJar {
 
     transform(MicronautServiceShadowTransformer) {}
 
-
-    includedProjects.each { p ->
-        // 包含源码输出
-        from(project(p).sourceSets.main.output)
-    }
 
     from(sourceSets.main.output)
 
