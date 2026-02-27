@@ -30,7 +30,6 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
             if (a instanceof List && b instanceof List) {
                 return (a + b).unique()
             }
-
             return b ?: a
         }
 
@@ -47,7 +46,6 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
                 def executor = Executors.newFixedThreadPool(
                         Runtime.runtime.availableProcessors()
                 )
-
                 try {
                     def futures = buckets.entrySet().collect { entry ->
                         executor.submit({
@@ -81,8 +79,6 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
             duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         }
 
-
-
         project.ext.useModProject = { Project targetProject ->
 
             project.evaluationDependsOn(targetProject.path)
@@ -94,7 +90,7 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
 
             def modId = project.findProperty("mod_id") ?: "main"
 
-            System.out.println(project.projectDir.toString() + "-> " + targetProject.projectDir.toString() + "@" + Objects.hashCode(targetProject.sourceSets.main))
+            project.logger.info("Create Monorepo Dependency: " + project.projectDir.toString() + "-> " + targetProject.projectDir.toString() + "@" + Objects.hashCode(targetProject.sourceSets.main))
 
             project.neoForge {
                 mods {
@@ -125,6 +121,7 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
 
 
             project.afterEvaluate {
+
                 if(targetProject.sourceSets.hasProperty("contentTesting")) {
                     project.neoForge {
                         mods {
@@ -134,6 +131,7 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
                         }
                     }
                 }
+
                 if(project.sourceSets.hasProperty("contentTesting") && targetProject.sourceSets.hasProperty("contentTesting")) {
                     project.sourceSets {
                         contentTesting {
@@ -154,7 +152,9 @@ class KasugaMonorepoPlugin implements Plugin<Project> {
                         from(targetProject.sourceSets.main.output)
                     }
                 }
+
             }
+
         }
     }
 }
