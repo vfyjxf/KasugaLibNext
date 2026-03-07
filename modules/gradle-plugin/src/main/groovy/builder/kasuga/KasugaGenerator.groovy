@@ -30,6 +30,8 @@ public class KasugaGenerator {
                 compileClasspath += project.configurations.codeGenDependency
             }
         }
+        var minecraftArtifacts = project.tasks.findByName("createMinecraftArtifacts");
+
         var runGenerator = project.tasks.register('runGenerator', JavaExec) {
 
             inputs.files(project.sourceSets.codeTemplate.allSource)
@@ -50,6 +52,9 @@ public class KasugaGenerator {
             javaLauncher.set(project.javaToolchains.launcherFor {
                 languageVersion = project.java.toolchain.languageVersion
             })
+
+            if(minecraftArtifacts != null)
+                dependsOn(minecraftArtifacts)
         }
         project.compileJava.dependsOn(runGenerator)
 
