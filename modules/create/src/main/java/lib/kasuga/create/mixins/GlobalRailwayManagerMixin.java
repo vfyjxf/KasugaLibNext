@@ -5,10 +5,12 @@ import com.simibubi.create.content.trains.GlobalRailwayManager;
 import com.simibubi.create.content.trains.graph.TrackEdge;
 import com.simibubi.create.content.trains.graph.TrackGraph;
 import com.simibubi.create.content.trains.graph.TrackNode;
+import cpw.mods.util.Lazy;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.create.content.train.graph.RailwayManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
+import org.checkerframework.common.aliasing.qual.Unique;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,12 +23,16 @@ import java.util.UUID;
 
 @Mixin(value = GlobalRailwayManager.class, remap = false)
 public class GlobalRailwayManagerMixin {
+
+    @Unique protected static Lazy<RailwayManager> railwayManager = Lazy.of(()->KasugaLib.getBean(RailwayManager.class));
+
+
     @Shadow public Map<UUID, TrackGraph> trackNetworks;
 
     @Inject(method = "loadTrackData", at = @At("TAIL"))
     public void onLoadTrackData(MinecraftServer server, CallbackInfo ci){
-        KasugaLib.getBean(RailwayManager.class).load(server);
-        KasugaLib.getBean(RailwayManager.class).getData().syncExtraData(Create.RAILWAYS.trackNetworks.keySet());
+        railwayManager.get().load(server);
+        railwayManager.get().getData().syncExtraData(Create.RAILWAYS.trackNetworks.keySet());
         trackNetworks.forEach(((uuid, graph) -> {
             HashSet<TrackEdge> edges = new HashSet<>();
             for (Map<TrackNode, TrackEdge> value : ((TrackGraphAccessor) graph).getConnectionsByNode().values()) {
@@ -34,24 +40,24 @@ public class GlobalRailwayManagerMixin {
                     edges.add(edge);
                 }
             }
-            KasugaLib.getBean(RailwayManager.class).getData().withGraph(graph).syncWithExternal(edges);
+            railwayManager.get().getData().withGraph(graph).syncWithExternal(edges);
         }));
     }
 
     @Inject(method = "putGraph", at = @At("TAIL"))
     public void onPutGraph(TrackGraph graph, CallbackInfo ci){
-        KasugaLib.getBean(RailwayManager.class).getData().createExtraData(graph.id);
+        railwayManager.get().getData().createExtraData(graph.id);
     }
 
     @Inject(method = "removeGraph", at = @At("TAIL"))
     public void onRemoveGraph(TrackGraph graph, CallbackInfo ci){
-        KasugaLib.getBean(RailwayManager.class).getData().removeExtraData(graph.id);
+        railwayManager.get().getData().removeExtraData(graph.id);
     }
 
     @Inject(method = "tick", at=@At("HEAD"))
     public void onTick(Level level, CallbackInfo ci){
         if(level.dimension() != Level.OVERWORLD)
             return;
-        KasugaLib.getBean(RailwayManager.class).getData().onEarlyGlobalTick(level);
+        railwayManager.get().getData().onEarlyGlobalTick(level);
     }
 }

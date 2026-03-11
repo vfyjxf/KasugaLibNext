@@ -4,6 +4,7 @@ import com.simibubi.create.content.trains.graph.EdgeData;
 import com.simibubi.create.content.trains.graph.TrackEdge;
 import com.simibubi.create.content.trains.graph.TrackGraph;
 import com.simibubi.create.content.trains.signal.TrackEdgePoint;
+import cpw.mods.util.Lazy;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.content.graph.GraphManager;
 import lib.kasuga.create.content.train.graph.EdgeExtraData;
@@ -11,6 +12,7 @@ import lib.kasuga.create.content.train.graph.RailwayManager;
 import lib.kasuga.create.content.train.signal.BoundarySegmentRegistry;
 import lib.kasuga.create.content.train.signal.CustomBoundary;
 import net.minecraft.resources.ResourceLocation;
+import org.checkerframework.common.aliasing.qual.Unique;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,6 +23,10 @@ import java.util.UUID;
 
 @Mixin(value = EdgeData.class, remap = false)
 public class EdgeDataMixin {
+
+    @Unique
+    protected static Lazy<RailwayManager> railwayManager = Lazy.of(()->KasugaLib.getBean(RailwayManager.class));
+
     @Shadow private TrackEdge edge;
 
     @Inject(method = "addPoint",at=@At("HEAD"))
@@ -33,7 +39,7 @@ public class EdgeDataMixin {
         if(boundaryFeature == null)
             return;
 
-        KasugaLib.getBean(RailwayManager.class).getData().withGraph(graph).getOrComputeEdgeData(edge).setBoundaryFeature(boundaryFeature, null);
+        railwayManager.get().getData().withGraph(graph).getOrComputeEdgeData(edge).setBoundaryFeature(boundaryFeature, null);
     }
 
     @Inject(method = "removePoint",at=@At("TAIL"))
@@ -50,7 +56,7 @@ public class EdgeDataMixin {
             return;
 
         UUID nextId = self.next(point.getType(), 0) == null ? EdgeExtraData.passiveBoundaryGroup : null;
-        EdgeExtraData edgeData = KasugaLib.getBean(RailwayManager.class).getData().withGraph(graph).getEdgeData(edge);
+        EdgeExtraData edgeData = railwayManager.get().getData().withGraph(graph).getEdgeData(edge);
         if(edgeData == null)
             return;
         edgeData.setBoundaryFeature(boundaryFeature, nextId);

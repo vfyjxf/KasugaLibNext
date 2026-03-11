@@ -3,6 +3,7 @@ package lib.kasuga.create.content.train.signal;
 import com.simibubi.create.content.trains.graph.DimensionPalette;
 import com.simibubi.create.content.trains.graph.TrackGraph;
 import com.simibubi.create.content.trains.signal.SingleBlockEntityEdgePoint;
+import jakarta.inject.Inject;
 import lib.kasuga.KasugaLib;
 import net.createmod.catnip.data.Iterate;
 import net.minecraft.core.HolderLookup;
@@ -13,7 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public abstract class CustomBoundary extends SingleBlockEntityEdgePoint {
-    private final CustomTrackSegmentPropagator propagator;
+    private final @Inject() CustomTrackSegmentPropagator propagator;
     Map<Boolean, UUID> sidedSegments = new HashMap<>();
     Map<Boolean, Boolean> dirty = new HashMap<>();
 

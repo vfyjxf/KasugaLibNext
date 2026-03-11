@@ -35,6 +35,14 @@ public class KasugaLib {
         return context.getBean(beanType);
     }
 
+    public static void afterRunning(IEventBus eventBus, Runnable hook) {
+        if(!isRunning()) {
+            eventBus.addListener(KasugaLibStartupEvent.class, (ev)->hook.run());
+        } else {
+            hook.run();
+        }
+    }
+
     public static boolean isRunning() {
         return context.isRunning();
     }

@@ -15,9 +15,6 @@ public abstract class Reg<S extends Reg<?, ?>, T> implements TransformerProvider
 
     protected Set<Reg<?, ?>> children = ConcurrentHashMap.newKeySet();
 
-    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private Optional<T> current;
-
 
     @SuppressWarnings("unchecked")
     public S self() {
