@@ -1,6 +1,7 @@
 package lib.kasuga.registration.stages;
 
 import lib.kasuga.registration.CreativeTabContentRegistration;
+import net.neoforged.neoforge.registries.NewRegistryEvent;
 
 public class RegistrationStage<T> {
     public static final RegistrationStage<MenuScreenBindingStage> MENU_SCREEN_BINDING = new RegistrationStage<>();
@@ -13,6 +14,8 @@ public class RegistrationStage<T> {
     public static RegistrationStage<BakingCompleteStage> BAKING_COMPLETE = new RegistrationStage<>();
 
     public static RegistrationStage<PayloadRegistrationStage> PAYLOAD_REGISTRATION = new RegistrationStage<>();
+
+    public static RegistrationStage<NewRegistryEvent> NEW_REGISTRY = new RegistrationStage<>();
 
     @Override
     public boolean equals(Object obj) {

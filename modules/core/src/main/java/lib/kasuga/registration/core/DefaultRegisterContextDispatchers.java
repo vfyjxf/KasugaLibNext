@@ -12,6 +12,7 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.registries.NewRegistryEvent;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
 @Context
@@ -50,6 +51,10 @@ public class DefaultRegisterContextDispatchers {
                         new CreativeTabContentRegistration(event.getTabKey(), event.getTab(), event)
                 ));
             });
+
+            modEventBus.addListener(NewRegistryEvent.class,
+                    s->registry.dispatchRegister(new RegisterContext<>(RegistrationStage.NEW_REGISTRY, s))
+            );
         });
     }
 }

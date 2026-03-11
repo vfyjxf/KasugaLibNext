@@ -1,7 +1,9 @@
 package lib.kasuga.content.document;
 
 import lib.kasuga.KasugaLib;
+import lib.kasuga.KasugaLibApplication;
 import lib.kasuga.core.rendering.ISpecialRenderingItem;
+import lib.kasuga.registration.minecraft.data_component.DataComponentReg;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentType;
@@ -19,15 +21,13 @@ import java.util.function.Supplier;
 
 public class DocumentItem extends Item implements ISpecialRenderingItem {
 
-    public static final DeferredRegister.DataComponents REGISTRAR = DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, KasugaLib.MODID);
-    public static Supplier<DataComponentType<Map<Holder<DocumentComponentType<?>>, Object>>> DOCUMENT_COMPONENT =
-            REGISTRAR.registerComponentType("document_components",
-                    builder->builder.networkSynchronized(DocumentComponentRegistries.DOCUMENT_COMPONENT_BYTE_BUF)
-                            .persistent(DocumentComponentRegistries.DOCUMENT_COMPONENT_PERSISTENT));
+    public static DataComponentReg<Map<Holder<DocumentComponentType<?>>, Object>> DOCUMENT_COMPONENT = new DataComponentReg<Map<Holder<DocumentComponentType<?>>, Object>>("document_components", builder->builder.networkSynchronized(DocumentComponentRegistries.DOCUMENT_COMPONENT_BYTE_BUF)
+            .persistent(DocumentComponentRegistries.DOCUMENT_COMPONENT_PERSISTENT))
+            .setParent(KasugaLibApplication.REGISTRY);
 
     public DocumentItem(Properties properties) {
         super(
-                properties.component(DOCUMENT_COMPONENT,new HashMap<>())
+                properties.component(DOCUMENT_COMPONENT::getEntry,new HashMap<>())
         );
     }
 
@@ -38,7 +38,7 @@ public class DocumentItem extends Item implements ISpecialRenderingItem {
 
     @Override
     public int getMaxStackSize(ItemStack stack) {
-        return (stack.has(DOCUMENT_COMPONENT) && Optional.ofNullable(stack.get(DOCUMENT_COMPONENT)).filter(Map::isEmpty).isEmpty()) ? 1 : getMaxStackSize();
+        return (stack.has(DOCUMENT_COMPONENT::getEntry) && Optional.ofNullable(stack.get(DOCUMENT_COMPONENT::getEntry)).filter(Map::isEmpty).isEmpty()) ? 1 : getMaxStackSize();
     }
 
     protected int getMaxStackSize() {
@@ -53,6 +53,6 @@ public class DocumentItem extends Item implements ISpecialRenderingItem {
         if(stack.isEmpty() || !(stack.getItem() instanceof DocumentItem documentItem)) {
             return false;
         }
-        return (stack.has(DOCUMENT_COMPONENT) && Optional.ofNullable(stack.get(DOCUMENT_COMPONENT)).filter(Map::isEmpty).isPresent());
+        return (stack.has(DOCUMENT_COMPONENT::getEntry) && Optional.ofNullable(stack.get(DOCUMENT_COMPONENT::getEntry)).filter(Map::isEmpty).isPresent());
     }
 }

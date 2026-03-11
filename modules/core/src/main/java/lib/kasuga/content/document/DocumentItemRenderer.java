@@ -139,10 +139,10 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
     }
 
     public void renderItem(ItemStack stack, MultiBufferSource bufferSource, PoseStack poseStack, int light) {
-        if(!stack.getComponents().has(DocumentItem.DOCUMENT_COMPONENT.get()))
+        if(!stack.getComponents().has(DocumentItem.DOCUMENT_COMPONENT.getEntry()))
             return;
         Map<Holder<DocumentComponentType<?>>, Object> components =
-                stack.getComponents().get(DocumentItem.DOCUMENT_COMPONENT.get());
+                stack.getComponents().get(DocumentItem.DOCUMENT_COMPONENT.getEntry());
 
         if(components == null)
             return;

@@ -19,8 +19,6 @@ public class KasugaLib {
 
     public KasugaLib(IEventBus modEventBus, ModContainer modContainer) {
         ModApplicationContext.init(context, modEventBus, modContainer);
-        modEventBus.addListener(DocumentComponentRegistries::onRegistryEvent);
-        DocumentItem.REGISTRAR.register(modEventBus);
         ModLoader.postEvent(new KasugaLibStartupEvent());
     }
 
