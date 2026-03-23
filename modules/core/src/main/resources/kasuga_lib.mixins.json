@@ -21,6 +21,8 @@
     "ItemInHandRendererAccess",
     "MinecraftMixin",
     "MixinItemInHandRenderer",
-    "client.MixinBlockModelShaper"
+    "client.MixinBlockModelShaper",
+    "client.AccessorOnRegisterRenderTypesEvent",
+    "client.MixinMultiBufferSource"
   ]
 }
