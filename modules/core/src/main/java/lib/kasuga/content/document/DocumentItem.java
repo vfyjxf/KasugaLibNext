@@ -19,11 +19,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static lib.kasuga.content.document.DocumentComponentRegistries.DOCUMENT_COMPONENT;
+
 public class DocumentItem extends Item implements ISpecialRenderingItem {
 
-    public static DataComponentReg<Map<Holder<DocumentComponentType<?>>, Object>> DOCUMENT_COMPONENT = new DataComponentReg<Map<Holder<DocumentComponentType<?>>, Object>>("document_components", builder->builder.networkSynchronized(DocumentComponentRegistries.DOCUMENT_COMPONENT_BYTE_BUF)
-            .persistent(DocumentComponentRegistries.DOCUMENT_COMPONENT_PERSISTENT))
-            .setParent(KasugaLibApplication.REGISTRY);
 
     public DocumentItem(Properties properties) {
         super(
