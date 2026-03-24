@@ -18,6 +18,8 @@ import net.minecraft.world.item.ItemStack;
 import java.util.HashMap;
 import java.util.Map;
 
+import static lib.kasuga.content.document.DocumentComponentRegistries.DOCUMENT_COMPONENT;
+
 public class DocumentItemRenderer implements ISpecialItemRenderer {
     @Override
     public void render(
@@ -139,10 +141,10 @@ public class DocumentItemRenderer implements ISpecialItemRenderer {
     }
 
     public void renderItem(ItemStack stack, MultiBufferSource bufferSource, PoseStack poseStack, int light) {
-        if(!stack.getComponents().has(DocumentItem.DOCUMENT_COMPONENT.getEntry()))
+        if(!stack.getComponents().has(DOCUMENT_COMPONENT.getEntry()))
             return;
         Map<Holder<DocumentComponentType<?>>, Object> components =
-                stack.getComponents().get(DocumentItem.DOCUMENT_COMPONENT.getEntry());
+                stack.getComponents().get(DOCUMENT_COMPONENT.getEntry());
 
         if(components == null)
             return;
