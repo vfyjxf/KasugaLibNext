@@ -47,8 +47,16 @@ public class CubeVerticesMapper {
         }
     }
 
-    public void map(Vector2f uvOrg, Vector2f uvSize, Texture<MCTextureData> texture, Direction direction, float uvRotation, @Nullable Transform transform, @Nullable MCMeshData data) {
+    public void map(Vector2f uvOrg, Vector2f uvSize, Texture<MCTextureData> texture, Direction direction,
+                    float uvRotation, @Nullable Transform transform, @Nullable MCMeshData data,
+                    boolean flipU, boolean flipV) {
         MCMeshBuilder meshBuilder = new MCMeshBuilder(uvOrg, uvSize, direction, uvRotation);
+        if (flipU) {
+            meshBuilder.flipU();
+        }
+        if (flipV) {
+            meshBuilder.flipV();
+        }
         meshBuilder.setTexture(texture);
         meshBuilder.setData(data);
         if (transform != null) {

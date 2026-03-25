@@ -23,6 +23,6 @@
     "MixinItemInHandRenderer",
     "client.MixinBlockModelShaper",
     "client.AccessorOnRegisterRenderTypesEvent",
-    "client.MixinMultiBufferSource"
+    "client.AccessorBufferBuilder"
   ]
 }

@@ -8,13 +8,13 @@ import java.util.HashMap;
 public abstract class Backend<T extends Bridge, R, Q> {
 
     @Getter
-    private final HashMap<Object, R[]> renderingObjects;
+    private final HashMap<Object, R> renderingObjects;
 
     public Backend() {
         this.renderingObjects = new HashMap<>();
     }
 
-    public void add(Object key, R[] renderable) {
+    public void add(Object key, R renderable) {
         renderingObjects.put(key, renderable);
     }
 
@@ -27,10 +27,10 @@ public abstract class Backend<T extends Bridge, R, Q> {
     }
 
     public void renderAllObjects(Q renderContext) {
-        for (R[] renderable : renderingObjects.values()) {
+        for (R renderable : renderingObjects.values()) {
             render(renderable, renderContext);
         }
     }
 
-    public abstract void render(R[] renderable, Q renderContext);
+    public abstract void render(R renderable, Q renderContext);
 }

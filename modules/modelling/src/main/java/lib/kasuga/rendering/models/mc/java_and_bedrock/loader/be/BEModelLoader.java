@@ -4,13 +4,8 @@ import com.google.gson.JsonObject;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
-import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.BoxLayerProcessor;
-import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.DirectionalLayerProcessor;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.TextureLayer;
 import lib.kasuga.rendering.models.uml.loaders.SkeletonBuilder;
-import lib.kasuga.rendering.models.uml.loaders.sources.AllSources;
-import lib.kasuga.rendering.models.uml.loaders.sources.SourceManager;
-import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
 import lib.kasuga.rendering.models.uml.loaders.structural.Loader;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.BoneBinding;
@@ -52,8 +47,8 @@ public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, Ver
         registerProcessor("bone_layer", new BEBoneLayer());
         registerProcessor("cube_layer", new BECubeLayer());
         registerProcessor("locator_layer", new BELocatorLayer());
-        registerProcessor("box_layer", new BoxLayerProcessor());
-        registerProcessor("directional_layer", new DirectionalLayerProcessor());
+        registerProcessor("box_layer", new BEBoxLayerProcessor());
+        registerProcessor("directional_layer", new BEDirectionalLayerProcessor());
     }
 
 

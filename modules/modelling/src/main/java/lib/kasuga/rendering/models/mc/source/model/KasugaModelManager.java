@@ -46,6 +46,7 @@ public class KasugaModelManager extends SourceManager<JsonObject> implements Pre
                                           @NonNull ProfilerFiller reloadProfiler,
                                           @NonNull Executor backgroundExecutor,
                                           @NonNull Executor gameExecutor) {
+        // FIXME: remove this after testing completed.
         ModelPipeLine pipe = pipeLineSup.get();
         inputIdentifiers.add(
                 ResourceLocation.tryBuild(

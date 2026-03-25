@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
+@Deprecated
 public class BufferBuilderRelocator {
 
     public static final BufferBuilderRelocator RELOCATOR = new BufferBuilderRelocator();

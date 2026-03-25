@@ -56,7 +56,6 @@ public class MCMeshBuilder {
         this.uvOrg = uvOrg;
         this.uvSize = uvSize;
         this.uvRotation = uvRotation;
-        genVertices();
     }
 
     private void genVertices() {
@@ -68,17 +67,24 @@ public class MCMeshBuilder {
         while (check < 0) check += 360f;
         int offset = (int) (check / 90) % 4;
         FaceInfo faceInfo = FaceInfo.fromFacing(direction);
-        FaceUVInfo uvInfo = FACE_UV_INFO.get(direction);
 
         vertexPairs = new Pair[4];
         for (FaceInfo.VertexInfo vertexInfo : faceInfo.getCorners()) {
             UVCorner corner = faceInfo.getCorner(vertexInfo);
-            vertexPairs[corner.getIndex()] = Pair.of(vertexInfo, corner.getUVPosition(uvOrg, uvSize));
-        }
-        for (int i = 0; i < 4; i++) {
-            Pair<FaceInfo.VertexInfo, Vector2f> pair = vertexPairs[(i + 4 - offset) % 4];
+            Pair<FaceInfo.VertexInfo, Vector2f> pair = Pair.of(vertexInfo, corner.getUVPosition(offset, uvOrg, uvSize));
+            vertexPairs[corner.getIndex()] = pair;
             vertices.put(pair.getFirst(), pair.getSecond());
         }
+    }
+
+    public void flipU() {
+        uvOrg.setComponent(0, uvOrg.x() + uvSize.x());
+        uvSize.setComponent(0, - uvSize.x());
+    }
+
+    public void flipV() {
+        uvOrg.setComponent(1, uvOrg.y() + uvSize.y());
+        uvSize.setComponent(1, - uvSize.y());
     }
 
     public Vector2f getUV(FaceInfo.VertexInfo vertexInfo) {
@@ -95,6 +101,7 @@ public class MCMeshBuilder {
 
     public Pair<Mesh, FaceInfo.VertexInfo[]> build(HashMap<FaceInfo.VertexInfo, VertexBuilder> vertexPos) {
         Objects.requireNonNull(texture);
+        genVertices();
         FaceInfo.VertexInfo[] vertexInfos = getSortedVertices();
         Vector3f pos1 = vertexPos.get(vertexInfos[0]).getPosition();
         Vector3f pos2 = vertexPos.get(vertexInfos[1]).getPosition();

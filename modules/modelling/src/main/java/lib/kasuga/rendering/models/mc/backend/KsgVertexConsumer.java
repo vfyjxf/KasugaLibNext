@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-
+@Deprecated
 public class KsgVertexConsumer implements VertexConsumer {
 
     private final Map<VertexFormatElement, Integer> ELEMENT_OFFSETS;

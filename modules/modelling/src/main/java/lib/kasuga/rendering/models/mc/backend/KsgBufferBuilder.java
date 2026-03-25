@@ -20,6 +20,7 @@ import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.List;
 
+@Deprecated
 public class KsgBufferBuilder extends BufferBuilder {
 
     private final VertexFormat format;
@@ -255,7 +256,6 @@ public class KsgBufferBuilder extends BufferBuilder {
             MemoryUtil.memPutShort(pointer, (short)(packedUv & '\uffff'));
             MemoryUtil.memPutShort(pointer + 2L, (short)(packedUv >> 16 & '\uffff'));
         }
-
     }
 
     public float[] getUvs(ByteBuffer buffer) {

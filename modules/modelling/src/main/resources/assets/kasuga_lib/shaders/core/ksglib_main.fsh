@@ -7,6 +7,7 @@ uniform sampler2D Sampler1;
 uniform sampler2D Sampler2;
 uniform sampler2D NormalMap;
 uniform sampler2D MetallicRoughnessMap;
+uniform sampler2D EmissiveMap;
 
 uniform vec4 ColorModulator;
 uniform float FogStart;
@@ -17,6 +18,7 @@ uniform vec3 Light0_Direction;
 uniform vec3 Light1_Direction;
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
+uniform float emissiveStrength;
 
 in float vertexDistance;
 in vec4 vertexColor;
@@ -60,51 +62,6 @@ vec3 FresnelSchlick(vec3 F0, float VdotH) {
 }
 
 void main() {
-//    vec3 albedo = texture(Sampler0, texCoord0).rgb;
-//
-//    mat3 normalMat = mat3(ModelViewMat);
-//    vec3 L0 = normalize(normalMat * Light0_Direction);
-//    vec3 L1 = normalize(normalMat * Light1_Direction);
-//
-//    vec3 normalTexture = texture(NormalMap, texCoord0).rgb * 2.0 - 1.0;
-//    vec3 V = normalize(- viewPos);
-//    vec3 N = normalize(TBN * normalTexture);
-//    vec3 color = vec3(0.0);
-//
-//    float NdotL0 = max(dot(N, L0), 0.0);
-//    float NdotL1 = max(dot(N, L1), 0.0);
-//    color += albedo * NdotL0;
-//    color += albedo * NdotL1;
-//
-//    color += albedo * 0.1;  // ambient
-//
-//    color *= vertexColor.rgb;
-//    color *= lightMapColor.rgb * ColorModulator.rgb;
-//    fragColor = vec4(color, 1.0);
-
-//        fragColor = overlayColor;  // 疑似有问题, 全红
-
-//    vec3 metallic = texture(MetallicRoughnessMap,  texCoord0).rgb;  // 没问题, 非全黑
-//    fragColor = vec4(metallic, 1.0);
-
-//    vec4 albedo = texture(Sampler0, texCoord0);
-//    vec3 mra = texture(MetallicRoughnessMap, texCoord0).rgb;
-//    float metallic = mra.r;
-//    metallic = clamp(metallic, 0.0, 1.0);
-//    vec3 F0 = mix(vec3(0.04), albedo.rgb, metallic);
-//    vec3 kD = (1.0 - metallic) * (1.0 - F0);
-//    vec3 diffuse = kD * albedo.rgb; // / 3.14159265;
-//    fragColor = vec4(diffuse, 1.0);
-//
-//    metallic = clamp(metallic, 0.0, 1.0);
-//    vec3 F0 = mix(vec3(0.04), albedo.rgb, metallic);
-//    vec3 kD = (1.0 - metallic) * (1.0 - F0);
-//    vec3 diffuse = kD * albedo.rgb / 3.14159265;
-//    fragColor = vec4(diffuse, 1.0);
-//
-//    vec4 color = texture(Sampler0, texCoord0);
-//    fragColor = color;
-
     vec4 albedo = texture(Sampler0, texCoord0);
     vec3 normalTexture = texture(NormalMap, texCoord0).rgb * 2.0 - 1.0;
     vec4 mra = texture(MetallicRoughnessMap, texCoord0);
@@ -162,8 +119,12 @@ void main() {
     vec3 ambient = vec3(0.75) * albedo.rgb * ao;
     color += ambient;
     color *= vertexColor.rgb;
-//    color = mix(overlayColor.rgb, color, overlayColor.a);
+    color = mix(overlayColor.rgb, color, overlayColor.a);
     color *= lightMapColor.rgb * ColorModulator.rgb;
+
+    vec4 emissiveRgba = texture(EmissiveMap, texCoord0);
+    color += emissiveRgba.rgb * emissiveRgba.a * emissiveStrength;
+
     float alpha = albedo.a * ColorModulator.a;
     vec4 finalColor = vec4(color, alpha);
 

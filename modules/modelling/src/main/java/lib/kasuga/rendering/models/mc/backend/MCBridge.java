@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCMeshData, VertexData,
-        MCTextureData, SkeletonInstanceData, BoneBindingData, AnchorData, BakedQuad> {
+        MCTextureData, SkeletonInstanceData, BoneBindingData, AnchorData, KsgVertexBuffer> {
 
 
     @Override
@@ -46,20 +46,16 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
     }
 
     @Override
-    public BakedQuad[] getBackendRenderable(Model model, SkeletonInstance skeleton, HashMap vertexMap, Mesh[] meshes) {
+    public KsgVertexBuffer getBackendRenderable(Model model, SkeletonInstance skeleton, HashMap vertexMap, Mesh[] meshes) {
         @SuppressWarnings("unchecked")
         HashMap<Vertex, Vertex> vertexHashMap = (HashMap<Vertex, Vertex>) vertexMap;
         List<BakedQuad> quads = new ArrayList<>();
 
-        KsgVertexConsumer consumer = new KsgVertexConsumer(
-                model.getModelData() != null &&
-                        model.getModelData().isMeshTriangles()
-        );
+        KsgVertexBuffer.Builder builder = new KsgVertexBuffer.Builder(model, RenderState.UML_VERTEX_FORMAT);
+
         for (Mesh mesh : meshes) {
-            int color = 0xFFFFFFFF;
             Vector4f meshColor = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
             if (mesh.getData() instanceof ColorizedMeshData colorized) {
-                color = colorized.getPackedColorRGBA();
                 meshColor = colorized.getColor();
             }
             Direction direction = Direction.DOWN;
@@ -73,21 +69,16 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                 ambientOcclusion = mcMeshData.isAmbientOcclusion();
             }
             if (!visible) continue;
-            consumer.setColor(color);
 
             for (Vertex vertex : mesh.getVertices()) {
                 Vertex transformed = vertexHashMap.getOrDefault(vertex, vertex);
                 Vector3f normal = transformed.getNormal(mesh);
                 Vector3f pos = transformed.getPosition();
 
-                // TODO: 这里的Sprite暂时设置为null，后续需要改成正确的Sprite
-                consumer.addVertex(pos.x(), pos.y(), pos.z())
+                builder.addVertex(pos.x(), pos.y(), pos.z())
                         .setNormal(normal.x(), normal.y(), normal.z())
-                        .setColor(255, 255, 255,255)
-                        .setDirection(toMCDirection(direction))
-                        .setShade(shade)
-                        .setHasAmbientOcclusion(ambientOcclusion)
-                        .setSprite(null);
+                        .setColor(255, 255, 255,255);
+
                 int i = 0;
                 for (Texture texture : mesh.getTextures()) {
                     Vector2f uv = transformed.getUV(mesh, texture);
@@ -103,13 +94,15 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                         u0 = 0f; v0 = 0f; u1 = 1f; v1 = 1f;
                     }
                     Vector2f uvPos = getUVPosition(uv, u0, v0, u1, v1);
-                    consumer.setUv(i, uvPos.x(), uvPos.y());
+
+                    builder.setUv(i, uvPos);
                     i++;
                 }
+                builder.pack(vertex, meshColor);
             }
-            quads.add(consumer.bakedQuad(mesh.getNormal(), meshColor));
+            builder.endMesh();
         }
-        return quads.toArray(new BakedQuad[0]);
+        return builder.build();
     }
 
     public static Vector2f getUVPosition(Vector2f uv, float u0, float v0, float u1, float v1) {

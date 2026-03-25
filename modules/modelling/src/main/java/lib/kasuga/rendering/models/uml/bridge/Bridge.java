@@ -30,7 +30,7 @@ public interface Bridge<
                                           SkeletonInstance<G, C, B, H, I> skeleton,
                                           Mesh<D, E, F, B, H>[] meshes);
 
-    R[] getBackendRenderable(Model<A, B, D, E, F, C, H, I> model,
+    R getBackendRenderable(Model<A, B, D, E, F, C, H, I> model,
                              SkeletonInstance<G, C, B, H, I> skeleton,
                              HashMap<Vertex, Vertex> vertexMap,
                              Mesh<D, E, F, B, H>[] meshes);
@@ -39,7 +39,7 @@ public interface Bridge<
                                           SkeletonInstance<G, C, B, H, I> skeleton,
                                           Vertex<?, B, ?> vertex);
 
-    default R[] apply(Model<A, B, D, E, F, C, H, I> model,
+    default R apply(Model<A, B, D, E, F, C, H, I> model,
                          SkeletonInstance<G, C, B, H, I> skeleton) {
         Vertex<E, B, H>[] vertices = model.getVertices();
         Mesh<D, E, F, B, H>[] meshes = model.getMeshes();

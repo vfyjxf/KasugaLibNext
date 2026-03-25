@@ -6,6 +6,9 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import lib.kasuga.core.rendering.BufferBuilderRelocator;
 import lib.kasuga.core.rendering.BufferBuilderSupplier;
+import lib.kasuga.rendering.models.mc.Constants;
+import lib.kasuga.rendering.models.mc.backend.data_type.KasugaTextureStateShard;
+import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -32,6 +35,7 @@ public class RenderState {
     public static final ResourceLocation KSG_LAYER_2 = ResourceLocation.tryBuild("kasuga", "textures/atlas/layer_2.png");
     public static final ResourceLocation KSG_NORMAL_MAP = ResourceLocation.tryBuild("kasuga", "textures/atlas/normals.png");
     public static final ResourceLocation KSG_METALLIC_MAP = ResourceLocation.tryBuild("kasuga", "textures/atlas/metallic.png");
+    public static final ResourceLocation KSG_EMISSIVE_MAP = ResourceLocation.tryBuild("kasuga", "textures/atlas/emissive.png");
     public static final ResourceLocation KSG_RENDER_TYPE = ResourceLocation.tryBuild("kasuga_lib", "basic_render_type");
 
     public static RenderStateShard.ShaderStateShard UML_SHADER;
@@ -47,6 +51,7 @@ public class RenderState {
         Objects.requireNonNull(KSG_NORMAL_MAP);
         Objects.requireNonNull(KSG_METALLIC_MAP);
         Objects.requireNonNull(KSG_RENDER_TYPE);
+        Objects.requireNonNull(KSG_EMISSIVE_MAP);
 
         SPRITE_METADATA = (new ResourceMetadata.Builder())
                 .put(AnimationMetadataSection.SERIALIZER,
@@ -71,13 +76,7 @@ public class RenderState {
                 .padding(13)
                 .build();
 
-        UML_TEXTURE_STATE = RenderStateShard.MultiTextureStateShard.builder()
-                                            .add(KSG_LAYER_0, false, false)  // uv0
-                                            .add(KSG_LAYER_1, false, false)  // uv1
-                                            .add(KSG_LAYER_2, false, false)  // uv2
-                                            .add(KSG_NORMAL_MAP, false, false)     // normal map
-                                            .add(KSG_METALLIC_MAP, false, false)   // metallic map
-                                            .build();
+        UML_TEXTURE_STATE = new KasugaTextureStateShard(() -> (CombinedTextureManager) Constants.TEXTURE_BASIC);
 
         UML_SHADER =  new RenderStateShard.ShaderStateShard(() -> UML_SHADER_INSTANCE);
     }
@@ -107,17 +106,17 @@ public class RenderState {
         return image;
     }
 
-    public static NativeImage getAOMapDefaultImage(int width, int height) {
+    public static NativeImage getEmissiveMapDefaultImage(int width, int height) {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0xFFFFFFFF);
+                image.setPixelRGBA(x, y, 0);
             }
         }
         return image;
     }
 
     public static void addBufferBuilderRelocator(BufferBuilderSupplier supplier) {
-        BufferBuilderRelocator.RELOCATOR.addBufferBuilderSupplier(supplier);
+//        BufferBuilderRelocator.RELOCATOR.addBufferBuilderSupplier(supplier);
     }
 }

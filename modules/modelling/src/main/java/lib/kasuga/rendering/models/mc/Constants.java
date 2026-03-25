@@ -1,12 +1,14 @@
 package lib.kasuga.rendering.models.mc;
 
 import com.google.gson.JsonObject;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.mixins.client.AccessorOnRegisterRenderTypesEvent;
 import lib.kasuga.rendering.models.mc.backend.*;
+import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaTextureStateShard;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
@@ -32,7 +34,6 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.*;
-import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
@@ -75,7 +76,12 @@ public class Constants {
                 RenderState.KSG_METALLIC_MAP, rl -> RenderState.createDefaultSprite(rl,
                         () -> RenderState.getMetallicMapDefaultImage(16 ,16)),
                 (rl, w, h) -> RenderState.createDefaultSprite(rl,
-                        () -> RenderState.getMetallicMapDefaultImage(w, h))
+                        () -> RenderState.getMetallicMapDefaultImage(w, h)),
+                RenderState.KSG_EMISSIVE_MAP,
+                rl -> RenderState.createDefaultSprite(rl,
+                        () -> RenderState.getEmissiveMapDefaultImage(16 ,16)),
+                (rl, w, h) -> RenderState.createDefaultSprite(rl,
+                        () -> RenderState.getEmissiveMapDefaultImage(w, h))
         );
 
         FileTextureSource fileTextureSource = new FileTextureSource("file");
@@ -105,7 +111,7 @@ public class Constants {
         BE_PIPELINE = new ModelPipeLine.Builder<JsonObject, BEModelData, BoneData,
                 MCMeshData, VertexData, SkeletonData, BoneBindingData,
                 AnchorData, MCTextureData, ModelInstanceData,
-                SkeletonInstanceData, BakedQuad, ResourceLocation,
+                SkeletonInstanceData, KsgVertexBuffer, ResourceLocation,
                 ResourceLocation>()
                 .withModelSource(modelSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
@@ -119,7 +125,7 @@ public class Constants {
     public static void onShaderRegister(RegisterShadersEvent event) {
         ResourceProvider provider = event.getResourceProvider();
         try {
-            ShaderInstance shaderInstance = new ShaderInstance(
+            ShaderInstance shaderInstance = new KasugaShaderInstance(
                     provider, ResourceLocation.tryBuild("kasuga_lib", "ksglib_main"),
                     UML_VERTEX_FORMAT
             );
@@ -139,7 +145,7 @@ public class Constants {
                 true,
                 true,
                 RenderType.CompositeState.builder()
-                        .setTextureState(new KasugaTextureStateShard(() -> (CombinedTextureManager) TEXTURE_BASIC))
+                        .setTextureState(RenderState.UML_TEXTURE_STATE)
                         .setShaderState(RenderState.UML_SHADER)
                         .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
@@ -156,14 +162,6 @@ public class Constants {
         );
         RenderState.RENDER_TYPE = type;
         event.registerRenderBuffer(type);
-        RenderState.addBufferBuilderRelocator(
-                (buffer, mode, format) -> {
-                    if (format.equals(UML_VERTEX_FORMAT)) {
-                        return new KsgBufferBuilder(buffer, mode, format);
-                    }
-                    return null;
-                }
-        );
     }
 
     @SubscribeEvent
@@ -192,6 +190,7 @@ public class Constants {
         RenderBuffers renderBuffers = Minecraft.getInstance().renderBuffers();
         MultiBufferSource.BufferSource source = renderBuffers.bufferSource();
         VertexConsumer consumer = source.getBuffer(RenderState.RENDER_TYPE);
+//        RenderSystem.setShader();
         MCBackendContext context = new MCBackendContext(
                 consumer, poseStack, renderBuffers,
                 source, camera, frustum, modelViewMatrix,

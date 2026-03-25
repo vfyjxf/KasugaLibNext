@@ -1,29 +1,40 @@
 package lib.kasuga.rendering.models.mc.backend;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.uml.backend.Backend;
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 
-public class MCBackend extends Backend<Bridge, BakedQuad, MCBackendContext> {
+import java.util.Objects;
+
+public class MCBackend extends Backend<Bridge, KsgVertexBuffer, MCBackendContext> {
 
 
 
     @Override
-    public void render(BakedQuad[] renderable, MCBackendContext context) {
-        if (!(context.getVertexConsumer() instanceof KsgBufferBuilder consumer)) return;
+    public void render(KsgVertexBuffer renderable, MCBackendContext context) {
         PoseStack poseStack = context.getPoseStack();
         poseStack.pushPose();
 
-        for (BakedQuad quad : renderable) {
-            consumer.putBulkData(context.getPoseStack().last(),
-                    quad,
-                    new float[]{1f, 1f, 1f, 1f},
-                    new int[]{LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK},
-                    0, true);
-        }
+        BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
+        RenderSystem.setShader(() -> RenderState.UML_SHADER_INSTANCE);
+        KasugaShaderInstance shader = (KasugaShaderInstance) RenderSystem.getShader();
+        Objects.requireNonNull(shader);
+        renderable.upload(builder, poseStack.last(), shader, 1f, 1f, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY, true);
+
+//        for (BakedQuad quad : renderable) {
+//            consumer.putBulkData(context.getPoseStack().last(),
+//                    quad,
+//                    new float[]{1f, 1f, 1f, 1f},
+//                    new int[]{LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK},
+//                    0, true);
+//        }
         poseStack.popPose();
     }
 }

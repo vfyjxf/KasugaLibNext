@@ -16,6 +16,8 @@ uniform mat4 ProjMat;
 uniform int FogShape;
 uniform sampler2D Sampler1;
 uniform sampler2D Sampler2;
+uniform mat4 ModelPoseMat;
+uniform mat3 ModelNormalMat;
 
 uniform vec3 Light0_Direction;
 uniform vec3 Light1_Direction;
@@ -30,19 +32,21 @@ out vec3 viewNormal;
 out mat3 TBN;
 
 void main() {
-    gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
-    vertexDistance = fog_distance(Position, FogShape);
+    vec4 posWorld = (ModelPoseMat * vec4(Position, 1.0));
     vertexColor = Color;
     lightMapColor = texelFetch(Sampler2, UV2 / 16, 0);
     overlayColor = texelFetch(Sampler1, UV1, 0);
 
     texCoord0 = UV0;
-    vec4 viewPos4 = ModelViewMat * vec4(Position, 1.0);
+    vec4 viewPos4 = ModelViewMat * posWorld;
     viewPos = viewPos4.xyz;
-    mat3 normalMatrix = mat3(ModelViewMat);
+    vertexDistance = fog_distance(viewPos, FogShape);
+    mat3 normalMatrix = mat3(ModelViewMat) * ModelNormalMat;
     viewNormal = normalize(normalMatrix * Normal);
 
     vec3 T = normalize(normalMatrix * Tangent.xyz);
     vec3 B = cross(viewNormal, T) * Tangent.w;
     TBN = mat3(T, B, viewNormal);
+
+    gl_Position = ProjMat * viewPos4;
 }

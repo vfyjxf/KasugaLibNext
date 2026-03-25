@@ -6,7 +6,7 @@ import org.joml.Vector2f;
 
 public enum UVCorner {
 
-    LEFT_TOP(0), LEFT_DOWN(3), RIGHT_TOP(1), RIGHT_DOWN(2);
+    LEFT_TOP(0), RIGHT_TOP(1), RIGHT_DOWN(2), LEFT_DOWN(3);
 
     @Getter
     private final int index;
@@ -15,8 +15,10 @@ public enum UVCorner {
         this.index = index;
     }
 
-    public Vector2f getUVPosition(Vector2f uvOrg, Vector2f uvSize) {
-        switch (this) {
+    public Vector2f getUVPosition(int offset, Vector2f uvOrg, Vector2f uvSize) {
+        int idx = (this.index + offset) % 4;
+        UVCorner corner = getCorner(idx);
+        switch (corner) {
             case LEFT_TOP -> {
                 return new Vector2f(uvOrg.x, uvOrg.y);
             }
@@ -31,6 +33,16 @@ public enum UVCorner {
             }
             default -> throw new IllegalStateException("Unexpected value: " + this);
         }
+    }
+
+    public static UVCorner getCorner(int index) {
+        return switch (index) {
+            case 0 -> LEFT_TOP;
+            case 1 -> RIGHT_TOP;
+            case 2 -> RIGHT_DOWN;
+            case 3 -> LEFT_DOWN;
+            default -> throw new IllegalStateException("Unexpected value: " + index);
+        };
     }
 
     public static boolean isLeft(UVCorner corner) {
