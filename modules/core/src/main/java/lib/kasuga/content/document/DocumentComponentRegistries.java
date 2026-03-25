@@ -7,6 +7,7 @@ import lib.kasuga.KasugaLibApplication;
 import lib.kasuga.content.device.DeviceRegistries;
 import lib.kasuga.content.device.DeviceType;
 import lib.kasuga.core.codec.KasugaCodec;
+import lib.kasuga.registration.minecraft.data_component.DataComponentReg;
 import lib.kasuga.registration.minecraft.registry.RegistryReg;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -42,5 +43,9 @@ public class DocumentComponentRegistries {
                     true);
 
     public static final RegistryReg<DocumentComponentType<?>> DOCUMENT_COMPONENT_REGISTRY_REG = new RegistryReg<>(DOCUMENT_COMPONENT_REGISTRY)
+            .setParent(KasugaLibApplication.REGISTRY);
+
+    public static DataComponentReg<Map<Holder<DocumentComponentType<?>>, Object>> DOCUMENT_COMPONENT = new DataComponentReg<Map<Holder<DocumentComponentType<?>>, Object>>("document_components", builder->builder.networkSynchronized(DocumentComponentRegistries.DOCUMENT_COMPONENT_BYTE_BUF)
+            .persistent(DocumentComponentRegistries.DOCUMENT_COMPONENT_PERSISTENT))
             .setParent(KasugaLibApplication.REGISTRY);
 }
