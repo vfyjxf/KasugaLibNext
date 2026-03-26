@@ -3,11 +3,13 @@ package lib.kasuga.rendering.models.mc.backend;
 import com.mojang.blaze3d.vertex.*;
 import lib.kasuga.mixins.client.AccessorBufferBuilder;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lombok.Getter;
 import net.minecraft.util.FastColor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
@@ -16,10 +18,7 @@ import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class KsgVertexBuffer {
 
@@ -30,10 +29,19 @@ public class KsgVertexBuffer {
     private final HashMap<VertexFormatElement, Integer> offsets;
     private final HashMap<VertexFormatElement, Integer> bufOffsets;
     private VertexFormatElement uv1_element, uv2_element;
+//    private final HashMap<Supplier<Boolean>, HashMap<VertexFormatElement, ElementUploader>> conditionalUploaders;
 
     @Getter
     private final Builder modifier;
     private static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN);
+
+    public interface ElementUploader {
+        void upload(BufferBuilder builder, long pointer, int vertexIndex,
+                    VertexFormatElement element, ByteBuffer buffer,
+                    PoseStack.Pose pose, float brightness,
+                    int packedLight, int packedOverlay,
+                    boolean readAlpha);
+    }
 
     public KsgVertexBuffer(int numVertices, int vertexSize, VertexFormat format, Builder modifier) {
         this.buffer = ByteBuffer.allocate(numVertices * vertexSize);
@@ -55,6 +63,7 @@ public class KsgVertexBuffer {
         this.modifier = modifier;
         uv1_element = null; uv2_element = null;
         findUv1AndUv2(format);
+//        conditionalUploaders = new HashMap<>();
     }
 
     private void findUv1AndUv2(VertexFormat format) {
@@ -77,23 +86,110 @@ public class KsgVertexBuffer {
         return (int) ((index * vertexSize) + bufOffsets.get(element));
     }
 
+    public void uploadOnIrisPresent(BufferBuilder builder,
+                                    PoseStack.Pose pose,
+                                    float brightness,
+                                    int packedLight,
+                                    int packedOverlay,
+                                    boolean readAlpha) {
+        int bufOffset;
+        for (int i = 0; i < numVertices; i++) {
+            bufOffset = getBufPos(i, VertexFormatElement.POSITION);
+            Vector3f pos = new Vector3f(
+                    buffer.getFloat(bufOffset),
+                    buffer.getFloat(bufOffset + 4),
+                    buffer.getFloat(bufOffset + 8)
+            );
+            pose.pose().transformPosition(pos);
+
+            bufOffset = getBufPos(i, VertexFormatElement.COLOR);
+            float a = (buffer.get(bufOffset) & 0xff) / 255f;
+            float b = (buffer.get(bufOffset + 1) & 0xff) / 255f;
+            float g = (buffer.get(bufOffset + 2) & 0xff) / 255f;
+            float r = (buffer.get(bufOffset + 3) & 0xff) / 255f;
+
+            float ma = (buffer.get(bufOffset + 4) & 0xff) / 255f;
+            float mb = (buffer.get(bufOffset + 5) & 0xff) / 255f;
+            float mg = (buffer.get(bufOffset + 6) & 0xff) / 255f;
+            float mr = (buffer.get(bufOffset + 7) & 0xff) / 255f;
+
+            r = r * brightness * mr * 255;
+            g = g * brightness * mg * 255;
+            b = b * brightness * mb * 255;
+            a = readAlpha ? a * ma * 255 : ma * 255;
+            int colorFinal = (int) a << 24 | (int) b << 16 | (int) g << 8 | (int) r;
+
+            bufOffset = getBufPos(i, VertexFormatElement.UV0);
+            float u0 = buffer.getFloat(bufOffset);
+            float v0 = buffer.getFloat(bufOffset + 4);
+
+            bufOffset = getBufPos(i, VertexFormatElement.NORMAL);
+            float nx = ((float) buffer.get(bufOffset)) / 127f;
+            float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
+            float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
+            builder.addVertex(pos.x(), pos.y(), pos.z(),
+                    colorFinal, u0, v0, packedOverlay, packedLight, nx, ny, nz);
+        }
+    }
+
+//    private void innerUpload(BufferBuilder builder, long pointer, int vertexIndex,
+//                             VertexFormatElement element,
+//                             PoseStack.Pose pose, float brightness,
+//                             int packedLight, int packedOverlay,
+//                             boolean readAlpha,
+//                             ElementUploader uploader) {
+//        if (!bufOffsets.containsKey(element)) return;
+//        long offset = getPos(pointer, element);
+//        int bufOffset = getBufPos(vertexIndex, element);
+//        uploader.upload(builder, offset, bufOffset, element, buffer, pose, brightness, packedLight, packedOverlay, readAlpha);
+//    }
+//
+//    private void customizeUpload(BufferBuilder builder, long uploadOffset, int indexVertexStart,
+//                                int indexCount, VertexFormat format, PoseStack.Pose pose,
+//                                float brightness, int packedLight,
+//                                int packedOverlay, boolean readAlpha,
+//                                HashMap<VertexFormatElement, ElementUploader> uploaders) {
+//        if (!uploaders.containsKey(VertexFormatElement.POSITION)) {
+//            throw new IllegalArgumentException("Uploader must include POSITION element uploader");
+//        }
+//        int formatSize = format.getVertexSize();
+//        long pointer = uploadOffset + ((long) indexVertexStart * formatSize);
+//        for (int i = 0; i < indexCount; i++) {
+//            for (VertexFormatElement element : format.getElements()) {
+//                if (!uploaders.containsKey(element)) continue;
+//                ElementUploader uploader = uploaders.get(element);
+//                if (uploader == null) continue;
+//                uploader.upload(
+//                        builder, pointer, indexVertexStart + i,
+//                        element, buffer, pose, brightness, packedLight,
+//                        packedOverlay, readAlpha
+//                );
+//            }
+//            pointer += formatSize;
+//        }
+//    }
+
     public void upload(BufferBuilder builder,
                        PoseStack.Pose pose,
-                       KasugaShaderInstance shader,
+                       @Nullable KasugaShaderInstance shader,
                        float brightness, float emissiveStrength,
                        int packedLight, int packedOverlay,
                        boolean readAlpha) {
+        if (IrisCompat.isUsingShaderPack()) {
+            uploadOnIrisPresent(builder, pose, brightness, packedLight, packedOverlay, readAlpha);
+            return;
+        }
+        Objects.requireNonNull(shader);
         shader.setCurrentPose(pose);
         shader.setEmissiveStrength(emissiveStrength);
         shader.apply();
         AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
         ByteBufferBuilder buf = accessor.getBuffer();
-        long pointer;
+        int avs = accessor.getVertexSize();
+        long pointer = buf.reserve(avs * numVertices);
         long offset;
         int bufOffset;
         for (int i = 0; i < numVertices; i++) {
-            pointer = buf.reserve(accessor.getVertexSize());
-
             offset = getPos(pointer, VertexFormatElement.POSITION);
             bufOffset = getBufPos(i, VertexFormatElement.POSITION);
             MemoryUtil.memPutFloat(offset, buffer.getFloat(bufOffset));
@@ -159,6 +255,7 @@ public class KsgVertexBuffer {
                 MemoryUtil.memPutFloat(offset, buffer.getFloat(bufOffset));
                 MemoryUtil.memPutFloat(offset + 4L, buffer.getFloat(bufOffset + 4));
             }
+            pointer += avs;
         }
         accessor.setVertices(accessor.getVertices() + numVertices);
     }

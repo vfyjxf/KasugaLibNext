@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.mc;
 
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -10,6 +11,7 @@ import lib.kasuga.mixins.client.AccessorOnRegisterRenderTypesEvent;
 import lib.kasuga.rendering.models.mc.backend.*;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaTextureStateShard;
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
@@ -62,6 +64,7 @@ public class Constants {
 
     @SubscribeEvent
     public static void onReloadListenerRegister(RegisterClientReloadListenersEvent event) {
+        IrisCompat.onStart();
         TEXTURE_TYPE = new SourceType("texture");
         MODEL_TYPE = new SourceType("model");
 
@@ -137,11 +140,11 @@ public class Constants {
 
     @SubscribeEvent
     public static void onRegisterRenderBuffers(RegisterRenderBuffersEvent event) {
-        RenderType type = RenderType.create(
-                "kasuga:uml_render_type",
+        RenderType typeDefault = RenderType.create(
+                "kasuga_lib:uml_render_type",
                 UML_VERTEX_FORMAT,
                 VertexFormat.Mode.QUADS,
-                786432,
+                256,
                 true,
                 true,
                 RenderType.CompositeState.builder()
@@ -149,7 +152,7 @@ public class Constants {
                         .setShaderState(RenderState.UML_SHADER)
                         .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
-                        .setCullState(RenderStateShard.CULL)
+                        .setCullState(RenderStateShard.NO_CULL)
                         .setLightmapState(RenderStateShard.LIGHTMAP)
                         .setOverlayState(RenderStateShard.OVERLAY)
                         .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
@@ -160,8 +163,35 @@ public class Constants {
                         .setColorLogicState(RenderStateShard.NO_COLOR_LOGIC)
                         .createCompositeState(false)
         );
-        RenderState.RENDER_TYPE = type;
-        event.registerRenderBuffer(type);
+        RenderState.RENDER_TYPE = typeDefault;
+
+        RenderType typeIris = RenderType.create(
+                "kasuga_lib:iris_compat_render_type",
+                DefaultVertexFormat.NEW_ENTITY,
+                VertexFormat.Mode.QUADS,
+                256,
+                true,
+                true,
+                RenderType.CompositeState.builder()
+                        .setTextureState(RenderState.UML_TEXTURE_STATE)
+                        .setShaderState(RenderState.UML_SHADER)
+                        .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                        .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
+                        .setCullState(RenderStateShard.NO_CULL)
+                        .setLightmapState(RenderStateShard.LIGHTMAP)
+                        .setOverlayState(RenderStateShard.OVERLAY)
+                        .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
+                        .setOutputState(RenderStateShard.MAIN_TARGET)
+                        .setTexturingState(RenderStateShard.DEFAULT_TEXTURING)
+                        .setWriteMaskState(RenderStateShard.COLOR_DEPTH_WRITE)
+                        .setLineState(RenderStateShard.DEFAULT_LINE)
+                        .setColorLogicState(RenderStateShard.NO_COLOR_LOGIC)
+                        .createCompositeState(false)
+        );
+        RenderState.IRIS_COMPAT_RENDER_TYPE = typeIris;
+
+        event.registerRenderBuffer(typeDefault);
+        event.registerRenderBuffer(typeIris);
     }
 
     @SubscribeEvent
@@ -189,7 +219,7 @@ public class Constants {
         DeltaTracker partial = event.getPartialTick();
         RenderBuffers renderBuffers = Minecraft.getInstance().renderBuffers();
         MultiBufferSource.BufferSource source = renderBuffers.bufferSource();
-        VertexConsumer consumer = source.getBuffer(RenderState.RENDER_TYPE);
+        VertexConsumer consumer = source.getBuffer(RenderState.getRenderType());
 //        RenderSystem.setShader();
         MCBackendContext context = new MCBackendContext(
                 consumer, poseStack, renderBuffers,

@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.uml.backend.Backend;
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import net.minecraft.client.renderer.LightTexture;
@@ -23,18 +24,13 @@ public class MCBackend extends Backend<Bridge, KsgVertexBuffer, MCBackendContext
         poseStack.pushPose();
 
         BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
-        RenderSystem.setShader(() -> RenderState.UML_SHADER_INSTANCE);
-        KasugaShaderInstance shader = (KasugaShaderInstance) RenderSystem.getShader();
-        Objects.requireNonNull(shader);
+        KasugaShaderInstance shader = null;
+        if (!IrisCompat.isUsingShaderPack()) {
+            RenderSystem.setShader(() -> RenderState.UML_SHADER_INSTANCE);
+            shader  = (KasugaShaderInstance) RenderSystem.getShader();
+        }
         renderable.upload(builder, poseStack.last(), shader, 1f, 1f, LightTexture.FULL_BLOCK, OverlayTexture.NO_OVERLAY, true);
 
-//        for (BakedQuad quad : renderable) {
-//            consumer.putBulkData(context.getPoseStack().last(),
-//                    quad,
-//                    new float[]{1f, 1f, 1f, 1f},
-//                    new int[]{LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK, LightTexture.FULL_BLOCK},
-//                    0, true);
-//        }
         poseStack.popPose();
     }
 }

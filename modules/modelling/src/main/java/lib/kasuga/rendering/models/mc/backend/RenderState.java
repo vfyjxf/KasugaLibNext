@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.VertexFormatElement;
 import lib.kasuga.core.rendering.BufferBuilderSupplier;
 import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaTextureStateShard;
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
@@ -25,6 +26,7 @@ public class RenderState {
 
     public static final VertexFormat UML_VERTEX_FORMAT;
     public static RenderType RENDER_TYPE;
+    public static RenderType IRIS_COMPAT_RENDER_TYPE;
     public static final RenderStateShard.EmptyTextureStateShard UML_TEXTURE_STATE;
 
     public static final VertexFormatElement TANGENT;
@@ -117,5 +119,9 @@ public class RenderState {
 
     public static void addBufferBuilderRelocator(BufferBuilderSupplier supplier) {
 //        BufferBuilderRelocator.RELOCATOR.addBufferBuilderSupplier(supplier);
+    }
+
+    public static RenderType getRenderType() {
+        return IrisCompat.isUsingShaderPack() ? IRIS_COMPAT_RENDER_TYPE : RENDER_TYPE;
     }
 }
