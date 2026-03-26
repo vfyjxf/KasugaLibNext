@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
-import lib.kasuga.core.rendering.BufferBuilderRelocator;
 import lib.kasuga.core.rendering.BufferBuilderSupplier;
 import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaTextureStateShard;
