@@ -174,7 +174,7 @@ public class Constants {
                 true,
                 RenderType.CompositeState.builder()
                         .setTextureState(RenderState.UML_TEXTURE_STATE)
-                        .setShaderState(RenderState.UML_SHADER)
+                        .setShaderState(RenderStateShard.RENDERTYPE_ENTITY_TRANSLUCENT_SHADER)
                         .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
                         .setCullState(RenderStateShard.NO_CULL)

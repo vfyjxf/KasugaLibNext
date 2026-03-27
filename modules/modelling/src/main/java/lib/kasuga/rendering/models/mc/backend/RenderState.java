@@ -101,7 +101,7 @@ public class RenderState {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0xFFFF7F7F);  // 0xFFFF7F7F
+                image.setPixelRGBA(x, y, 0xFFFFFFFF);  // 0xFFFF7F7F
             }
         }
         return image;
