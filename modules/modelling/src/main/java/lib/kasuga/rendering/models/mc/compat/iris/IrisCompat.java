@@ -1,10 +1,18 @@
 package lib.kasuga.rendering.models.mc.compat.iris;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import lombok.Getter;
 import net.irisshaders.iris.api.v0.IrisApi;
+import net.irisshaders.iris.pbr.loader.PBRTextureLoaderRegistry;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.metadata.animation.FrameSize;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceMetadata;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
+import org.jetbrains.annotations.Nullable;
 
+import java.lang.reflect.Constructor;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -15,8 +23,40 @@ public class IrisCompat {
     @Getter
     private static Optional<? extends ModContainer> irisModContainer;
 
+    private static Class<?> pbrContentClazz, pbrTextureClazz;
+    private static Constructor<?> pbrContentConstructor, pbrTextureConstructor;
+
     public static void onStart() {
         irisModContainer = ModList.get().getModContainerById(IRIS_MOD_ID);
+        if (isIrisPresent()) {
+            onIrisSetup();
+        }
+    }
+
+    private static void onIrisSetup() {
+        try {
+            pbrContentClazz = Class.forName("net.irisshaders.iris.pbr.loader.AtlasPBRLoader$PBRSpriteContents");
+            pbrTextureClazz = Class.forName("net.irisshaders.iris.pbr.loader.AtlasPBRLoader$PBRTextureAtlasSprite");
+            pbrContentConstructor = pbrContentClazz.getDeclaredConstructor(
+                    ResourceLocation.class,
+                    FrameSize.class,
+                    NativeImage.class,
+                    ResourceMetadata.class,
+                    Class.forName("net.irisshaders.iris.pbr.texture.PBRType")
+            );
+            pbrContentConstructor.setAccessible(true);
+
+            pbrTextureConstructor = pbrTextureClazz.getDeclaredConstructor(
+                    ResourceLocation.class,
+                    pbrContentClazz,
+                    int.class, int.class, int.class, int.class,
+                    TextureAtlasSprite.class
+            );
+            pbrTextureConstructor.setAccessible(true);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            e.printStackTrace();
+        }
+        PBRTextureLoaderRegistry.INSTANCE.register(KasugaTextureAtlas.class, new KasugaPBRLoader());
     }
 
     public static boolean isIrisPresent() {
@@ -39,5 +79,16 @@ public class IrisCompat {
 
     public static boolean isUsingShaderPack() {
         return isIrisPresent() && IrisApi.getInstance().isShaderPackInUse();
+    }
+
+    @Nullable
+    public static Object createPBRSpriteContent(ResourceLocation name, FrameSize size, NativeImage image, ResourceMetadata meta, Object pbrType) throws Exception {
+        if (!isIrisPresent()) return null;
+        return pbrContentConstructor.newInstance(name, size, image, meta, pbrType);
+    }
+
+    public static Object createPBRTextureAtlasSprite(ResourceLocation name, Object content, int x0, int y0, int x1, int y1, TextureAtlasSprite sprite) throws Exception {
+        if (!isIrisPresent()) return null;
+        return pbrTextureConstructor.newInstance(name, content, x0, y0, x1, y1, sprite);
     }
 }

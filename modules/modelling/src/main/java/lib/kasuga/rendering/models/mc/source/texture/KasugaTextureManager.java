@@ -1,6 +1,7 @@
 package lib.kasuga.rendering.models.mc.source.texture;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import lib.kasuga.rendering.models.mc.compat.iris.KasugaTextureAtlas;
 import lib.kasuga.rendering.models.uml.loaders.sources.Source;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceManager;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
@@ -30,8 +31,8 @@ import java.util.function.Supplier;
 @Getter
 public class KasugaTextureManager extends SourceManager<InputStream> implements PreparableReloadListener, AutoCloseable {
 
-    @NonNull
-    protected final TextureAtlas textureAtlas;
+    @NotNull
+    protected final KasugaTextureAtlas textureAtlas;
     private final List<SpriteUploader<?>> spriteUploaders;
     private final Map<Object, SpriteContents> caches;
     private final Map<Object, TextureAtlasSprite> loadedSprites;
@@ -43,7 +44,7 @@ public class KasugaTextureManager extends SourceManager<InputStream> implements 
                                 ResourceLocation textureAtlasLocation,
                                 @Nullable Function<ResourceLocation, SpriteContents> missingImage) {
         super(type, name);
-        this.textureAtlas = new TextureAtlas(textureAtlasLocation);
+        this.textureAtlas = new KasugaTextureAtlas(textureAtlasLocation);
         this.spriteUploaders = new ArrayList<>();
         this.loadedSprites = new HashMap<>();
         this.caches = new HashMap<>();
@@ -136,5 +137,9 @@ public class KasugaTextureManager extends SourceManager<InputStream> implements 
 
     public TextureAtlasSprite get(Object identifier) {
         return loadedSprites.get(identifier);
+    }
+
+    public @NonNull TextureAtlas getTextureAtlas() {
+        return this.textureAtlas;
     }
 }

@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
+import lib.kasuga.KasugaLib;
 import lib.kasuga.core.rendering.BufferBuilderSupplier;
 import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaTextureStateShard;
@@ -31,13 +32,14 @@ public class RenderState {
 
     public static final VertexFormatElement TANGENT;
 
-    public static final ResourceLocation KSG_LAYER_0 = ResourceLocation.tryBuild("kasuga", "textures/atlas/layer_0.png");
-    public static final ResourceLocation KSG_LAYER_1 = ResourceLocation.tryBuild("kasuga", "textures/atlas/layer_1.png");
-    public static final ResourceLocation KSG_LAYER_2 = ResourceLocation.tryBuild("kasuga", "textures/atlas/layer_2.png");
-    public static final ResourceLocation KSG_NORMAL_MAP = ResourceLocation.tryBuild("kasuga", "textures/atlas/normals.png");
-    public static final ResourceLocation KSG_METALLIC_MAP = ResourceLocation.tryBuild("kasuga", "textures/atlas/metallic.png");
-    public static final ResourceLocation KSG_EMISSIVE_MAP = ResourceLocation.tryBuild("kasuga", "textures/atlas/emissive.png");
-    public static final ResourceLocation KSG_RENDER_TYPE = ResourceLocation.tryBuild("kasuga_lib", "basic_render_type");
+    public static final ResourceLocation KSG_LAYER_0 = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/layer_0.png");
+    public static final ResourceLocation KSG_LAYER_1 = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/layer_1.png");
+    public static final ResourceLocation KSG_LAYER_2 = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/layer_2.png");
+    public static final ResourceLocation KSG_NORMAL_MAP = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/normals.png");
+    public static final ResourceLocation KSG_METALLIC_MAP = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/metallic.png");
+    public static final ResourceLocation KSG_EMISSIVE_MAP = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/emissive.png");
+    public static final ResourceLocation KSG_RENDER_TYPE = ResourceLocation.tryBuild(KasugaLib.MODID, "basic_render_type");
+    public static final ResourceLocation KSG_IRIS_RENDER_TYPE = ResourceLocation.tryBuild(KasugaLib.MODID, "iris_render_type");
 
     public static RenderStateShard.ShaderStateShard UML_SHADER;
     public static ShaderInstance UML_SHADER_INSTANCE;
@@ -52,6 +54,7 @@ public class RenderState {
         Objects.requireNonNull(KSG_NORMAL_MAP);
         Objects.requireNonNull(KSG_METALLIC_MAP);
         Objects.requireNonNull(KSG_RENDER_TYPE);
+        Objects.requireNonNull(KSG_IRIS_RENDER_TYPE);
         Objects.requireNonNull(KSG_EMISSIVE_MAP);
 
         SPRITE_METADATA = (new ResourceMetadata.Builder())
@@ -91,17 +94,17 @@ public class RenderState {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0x00FF7F7F);  // 0x00FF7F7F
+                image.setPixelRGBA(x, y, 0x00FF7F7F);  // (127, 127, 0, 0) = 0x00FF7F7F
             }
         }
         return image;
     }
 
-    public static NativeImage getMetallicMapDefaultImage(int width, int height) {
+    public static NativeImage getSpecularMapDefaultImage(int width, int height) {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0xFFFFFFFF);  // 0xFFFF7F7F
+                image.setPixelRGBA(x, y, 0x00FFE77F);  // (127, 10, 0, 0) = 0x00000A7F
             }
         }
         return image;

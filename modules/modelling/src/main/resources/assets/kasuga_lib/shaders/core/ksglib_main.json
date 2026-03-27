@@ -5,9 +5,8 @@
     {"name": "Sampler0"},
     {"name": "Sampler1"},
     {"name": "Sampler2"},
-    {"name": "NormalMap"},
-    {"name": "MetallicRoughnessMap"},
-    {"name":  "EmissiveMap"}
+    {"name": "ksg_NormalMap"},
+    {"name": "ksg_SpecularMap"}
   ],
   "uniforms": [
     { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
@@ -19,8 +18,8 @@
     { "name": "FogEnd", "type": "float", "count": 1, "values": [ 1.0 ] },
     { "name": "FogColor", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 0.0 ] },
     { "name": "FogShape", "type": "int", "count": 1, "values": [ 0 ] },
-    { "name": "EmissiveStrength", "type":  "float", "count": 1, "values": [ 1.0 ] },
-    { "name": "ModelPoseMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
-    { "name": "ModelNormalMat", "type": "matrix3x3", "count": 9, "values": [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ] }
+    { "name": "ksg_EmissiveStrength", "type":  "float", "count": 1, "values": [ 1.0 ] },
+    { "name": "ksg_ModelPoseMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+    { "name": "ksg_ModelNormalMat", "type": "matrix3x3", "count": 9, "values": [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ] }
   ]
 }

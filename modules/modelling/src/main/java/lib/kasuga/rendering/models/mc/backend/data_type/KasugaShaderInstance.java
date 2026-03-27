@@ -43,13 +43,14 @@ public class KasugaShaderInstance extends ShaderInstance {
     }
 
     protected void applyAdditionalData() {
-        this.safeGetUniform("EmissiveStrength").set(this.emissiveStrength);
+        // TODO: 记得同步修改着色器的相关系数
+        this.safeGetUniform("ksg_EmissiveStrength").set(this.emissiveStrength);
         if (currentPose != null) {
-            this.safeGetUniform("ModelPoseMat").set(this.currentPose.pose());
-            this.safeGetUniform("ModelNormalMat").set(this.currentPose.normal());
+            this.safeGetUniform("ksg_ModelPoseMat").set(this.currentPose.pose());
+            this.safeGetUniform("ksg_ModelNormalMat").set(this.currentPose.normal());
         } else {
-            this.safeGetUniform("ModelPoseMat").set(IDENTITY_M4F);
-            this.safeGetUniform("ModelNormalMat").set(IDENTITY_M3F);
+            this.safeGetUniform("ksg_ModelPoseMat").set(IDENTITY_M4F);
+            this.safeGetUniform("ksg_ModelNormalMat").set(IDENTITY_M3F);
         }
     }
 

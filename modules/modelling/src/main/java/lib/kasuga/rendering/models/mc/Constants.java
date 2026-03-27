@@ -1,7 +1,6 @@
 package lib.kasuga.rendering.models.mc;
 
 import com.google.gson.JsonObject;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -10,7 +9,6 @@ import lib.kasuga.KasugaLib;
 import lib.kasuga.mixins.client.AccessorOnRegisterRenderTypesEvent;
 import lib.kasuga.rendering.models.mc.backend.*;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
-import lib.kasuga.rendering.models.mc.backend.data_type.KasugaTextureStateShard;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
@@ -55,7 +53,7 @@ import static lib.kasuga.rendering.models.mc.backend.RenderState.UML_VERTEX_FORM
 public class Constants {
 
     public static ModelPipeLine BE_PIPELINE;
-    public static KasugaTextureManager TEXTURE_BASIC;
+    public static CombinedTextureManager TEXTURE_BASIC;
     public static SourceType TEXTURE_TYPE, MODEL_TYPE;
     public static MCBackend MC_BACKEND;
 
@@ -73,18 +71,13 @@ public class Constants {
                 Minecraft.getInstance().getTextureManager(),
                 RenderState.KSG_LAYER_0, null,
                 RenderState.KSG_NORMAL_MAP, rl -> RenderState.createDefaultSprite(rl,
-                () -> RenderState.getMetallicMapDefaultImage(16 ,16)),
+                () -> RenderState.getSpecularMapDefaultImage(16 ,16)),
                 (rl, w, h) -> RenderState.createDefaultSprite(rl,
                         () -> RenderState.getNormalMapDefaultImage(w, h)),
                 RenderState.KSG_METALLIC_MAP, rl -> RenderState.createDefaultSprite(rl,
-                        () -> RenderState.getMetallicMapDefaultImage(16 ,16)),
+                        () -> RenderState.getSpecularMapDefaultImage(16 ,16)),
                 (rl, w, h) -> RenderState.createDefaultSprite(rl,
-                        () -> RenderState.getMetallicMapDefaultImage(w, h)),
-                RenderState.KSG_EMISSIVE_MAP,
-                rl -> RenderState.createDefaultSprite(rl,
-                        () -> RenderState.getEmissiveMapDefaultImage(16 ,16)),
-                (rl, w, h) -> RenderState.createDefaultSprite(rl,
-                        () -> RenderState.getEmissiveMapDefaultImage(w, h))
+                        () -> RenderState.getSpecularMapDefaultImage(w, h))
         );
 
         FileTextureSource fileTextureSource = new FileTextureSource("file");
@@ -204,6 +197,14 @@ public class Constants {
                         RenderState.RENDER_TYPE
                 )
         );
+        accessor.getRenderTypes().put(
+                RenderState.KSG_IRIS_RENDER_TYPE, new RenderTypeGroup(
+                        RenderState.IRIS_COMPAT_RENDER_TYPE,
+                        RenderState.IRIS_COMPAT_RENDER_TYPE,
+                        RenderState.IRIS_COMPAT_RENDER_TYPE
+                )
+        );
+
 //        event.register(RenderState.KSG_RENDER_TYPE, RenderState.RENDER_TYPE, RenderState.RENDER_TYPE);
     }
 

@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.mc.source.texture;
 
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.uml.loaders.sources.Source;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
 import lib.kasuga.structure.Pair;
@@ -22,8 +23,7 @@ import java.util.function.Supplier;
 public class CombinedTextureManager extends KasugaTextureManager {
 
     protected final TextureAtlas normalMap;
-    protected final TextureAtlas metallicRoughnessMap;
-    protected  final  TextureAtlas emissiveMap;
+    protected final TextureAtlas specularMap;
     private final List<SpriteUploader<?>[]> spriteUploaders;
     private final Map<Object, SpriteContents[]> caches;
     private final Map<Object, TextureAtlasSprite[]> loadedSprites;
@@ -41,24 +41,19 @@ public class CombinedTextureManager extends KasugaTextureManager {
                                   ResourceLocation normalMapLocation,
                                   @Nullable Function<ResourceLocation, SpriteContents> missingNormalMapImage,
                                   @NonNull DefaultSpriteSupplier defaultNormalSprite,
-                                  ResourceLocation metallicRoughnessMapLocation,
-                                  @Nullable Function<ResourceLocation, SpriteContents> missingMRMapImage,
-                                  @NonNull DefaultSpriteSupplier defaultMRSprite,
-                                  ResourceLocation emissiveMapLocation,
-                                  @Nullable Function<ResourceLocation, SpriteContents> missingEmissiveMapImage,
-                                  @NonNull DefaultSpriteSupplier defaultEmissiveSprite) {
+                                  ResourceLocation specularMapLocation,
+                                  @Nullable Function<ResourceLocation, SpriteContents> missingSpecularMapImage,
+                                  @NonNull DefaultSpriteSupplier defaultSpecularSprite) {
         super(type, name, textureManager, textureAtlasLocation, missingImage);
         this.normalMap = new TextureAtlas(normalMapLocation);
-        this.metallicRoughnessMap = new TextureAtlas(metallicRoughnessMapLocation);
-        this.emissiveMap = new TextureAtlas(emissiveMapLocation);
+        this.specularMap = new TextureAtlas(specularMapLocation);
         this.spriteUploaders = new ArrayList<>();
         this.caches = new HashMap<>();
         this.loadedSprites = new HashMap<>();
-        this.missingImages = new Function[]{missingImage, missingNormalMapImage, missingMRMapImage, missingEmissiveMapImage};
-        this.defaultSprites = new DefaultSpriteSupplier[]{defaultNormalSprite, defaultMRSprite, defaultEmissiveSprite};
+        this.missingImages = new Function[]{missingImage, missingNormalMapImage, missingSpecularMapImage};
+        this.defaultSprites = new DefaultSpriteSupplier[]{defaultNormalSprite, defaultSpecularSprite};
         textureManager.register(this.normalMap.location(), this.normalMap);
-        textureManager.register(this.metallicRoughnessMap.location(), this.metallicRoughnessMap);
-        textureManager.register(this.emissiveMap.location(), this.emissiveMap);
+        textureManager.register(this.specularMap.location(), this.specularMap);
     }
 
     @Override
@@ -66,14 +61,13 @@ public class CombinedTextureManager extends KasugaTextureManager {
         SpriteLoader[] loaders = new SpriteLoader[]{
                 SpriteLoader.create(this.textureAtlas),
                 SpriteLoader.create(this.normalMap),
-                SpriteLoader.create(this.metallicRoughnessMap),
-                SpriteLoader.create(this.emissiveMap)
+                SpriteLoader.create(this.specularMap)
         };
         CompletableFuture<SpriteLoader.Preparations[]> preparations = combinedLoadAndStitch(
                 loaders, 0, backgroundExecutor
         );
         return preparations.thenCompose(param -> {
-            List<CompletableFuture<SpriteLoader.Preparations>> l = new ArrayList<>(4);
+            List<CompletableFuture<SpriteLoader.Preparations>> l = new ArrayList<>(3);
             for (SpriteLoader.Preparations p : param) {
                 l.add(p.waitForUpload());
             }
@@ -112,18 +106,15 @@ public class CombinedTextureManager extends KasugaTextureManager {
                     List<SpriteContents> textures = new ArrayList<>();
                     List<SpriteContents> normalMaps = new ArrayList<>();
                     List<SpriteContents> mrMaps = new ArrayList<>();
-                    List<SpriteContents> emissiveMaps = new ArrayList<>();
                     for (SpriteContents[] contents : param) {
                         textures.add(contents[0]);
                         normalMaps.add(contents[1]);
                         mrMaps.add(contents[2]);
-                        emissiveMaps.add(contents[3]);
                     }
-                    SpriteLoader.Preparations[] preparations = new SpriteLoader.Preparations[4];
+                    SpriteLoader.Preparations[] preparations = new SpriteLoader.Preparations[3];
                     preparations[0] = loaders[0].stitch(textures, mipLevel, executor);
                     preparations[1] = loaders[1].stitch(normalMaps, mipLevel, executor);
                     preparations[2] = loaders[2].stitch(mrMaps, mipLevel, executor);
-                    preparations[3] = loaders[2].stitch(emissiveMaps, mipLevel, executor);
                     return preparations;
                 });
     }
@@ -140,8 +131,7 @@ public class CombinedTextureManager extends KasugaTextureManager {
         combined.add(() -> Pair.of(missingNo, new SpriteContents[]{
                 missingImages[0] != null ? missingImages[0].apply(missingNo) : MissingTextureAtlasSprite.create(),
                 missingImages[1] != null ? missingImages[1].apply(missingNo) : MissingTextureAtlasSprite.create(),
-                missingImages[2] != null ? missingImages[2].apply(missingNo) : MissingTextureAtlasSprite.create(),
-                missingImages[3] != null ? missingImages[3].apply(missingNo) : MissingTextureAtlasSprite.create()
+                missingImages[2] != null ? missingImages[2].apply(missingNo) : MissingTextureAtlasSprite.create()
         }));
         for (SpriteUploader<?>[] uploader : spriteUploaders) {
             combined.add(() -> {
@@ -150,7 +140,7 @@ public class CombinedTextureManager extends KasugaTextureManager {
                 SpriteContents content = uploader[0].loadSprite(null, null);
                 Objects.requireNonNull(content);
                 int width = content.width(), height = content.height();
-                @Nullable SpriteContents normalContent, mrContent, emissiveContent;
+                @Nullable SpriteContents normalContent, specularContent;
                 if (uploader[1] == null) {
                     normalContent = defaultSprites[0].get(content.name(), width, height);
                 } else {
@@ -160,35 +150,23 @@ public class CombinedTextureManager extends KasugaTextureManager {
                     }
                 }
                 if (uploader[2] == null) {
-                    mrContent = defaultSprites[1].get(content.name(), width, height);
+                    specularContent = defaultSprites[1].get(content.name(), width, height);
                 } else {
-                    mrContent = uploader[2].loadSprite(null, null);
-                    if (mrContent == null) {
-                        mrContent = defaultSprites[1].get(content.name(), width, height);
-                    }
-                }
-                if (uploader[3] == null) {
-                    emissiveContent = defaultSprites[2].get(content.name(), width, height);
-                } else {
-                    emissiveContent = uploader[3].loadSprite(null, null);
-                    if (emissiveContent == null) {
-                        emissiveContent = defaultSprites[2].get(content.name(), width, height);
+                    specularContent = uploader[2].loadSprite(null, null);
+                    if (specularContent == null) {
+                        specularContent = defaultSprites[1].get(content.name(), width, height);
                     }
                 }
                 Objects.requireNonNull(normalContent);
-                Objects.requireNonNull(mrContent);
-                Objects.requireNonNull(emissiveContent);
+                Objects.requireNonNull(specularContent);
                 if (content.width() != normalContent.width() || content.height() != normalContent.height()) {
                     throw new IllegalStateException("Texture and normal map dimensions do not match for " + identifier);
                 }
 
-                if (content.width() != mrContent.width() || content.height() != mrContent.height()) {
+                if (content.width() != specularContent.width() || content.height() != specularContent.height()) {
                     throw new IllegalStateException("Texture and metallic-roughness map dimensions do not match for " + identifier);
                 }
-                if (content.width() != emissiveContent.width() || content.height() != emissiveContent.height()) {
-                    throw new IllegalStateException("Texture and emissive map dimensions do not match for " + identifier);
-                }
-                return Pair.of(identifier, new SpriteContents[]{content, normalContent, mrContent, emissiveContent});
+                return Pair.of(identifier, new SpriteContents[]{content, normalContent, specularContent});
             });
         }
         return combined;
@@ -218,7 +196,7 @@ public class CombinedTextureManager extends KasugaTextureManager {
     protected void apply(List<SpriteLoader.Preparations> preparations, ProfilerFiller profiler) {
         profiler.startTick();
         profiler.push("upload");
-        for (int i = 0; i < 4; i++) {this.getAtlas(i).upload(preparations.get(i));}
+        for (int i = 0; i < 3; i++) {this.getAtlas(i).upload(preparations.get(i));}
         profiler.pop();
         profiler.endTick();
     }
@@ -231,21 +209,19 @@ public class CombinedTextureManager extends KasugaTextureManager {
 
     @Override
     public Optional<InputStream> load(@NonNull Object sourceIdentifier) {
-        return this.load(sourceIdentifier, null, null, null);
+        return this.load(sourceIdentifier, null, null);
     }
 
 
     public Optional<InputStream> load(@NonNull Object sourceIdentifier,
                                       @Nullable Object normalMapIdentifier,
-                                      @Nullable Object mrMapIdentifier,
-                                      @Nullable Object emissiveMapIdentifier) {
+                                      @Nullable Object specularMapIdentifier) {
         for (Source<?, ?> source : getSources().values()) {
             if (source.isValidInput(sourceIdentifier)) {
                 this.spriteUploaders.add(new SpriteUploader[]{
                         new SpriteUploader(this, (TextureSource) source, sourceIdentifier),
                         normalMapIdentifier != null ? new SpriteUploader<>(this,(TextureSource) source, normalMapIdentifier) : null,
-                        mrMapIdentifier != null ? new SpriteUploader<>(this,(TextureSource) source, mrMapIdentifier) : null,
-                        emissiveMapIdentifier != null ? new SpriteUploader<>(this,(TextureSource) source, emissiveMapIdentifier) : null
+                        specularMapIdentifier != null ? new SpriteUploader<>(this,(TextureSource) source, specularMapIdentifier) : null
                 });
                 return Optional.empty();
             }
@@ -269,20 +245,15 @@ public class CombinedTextureManager extends KasugaTextureManager {
         return normalMap;
     }
 
-    public @NonNull TextureAtlas getMetallicRoughnessMap() {
-        return metallicRoughnessMap;
-    }
-
-    public @NonNull TextureAtlas getEmissiveMap() {
-        return emissiveMap;
+    public @NonNull TextureAtlas getSpecularMap() {
+        return specularMap;
     }
 
     public @NonNull TextureAtlas getAtlas(int index) {
         return switch (index) {
             case 0 -> getTextureAtlas();
             case 1 -> getNormalMap();
-            case 2 -> getMetallicRoughnessMap();
-            case 3 -> getEmissiveMap();
+            case 2 -> getSpecularMap();
             default -> throw new IllegalArgumentException("Invalid atlas index: " + index);
         };
     }
