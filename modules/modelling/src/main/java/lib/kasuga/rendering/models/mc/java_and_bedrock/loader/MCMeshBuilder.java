@@ -34,7 +34,7 @@ public class MCMeshBuilder {
 
     private final float uvRotation;
 
-    public static final HashMap<Direction, FaceUVInfo> FACE_UV_INFO = getFaceInfo();
+//    public static final HashMap<Direction, FaceUVInfo> FACE_UV_INFO = getFaceInfo();
 
     @Setter
     private Texture texture;
@@ -111,8 +111,8 @@ public class MCMeshBuilder {
         for (FaceInfo.VertexInfo info : vertexInfos) {
             VertexBuilder builder = vertexPos.get(info);
             builder.uv(mesh, texture, vertices.get(info));
+            builder.normal(mesh, direction);
         }
-//        vertexPos.forEach((k, v) -> v.uv(mesh, texture, vertices.get(k)));
         return Pair.of(mesh, vertexInfos);
     }
 

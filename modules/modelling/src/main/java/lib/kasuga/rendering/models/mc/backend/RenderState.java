@@ -80,7 +80,7 @@ public class RenderState {
                 .padding(13)
                 .build();
 
-        UML_TEXTURE_STATE = new KasugaTextureStateShard(() -> (CombinedTextureManager) Constants.TEXTURE_BASIC);
+        UML_TEXTURE_STATE = new KasugaTextureStateShard(() -> Constants.TEXTURE_BASIC);
 
         UML_SHADER =  new RenderStateShard.ShaderStateShard(() -> UML_SHADER_INSTANCE);
     }
@@ -94,7 +94,7 @@ public class RenderState {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0x00FF7F7F);  // (127, 127, 255, 0) = 0x00FF7F7F
+                image.setPixelRGBA(x, y, 0xFFFF7F7F);  // (127, 127, 255, 255) = 0xFFFF7F7F
             }
         }
         return image;
@@ -104,24 +104,10 @@ public class RenderState {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0x00000A7F);  // (127, 10, 0, 0) = 0x00000A7F
+                image.setPixelRGBA(x, y, 0x00000A0A);  // (10, 10, 0, 0) = 0x00000A0A
             }
         }
         return image;
-    }
-
-    public static NativeImage getEmissiveMapDefaultImage(int width, int height) {
-        NativeImage image = new NativeImage(width, height, false);
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0);
-            }
-        }
-        return image;
-    }
-
-    public static void addBufferBuilderRelocator(BufferBuilderSupplier supplier) {
-//        BufferBuilderRelocator.RELOCATOR.addBufferBuilderSupplier(supplier);
     }
 
     public static RenderType getRenderType() {

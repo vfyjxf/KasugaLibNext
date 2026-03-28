@@ -58,7 +58,7 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
             if (mesh.getData() instanceof ColorizedMeshData colorized) {
                 meshColor = colorized.getColor();
             }
-            Direction direction = Direction.DOWN;
+            Direction direction = null;
             boolean visible = true;
             boolean shade = true;
             boolean ambientOcclusion = true;
@@ -73,6 +73,10 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
             for (Vertex vertex : mesh.getVertices()) {
                 Vertex transformed = vertexHashMap.getOrDefault(vertex, vertex);
                 Vector3f normal = transformed.getNormal(mesh);
+                if (normal.length() == 0.0f && direction != null) {
+                    net.minecraft.core.Direction d = toMCDirection(direction);
+                    normal = new Vector3f(d.step());
+                }
                 Vector3f pos = transformed.getPosition();
 
                 builder.addVertex(pos.x(), pos.y(), pos.z())
@@ -98,11 +102,11 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                     builder.setUv(i, uvPos);
                     i++;
                 }
-                builder.pack(vertex, meshColor);
+                builder.pack(vertex, mesh, meshColor);
             }
-            builder.endMesh();
+            builder.endMesh(mesh);
         }
-        return builder.build();
+        return builder.build(model);
     }
 
     public static Vector2f getUVPosition(Vector2f uv, float u0, float v0, float u1, float v1) {

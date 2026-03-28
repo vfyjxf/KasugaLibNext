@@ -3,13 +3,14 @@ package lib.kasuga.mixins.client;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(TextureAtlas.class)
 public interface AccessorTextureAtlas {
 
-    @Accessor("width")
-    int getWidth();
+    @Invoker("getWidth")
+    int callGetWidth();
 
-    @Accessor("height")
-    int getHeight();
+    @Invoker("getHeight")
+    int callGetHeight();
 }

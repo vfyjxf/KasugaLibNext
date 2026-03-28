@@ -30,6 +30,8 @@ out vec2 texCoord0;
 out vec3 viewPos;
 out vec3 viewNormal;
 out mat3 TBN;
+out vec3 viewLight0_Direction;
+out vec3 viewLight1_Direction;
 
 void main() {
     vec4 posWorld = (ksg_ModelPoseMat * vec4(Position, 1.0));
@@ -47,6 +49,10 @@ void main() {
     vec3 T = normalize(normalMatrix * Tangent.xyz);
     vec3 B = cross(viewNormal, T) * Tangent.w;
     TBN = mat3(T, B, viewNormal);
+
+    mat3 viewRot = mat3(ModelViewMat);
+    viewLight0_Direction = normalize(viewRot * Light0_Direction);
+    viewLight1_Direction = normalize(viewRot * Light1_Direction);
 
     gl_Position = ProjMat * viewPos4;
 }

@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.uml.loaders;
 
+import lib.kasuga.rendering.models.mc.util.Direction;
 import lib.kasuga.rendering.models.uml.loaders.structural.Loader;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
@@ -44,6 +45,14 @@ public class VertexBuilder<T extends VertexData, R extends BoneData, P extends B
 
     public void uv(@NonNull Mesh mesh, @NonNull Texture texture, @NonNull Vector2f uv) {
         uvs.computeIfAbsent(mesh, m -> new HashMap<>()).put(texture, uv);
+    }
+
+    public void normal(@NonNull Mesh mesh, @NonNull Vector3f normal) {
+        normals.put(mesh, normal);
+    }
+
+    public void normal(@NonNull Mesh mesh, Direction direction) {
+        normals.put(mesh, direction.toVec3f());
     }
 
     public void bone(@NonNull String boneName) {

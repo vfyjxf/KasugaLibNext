@@ -3,7 +3,6 @@ package lib.kasuga.rendering.models.mc.compat.iris;
 import com.mojang.blaze3d.platform.NativeImage;
 import lombok.Getter;
 import net.irisshaders.iris.api.v0.IrisApi;
-import net.irisshaders.iris.pbr.loader.PBRTextureLoaderRegistry;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.metadata.animation.FrameSize;
 import net.minecraft.resources.ResourceLocation;
@@ -56,7 +55,7 @@ public class IrisCompat {
         } catch (ClassNotFoundException | NoSuchMethodException e) {
             e.printStackTrace();
         }
-        PBRTextureLoaderRegistry.INSTANCE.register(KasugaTextureAtlas.class, new KasugaPBRLoader());
+        IrisConstants.register();
     }
 
     public static boolean isIrisPresent() {

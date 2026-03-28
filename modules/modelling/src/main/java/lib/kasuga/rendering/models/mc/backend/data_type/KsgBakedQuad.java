@@ -8,6 +8,7 @@ import org.joml.Vector3f;
 import org.joml.Vector4f;
 
 @Getter
+@Deprecated
 public class KsgBakedQuad extends BakedQuad implements MeshNormalHolder, MeshColorHolder {
 
     private final Vector3f meshNormal;

@@ -1,5 +1,7 @@
 package lib.kasuga.rendering.models.mc.util;
 
+import org.joml.Vector3f;
+
 public enum Direction {
 
     NORTH, SOUTH, EAST, WEST, UP, DOWN;
@@ -23,5 +25,16 @@ public enum Direction {
             }
         }
         throw new IllegalArgumentException("No enum constant for string: " + str);
+    }
+
+    public Vector3f toVec3f() {
+        return switch (this) {
+            case UP -> new Vector3f(0, 1, 0);
+            case DOWN -> new Vector3f(0, -1, 0);
+            case NORTH -> new Vector3f(0, 0, -1);
+            case SOUTH -> new Vector3f(0, 0, 1);
+            case EAST -> new Vector3f(1, 0, 0);
+            case WEST -> new Vector3f(-1, 0, 0);
+        };
     }
 }

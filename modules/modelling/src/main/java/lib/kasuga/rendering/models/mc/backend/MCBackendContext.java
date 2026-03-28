@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import lombok.Getter;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderBuffers;
@@ -24,12 +25,13 @@ public class MCBackendContext {
     private final Matrix4f projectionMatrix;
     private final int renderTick;
     private final DeltaTracker partialTick;
+    private final ClientLevel level;
 
     public MCBackendContext(
             VertexConsumer vertexConsumer, PoseStack poseStack,
             RenderBuffers buffers, MultiBufferSource bufferSource, Camera camera,
             Frustum frustum, Matrix4f modelViewMatrix, Matrix4f projectionMatrix,
-            int renderTick, DeltaTracker partialTick) {
+            int renderTick, DeltaTracker partialTick, ClientLevel level) {
         this.buffers = buffers;
         this.bufferSource = bufferSource;
         this.vertexConsumer = vertexConsumer;
@@ -40,5 +42,6 @@ public class MCBackendContext {
         this.projectionMatrix = projectionMatrix;
         this.renderTick = renderTick;
         this.partialTick = partialTick;
+        this.level = level;
     }
 }

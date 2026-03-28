@@ -6,6 +6,7 @@ import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
 import lib.kasuga.structure.Pair;
 import net.irisshaders.iris.pbr.loader.AtlasPBRLoader;
 import net.irisshaders.iris.pbr.loader.PBRTextureLoader;
+import net.irisshaders.iris.pbr.loader.PBRTextureLoaderRegistry;
 import net.irisshaders.iris.pbr.texture.*;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -39,8 +40,8 @@ public class KasugaPBRLoader implements PBRTextureLoader<KasugaTextureAtlas> {
             PBRAtlasTexture pbrTexture = layer.getSecond();
             sprites = atlas.getTextures();
             AccessorTextureAtlas accessor = (AccessorTextureAtlas) atlas;
-            int width = accessor.getWidth();
-            int height = accessor.getHeight();
+            int width = accessor.callGetWidth();
+            int height = accessor.callGetHeight();
 
             for (Map.Entry<ResourceLocation, TextureAtlasSprite> entry : sprites.entrySet()) {
                 ResourceLocation spriteId = entry.getKey();
@@ -83,4 +84,5 @@ public class KasugaPBRLoader implements PBRTextureLoader<KasugaTextureAtlas> {
         pbrTextureConsumer.acceptNormalTexture(normalTexture);
         pbrTextureConsumer.acceptSpecularTexture(specularTexture);
     }
+
 }

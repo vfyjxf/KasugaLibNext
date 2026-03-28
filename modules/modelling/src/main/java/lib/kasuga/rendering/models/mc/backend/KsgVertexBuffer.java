@@ -4,8 +4,11 @@ import com.mojang.blaze3d.vertex.*;
 import lib.kasuga.mixins.client.AccessorBufferBuilder;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
+import lib.kasuga.rendering.models.uml.math.TangentHelper;
 import lib.kasuga.rendering.models.uml.structure.Model;
+import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
+import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import net.minecraft.util.FastColor;
 import org.jetbrains.annotations.NotNull;
@@ -25,7 +28,7 @@ public class KsgVertexBuffer {
     private final ByteBuffer buffer;
     private boolean building = false;
     private final int vertexSize, numVertices;
-    private final HashMap<Vertex, Integer[]> vertexMap;
+    private final HashMap<Vertex, HashMap<Mesh, Integer[]>> vertexMap;
     private final HashMap<VertexFormatElement, Integer> offsets;
     private final HashMap<VertexFormatElement, Integer> bufOffsets;
     private VertexFormatElement uv1_element, uv2_element;
@@ -56,8 +59,10 @@ public class KsgVertexBuffer {
         for (VertexFormatElement element : format.getElements()) {
             offsets.put(element, o);
             bufOffsets.put(element, ob);
-            if (element.equals(VertexFormatElement.COLOR)) ob += element.byteSize() * 2;
-            else ob += element.byteSize();
+            if (!element.equals(VertexFormatElement.UV1) && !element.equals(VertexFormatElement.UV2)) {
+                if (element.equals(VertexFormatElement.COLOR)) ob += element.byteSize() * 2;
+                else ob += element.byteSize();
+            }
             o += element.byteSize();
         }
         this.modifier = modifier;
@@ -287,7 +292,7 @@ public class KsgVertexBuffer {
         vertexData.clear();
     }
 
-    public void frozen(HashMap<Vertex, Integer[]> boneTransformMap) {
+    public void frozen(HashMap<Vertex, HashMap<Mesh, Integer[]>> boneTransformMap) {
         ensureBuilding();
         this.vertexMap.putAll(boneTransformMap);
         this.building = false;
@@ -298,20 +303,20 @@ public class KsgVertexBuffer {
         private final KsgVertexBuffer vertexBuffer;
         private final VertexFormat format;
         private final int vertexDataSize;
-        private final HashMap<Vertex, ArrayList<Integer>> boneVertexMap;
+        private final HashMap<Vertex, HashMap<Mesh, ArrayList<Integer>>> boneVertexMap;
         private final ArrayList<Vertex> vertices;
 
         private int vertexIndex = 0;
         private int indexVertexInMesh;
         private Vector3f position;
         private int color;
-        private int normal;
+        private Vector3f normal;
         private Vector2f uv0;
         private Vector2f uv1;
         private Vector2f uv2;
         private Vector4f tangent;
         private boolean modifying;
-        private Integer[] modifyingVertexIndices;
+        private Pair<Mesh, Integer[]> modifyingVertexIndices;
 
         public Builder(Model model,
                        VertexFormat format) {
@@ -384,10 +389,20 @@ public class KsgVertexBuffer {
             throw new IllegalStateException("Vertex format does not have UV" + i);
         }
 
-        public Builder modifyVertex(Vertex vertex, float x, float y, float z) {
+        public Builder modifyVertex(Vertex vertex, Mesh mesh, float x, float y, float z) {
             ensureFrozen();
             this.position = new Vector3f(x, y, z);
-            this.modifyingVertexIndices = vertexBuffer.vertexMap.get(vertex);
+            HashMap<Mesh, Integer[]> map = vertexBuffer.vertexMap.get(vertex);
+            if (map ==null) {
+                modifyingVertexIndices = null;
+                return this;
+            }
+            Integer[] indices = map.get(mesh);
+            if (indices == null) {
+                modifyingVertexIndices = null;
+                return this;
+            }
+            modifyingVertexIndices = Pair.of(mesh, indices);
             return this;
         }
 
@@ -463,10 +478,7 @@ public class KsgVertexBuffer {
 
         @Override
         public @NotNull Builder setNormal(float x, float y, float z) {
-            this.normal =
-                    ((int)(x * 127.0F) & 255) |
-                    ((int)(y * 127.0F) & 255) << 8 |
-                    ((int)(z * 127.0F) & 255) << 16;
+            this.normal = new Vector3f(x, y, z);
             return this;
         }
 
@@ -474,21 +486,27 @@ public class KsgVertexBuffer {
             return setNormal(normal.x(), normal.y(), normal.z());
         }
 
-        public Builder update(Vector4f meshColor) {
-            Objects.requireNonNull(modifyingVertexIndices);
-            for (Integer i : modifyingVertexIndices) {
+        public void ensureModifying() {
+            if (modifying && modifyingVertexIndices == null) {
+                throw new IllegalStateException("No vertex is being modified");
+            }
+        }
+
+        public Builder update(Vector4f meshColor, Mesh mesh) {
+            ensureModifying();
+            for (Integer i : modifyingVertexIndices.getSecond()) {
                 int j = (int) i;
-                pack(j, vertices.get(j), meshColor);
+                pack(j, vertices.get(j), mesh, meshColor);
             }
             return this;
         }
 
-        public Builder pack(Vertex vertex, Vector4f meshColor) {
+        public Builder pack(Vertex vertex, Mesh mesh, Vector4f meshColor) {
             ensureBuilding();
-            return pack(0, vertex, meshColor);
+            return pack(0, vertex, mesh, meshColor);
         }
 
-        public Builder pack(int index, Vertex vertex, Vector4f meshColor) {
+        public Builder pack(int index, Vertex vertex, Mesh mesh, Vector4f meshColor) {
             try (MemoryStack memory = MemoryStack.stackPush()) {
                 if (!modifying) index = vertexIndex;
                 ByteBuffer byteBuffer = memory.malloc(vertexDataSize);
@@ -509,7 +527,9 @@ public class KsgVertexBuffer {
                 byteBuffer.putInt(meshColorOffset, meshColorInt);
 
                 int normalOffset = getOffsetFor(VertexFormatElement.NORMAL);
-                byteBuffer.putInt(normalOffset, normal);
+                byteBuffer.put(normalOffset, (byte) ((int) (normal.x() * 127) & 0xFF));
+                byteBuffer.put(normalOffset + 1, (byte) ((int) (normal.y() * 127) & 0xFF));
+                byteBuffer.put(normalOffset + 2, (byte) ((int) (normal.z() * 127) & 0xFF));
 
                 int uv0Offset = getOffsetFor(VertexFormatElement.UV0);
                 byteBuffer.putFloat(uv0Offset, uv0.x());
@@ -535,7 +555,7 @@ public class KsgVertexBuffer {
                 byteBuffer.putFloat(tangentOffset + 8, tangent.z());
                 byteBuffer.putFloat(tangentOffset + 12, tangent.w());
                 vertexBuffer.addVertex(byteBuffer, index);
-                boneVertexMap.computeIfAbsent(vertex, k -> new ArrayList<>()).add(vertexIndex);
+                boneVertexMap.computeIfAbsent(vertex, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex);
                 vertices.add(vertex);
                 indexVertexInMesh ++;
                 if (!modifying) vertexIndex++;
@@ -544,7 +564,7 @@ public class KsgVertexBuffer {
             return this;
         }
 
-        public Builder endMesh() {
+        public Builder endMesh(Mesh mesh) {
             if (indexVertexInMesh < 1) return this;
             if (indexVertexInMesh == 1) {
                 throw new IllegalStateException("Mesh ended with only 1 vertex");
@@ -560,28 +580,92 @@ public class KsgVertexBuffer {
                     built.put(secondVertex);
                     vertices.add(vertex1);
                     vertices.add(vertex2);
-                    boneVertexMap.computeIfAbsent(vertex1, k -> new ArrayList<>()).add(++vertexIndex);
-                    boneVertexMap.computeIfAbsent(vertex2, k -> new ArrayList<>()).add(++vertexIndex);
+                    boneVertexMap.computeIfAbsent(vertex1, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
+                    boneVertexMap.computeIfAbsent(vertex2, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
                 } else {
                     ByteBuffer thirdVertex = built.slice(built.arrayOffset() - vertexDataSize, vertexDataSize);
                     Vertex vertex3 = vertices.getLast();
                     built.put(thirdVertex);
                     vertices.add(vertex3);
-                    boneVertexMap.computeIfAbsent(vertex3, k -> new ArrayList<>()).add(++vertexIndex);
+                    boneVertexMap.computeIfAbsent(vertex3, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
                 }
             }
             indexVertexInMesh = 0;
             return this;
         }
 
-        public KsgVertexBuffer build() {
-            HashMap<Vertex, Integer[]> boneTransformMap = new HashMap<>();
+        public Builder calculateTangent(Mesh mesh) {
+            TangentHelper.computeTangents(
+                    mesh,
+                    v -> this.getPosUVNormal(v, mesh),
+                    (v, t) -> this.setVertexTangent(v, mesh, t)
+            );
+            return this;
+        }
+
+        @Nullable
+        public TangentHelper.PosUVNormal getPosUVNormal(Vertex vertex, Mesh mesh) {
+            HashMap<Mesh, Integer[]> map = vertexBuffer.vertexMap.get(vertex);
+            if (map == null) return null;
+            final Integer[] pointers = map.get(mesh);
+            if (pointers == null || pointers.length == 0) {
+                return null;
+            }
+            int index = pointers[0];
+            int posOffset = vertexBuffer.getBufPos(index, VertexFormatElement.POSITION);
+            Vector3f position = new Vector3f(
+                    vertexBuffer.buffer.getFloat(posOffset),
+                    vertexBuffer.buffer.getFloat(posOffset + 4),
+                    vertexBuffer.buffer.getFloat(posOffset + 8)
+            );
+            int uvOffset = vertexBuffer.getBufPos(index, VertexFormatElement.UV0);
+            Vector2f uv = new Vector2f(
+                    vertexBuffer.buffer.getFloat(uvOffset),
+                    vertexBuffer.buffer.getFloat(uvOffset + 4)
+            );
+            int normalOffset = vertexBuffer.getBufPos(index, VertexFormatElement.NORMAL);
+            float nx = ((float) vertexBuffer.buffer.get(normalOffset)) / 127f;
+            float ny = ((float) vertexBuffer.buffer.get(normalOffset + 1)) / 127f;
+            float nz = ((float) vertexBuffer.buffer.get(normalOffset + 2)) / 127f;
+            Vector3f norm = new Vector3f(nx, ny, nz);
+            norm.normalize();
+            return new TangentHelper.PosUVNormal(position, uv, norm);
+        }
+
+        public void setVertexTangent(Vertex vertex, Mesh mesh, Vector4f tangent) {
+            HashMap<Mesh, Integer[]> map = vertexBuffer.vertexMap.get(vertex);
+            if (map == null) {
+                return;
+            }
+            final Integer[] pointers = map.get(mesh);
+            if (pointers == null || pointers.length == 0) {
+                return;
+            }
+            for (Integer i : pointers) {
+                int index = i;
+                int tangentOffset = vertexBuffer.getBufPos(index, RenderState.TANGENT);
+                vertexBuffer.buffer.putFloat(tangentOffset, tangent.x());
+                vertexBuffer.buffer.putFloat(tangentOffset + 4, tangent.y());
+                vertexBuffer.buffer.putFloat(tangentOffset + 8, tangent.z());
+                vertexBuffer.buffer.putFloat(tangentOffset + 12, tangent.w());
+            }
+        }
+
+        public KsgVertexBuffer build(Model model) {
+            HashMap<Vertex, HashMap<Mesh, Integer[]>> boneTransformMap = new HashMap<>();
             for (Vertex bone : boneVertexMap.keySet()) {
-                ArrayList<Integer> vertexIndices = boneVertexMap.get(bone);
-                Integer[] indicesArray = vertexIndices.toArray(new Integer[0]);
-                boneTransformMap.put(bone, indicesArray);
+                HashMap<Mesh, ArrayList<Integer>> map = boneVertexMap.get(bone);
+                HashMap<Mesh, Integer[]> intMap = new HashMap<>();
+                for (Mesh mesh : map.keySet()) {
+                    ArrayList<Integer> vertexIndices = map.get(mesh);
+                    intMap.put(mesh, vertexIndices.toArray(new Integer[0]));
+                }
+                boneTransformMap.put(bone, intMap);
             }
             vertexBuffer.frozen(boneTransformMap);
+            for (Mesh mesh : model.getMeshes()) {
+                calculateTangent(mesh);
+            }
             this.vertices.clear();
             this.modifying = true;
             return vertexBuffer;

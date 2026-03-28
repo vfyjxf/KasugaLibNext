@@ -20,7 +20,6 @@ import lib.kasuga.rendering.models.mc.source.model.KasugaModelManager;
 import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
 import lib.kasuga.rendering.models.mc.source.texture.FileTextureSource;
 import lib.kasuga.rendering.models.mc.source.texture.JarTextureSource;
-import lib.kasuga.rendering.models.mc.source.texture.KasugaTextureManager;
 import lib.kasuga.rendering.models.uml.dynamic.ModelPipeLine;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
@@ -225,7 +224,7 @@ public class Constants {
         MCBackendContext context = new MCBackendContext(
                 consumer, poseStack, renderBuffers,
                 source, camera, frustum, modelViewMatrix,
-                projectionMatrix, renderTick, partial
+                projectionMatrix, renderTick, partial, Minecraft.getInstance().level
         );
         testModel();
         poseStack.pushPose();

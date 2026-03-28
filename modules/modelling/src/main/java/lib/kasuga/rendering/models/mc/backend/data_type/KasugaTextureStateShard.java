@@ -16,12 +16,6 @@ public class KasugaTextureStateShard extends RenderStateShard.EmptyTextureStateS
             ShaderInstance instance = RenderSystem.getShader();
             if (instance == null) return;
             RenderSystem.setShaderTexture(0, texture.getTextureAtlas().location());
-            if (!IrisCompat.isUsingShaderPack()) {
-                instance.safeGetUniform("ksg_NormalMap").set(3);
-                instance.safeGetUniform("ksg_SpecularMap").set(4);
-                RenderSystem.setShaderTexture(3, texture.getNormalMap().location());
-                RenderSystem.setShaderTexture(4, texture.getSpecularMap().location());
-            }
         }, () -> {});
     }
 }

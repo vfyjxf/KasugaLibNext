@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.mc.backend.data_type;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,6 +22,15 @@ public class KasugaShaderInstance extends ShaderInstance {
 
     @Getter
     private float emissiveStrength = 1.0f;
+
+    @Getter
+    private float parallaxScale = 0.0025f;
+
+    @Getter
+    private int parallaxSamplerTimes = 4;
+
+    @Getter
+    private float ambientLightEnhancement = 1.5f;
 
     @Setter
     private @Nullable PoseStack.Pose currentPose;
@@ -42,9 +52,48 @@ public class KasugaShaderInstance extends ShaderInstance {
         this.currentPose = null;
     }
 
+    public void setParallaxScale(float parallaxScale) {
+        this.parallaxScale = Math.clamp(parallaxScale, 0f, 1f);
+    }
+
+    public void resetParallaxScale() {
+        setParallaxScale(0.0025f);
+    }
+
+    public void disableParallax() {
+        setParallaxScale(0f);
+    }
+
+    public void setParallaxSamplerTimes(int times) {
+        this.parallaxSamplerTimes = Math.clamp(times, 1, 64);
+    }
+
+    public void resetParallaxSamplerTimes() {
+        setParallaxSamplerTimes(4);
+    }
+
+    public void disableSteepParallaxSampling() {
+        setParallaxSamplerTimes(1);
+    }
+
+    public void setAmbientLightEnhancement(float enhancement) {
+        this.ambientLightEnhancement = Math.clamp(enhancement, 0f, 10000f);
+    }
+
+    public void resetAmbientLightEnhancement() {
+        setAmbientLightEnhancement(1.5f);
+    }
+
+    public void disableAmbientLightEnhancement() {
+        setAmbientLightEnhancement(1f);
+    }
+
     protected void applyAdditionalData() {
         // TODO: 记得同步修改着色器的相关系数
         this.safeGetUniform("ksg_EmissiveStrength").set(this.emissiveStrength);
+        this.safeGetUniform("ksg_ParallaxScale").set(this.parallaxScale);
+        this.safeGetUniform("ksg_ParallaxSamples").set(this.parallaxSamplerTimes);
+        this.safeGetUniform("ksg_AmbientLightEnhancement").set(this.ambientLightEnhancement);
         if (currentPose != null) {
             this.safeGetUniform("ksg_ModelPoseMat").set(this.currentPose.pose());
             this.safeGetUniform("ksg_ModelNormalMat").set(this.currentPose.normal());
@@ -52,6 +101,8 @@ public class KasugaShaderInstance extends ShaderInstance {
             this.safeGetUniform("ksg_ModelPoseMat").set(IDENTITY_M4F);
             this.safeGetUniform("ksg_ModelNormalMat").set(IDENTITY_M3F);
         }
+        this.setSampler("ksg_NormalMap", Constants.TEXTURE_BASIC.getNormalMap().getId());
+        this.setSampler("ksg_SpecularMap", Constants.TEXTURE_BASIC.getSpecularMap().getId());
     }
 
     @Override

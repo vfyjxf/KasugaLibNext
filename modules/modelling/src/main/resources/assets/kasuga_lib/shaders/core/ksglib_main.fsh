@@ -18,6 +18,9 @@ uniform vec3 Light1_Direction;
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
 uniform float ksg_EmissiveStrength;
+uniform float ksg_ParallaxScale;
+uniform int ksg_ParallaxSamples;
+uniform float ksg_AmbientLightEnhancement;
 
 in float vertexDistance;
 in vec4 vertexColor;
@@ -27,6 +30,8 @@ in vec2 texCoord0;
 in vec3 viewPos;
 in vec3 viewNormal;
 in mat3 TBN;
+in vec3 viewLight0_Direction;
+in vec3 viewLight1_Direction;
 
 out vec4 fragColor;
 
@@ -99,11 +104,52 @@ vec3 getPredefinedF0(float value) {
     return vec3(0.916, 0.850, 0.763);
 }
 
+vec2 steepParallaxMapping(float depth, vec2 texCoords, vec3 viewDir) {
+    if (depth >= 1.0f) return texCoords;
+    float height = 1.0 - depth;
+    float scale = ksg_ParallaxScale;
+    float layers = float(ksg_ParallaxSamples);
+    float layerDepth = 1.0 / layers;
+    float currentLayerDepth = 0.0;
+
+    vec2 deltaTexCoords = (viewDir.xy / viewDir.z) * scale / layers * height;
+    vec2 currentTexCoords = texCoords;
+    vec2 prevTexCoords = texCoords;
+
+    float prevHeight = 0.0;
+    float currentheight = 0.0;
+
+    for (int i = 0; i < layers; ++i) {
+        currentLayerDepth += layerDepth;
+        currentTexCoords += deltaTexCoords;
+        float sampledHeight = 1.0 - texture(ksg_NormalMap, currentTexCoords).a;
+        if (currentLayerDepth >= sampledHeight) {
+            prevTexCoords = currentTexCoords - deltaTexCoords;
+            prevHeight = 1.0 - texture(ksg_NormalMap, prevTexCoords).a;
+            currentheight = sampledHeight;
+            break;
+        }
+    }
+
+    if (currentLayerDepth < 1.0) {
+        float weight = (currentLayerDepth - prevHeight) / (currentheight - prevHeight + 0.00001);
+        currentTexCoords = mix(prevTexCoords, currentTexCoords, weight);
+    }
+
+    return clamp(currentTexCoords, 0.0, 1.0);
+}
+
 
 void main() {
-    vec4 albedo = texture(Sampler0, texCoord0);
-    vec3 normalTexture = texture(ksg_NormalMap, texCoord0).rgb * 2.0 - 1.0;
-    vec4 specularTexture = texture(ksg_SpecularMap, texCoord0);
+    vec2 originalTexCoord = texCoord0;
+    float depth = texture(ksg_NormalMap, originalTexCoord).a;
+    vec3 V = normalize(-viewPos);
+    vec3 viewDir = normalize(transpose(TBN) * V);
+    vec2 texCoord = steepParallaxMapping(depth, originalTexCoord, viewDir);
+
+    vec4 albedo = texture(Sampler0, texCoord);
+    vec3 normalTexture = texture(ksg_NormalMap, texCoord).rgb;
+    vec4 specularTexture = texture(ksg_SpecularMap, texCoord);
 
     vec2 normalXY = normalTexture.rg * 2.0 - 1.0;
     float normalZ = sqrt(max(0.0, 1.0 - dot(normalXY, normalXY)));
@@ -111,7 +157,7 @@ void main() {
     float materialAO = normalTexture.b;
 
     float perceptualSmoothness = specularTexture.r;
-    float roughness = pow(1.0 - perceptualSmoothness, 2.0);
+    float roughness = clamp(pow(1.0 - perceptualSmoothness, 2.0), 0.0, 1.0);
 
     float f0Value = specularTexture.g;
     float metallic;
@@ -145,11 +191,10 @@ void main() {
     aoCombined *= (1.0 - porosity * 0.5);
 
     vec3 N = normalize(TBN * normalTS);
-    vec3 V = normalize(-viewPos);
     float NdotV = max(dot(N, V), 0.0);
     mat3 viewMatrix = mat3(ModelViewMat);
-    vec3 L0 = normalize(viewMatrix * Light0_Direction);
-    vec3 L1 = normalize(viewMatrix * Light1_Direction);
+    vec3 L0 = viewLight0_Direction;
+    vec3 L1 = viewLight1_Direction;
     vec3 lightColor = vec3(1.0);
     vec3 kD = (1.0 - metallic) * (1.0 - F0);
     vec3 diffuse = kD * albedo.rgb / 3.14159265;
@@ -174,10 +219,10 @@ void main() {
         color += (diffuse + specular) * lightColor * diffuseFactor;
     }
 
-    vec3 ambient = vec3(0.1) * albedo.rgb * aoCombined;
+    vec3 ambient = vec3(0.2 * ksg_AmbientLightEnhancement) * albedo.rgb * aoCombined;
     color += ambient;
 
-    color *- vertexColor.rgb;
+    color *= vertexColor.rgb;
     color = mix(overlayColor.rgb, color, overlayColor.a);
     color *= ColorModulator.rgb;
 
