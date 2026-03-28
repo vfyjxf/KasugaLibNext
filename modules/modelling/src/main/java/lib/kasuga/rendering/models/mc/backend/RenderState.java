@@ -94,7 +94,7 @@ public class RenderState {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0x00FF7F7F);  // (127, 127, 0, 0) = 0x00FF7F7F
+                image.setPixelRGBA(x, y, 0x00FF7F7F);  // (127, 127, 255, 0) = 0x00FF7F7F
             }
         }
         return image;
@@ -104,7 +104,7 @@ public class RenderState {
         NativeImage image = new NativeImage(width, height, false);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                image.setPixelRGBA(x, y, 0x00FFE77F);  // (127, 10, 0, 0) = 0x00000A7F
+                image.setPixelRGBA(x, y, 0x00000A7F);  // (127, 10, 0, 0) = 0x00000A7F
             }
         }
         return image;

@@ -127,6 +127,9 @@ public class KsgVertexBuffer {
             float nx = ((float) buffer.get(bufOffset)) / 127f;
             float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
             float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
+            Vector3f norm = new Vector3f(nx, ny, nz);
+            pose.normal().transform(norm);
+            nx = norm.x(); ny = norm.y(); nz = norm.z();
             builder.addVertex(pos.x(), pos.y(), pos.z(),
                     colorFinal, u0, v0, packedOverlay, packedLight, nx, ny, nz);
         }
