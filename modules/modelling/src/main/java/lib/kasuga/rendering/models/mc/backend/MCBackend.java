@@ -37,12 +37,36 @@ public class MCBackend extends Backend<Bridge, KsgVertexBuffer, MCBackendContext
             shader  = (KasugaShaderInstance) RenderSystem.getShader();
         }
         Level level = context.getLevel();
+        LightData lightData = getLightData(level, pos);
+        renderable.upload(builder, poseStack.last(), shader, lightData.brightness, 1f, lightData.packedLight, OverlayTexture.NO_OVERLAY, true);
+
+        poseStack.popPose();
+    }
+
+    public record LightData(int blockLight, int skyLight, int packedLight, float brightness) {
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(blockLight, skyLight, packedLight, brightness);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            LightData other = (LightData) obj;
+            return blockLight == other.blockLight &&
+                    skyLight == other.skyLight &&
+                    packedLight == other.packedLight &&
+                    Float.compare(other.brightness, brightness) == 0;
+        }
+    }
+
+    public static LightData getLightData(Level level, BlockPos pos) {
         int blockLight = level.getBrightness(LightLayer.BLOCK, pos);
         int skyLight = level.getBrightness(LightLayer.SKY, pos);
         int packedLight = LightTexture.pack(blockLight, skyLight);
         float brightness = LightTexture.getBrightness(level.dimensionType(), level.getMaxLocalRawBrightness(pos));
-        renderable.upload(builder, poseStack.last(), shader, brightness, 1f, packedLight, OverlayTexture.NO_OVERLAY, true);
-
-        poseStack.popPose();
+        return new LightData(blockLight, skyLight, packedLight, brightness);
     }
 }
