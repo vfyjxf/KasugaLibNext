@@ -37,6 +37,10 @@ public class QuaternionHelper {
         return fromXYZAngle(x, y, z, true);
     }
 
+    public static Quaternionf fromXYZDegrees(Vector3f angles) {
+        return fromXYZDegrees(angles.x(), angles.y(), angles.z());
+    }
+
     public static float sin(float angle) {
         return (float) Math.sin(angle);
     }

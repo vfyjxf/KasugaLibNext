@@ -1,10 +1,13 @@
 package lib.kasuga.rendering.models.mc.backend;
 
+import lib.kasuga.rendering.models.mc.backend.data_type.MCRenderableContext;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
+import lib.kasuga.rendering.models.uml.backend.BackendContext;
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.util.Direction;
+import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
@@ -14,6 +17,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.ColorizedMeshDa
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelData;
+import lib.kasuga.rendering.models.uml.structure.data.ModelInstanceData;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
@@ -32,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCMeshData, VertexData,
-        MCTextureData, SkeletonInstanceData, BoneBindingData, AnchorData, KsgVertexBuffer> {
+        MCTextureData, SkeletonInstanceData, BoneBindingData, AnchorData, ModelInstanceData, KsgVertexBuffer> {
 
 
     @Override
@@ -46,11 +50,10 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
     }
 
     @Override
-    public KsgVertexBuffer getBackendRenderable(Model model, SkeletonInstance skeleton, HashMap vertexMap, Mesh[] meshes) {
+    public KsgVertexBuffer getBackendRenderable(ModelInstance instance, HashMap vertexMap, Mesh[] meshes) {
         @SuppressWarnings("unchecked")
         HashMap<Vertex, Vertex> vertexHashMap = (HashMap<Vertex, Vertex>) vertexMap;
-        List<BakedQuad> quads = new ArrayList<>();
-
+        Model model = instance.getModel();
         KsgVertexBuffer.Builder builder = new KsgVertexBuffer.Builder(model, RenderState.UML_VERTEX_FORMAT);
 
         for (Mesh mesh : meshes) {
@@ -68,7 +71,9 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                 shade = mcMeshData.isShade();
                 ambientOcclusion = mcMeshData.isAmbientOcclusion();
             }
-            if (!visible) continue;
+            if (!visible) {
+                meshColor = new Vector4f();
+            }
 
             for (Vertex vertex : mesh.getVertices()) {
                 Vertex transformed = vertexHashMap.getOrDefault(vertex, vertex);
@@ -123,6 +128,11 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
             Vertex<?, BoneData, ?> vertex
     ) {
         return BoneBindingFunc.BDEF;
+    }
+
+    @Override
+    public MCRenderableContext getBackendContext(ModelInstance<ModelInstanceData, BEModelData, BoneData, MCMeshData, VertexData, SkeletonData, SkeletonInstanceData, MCTextureData, AnchorData, BoneBindingData> modelInstance) {
+        return  new MCRenderableContext(this, modelInstance);
     }
 
     public static final net.minecraft.core.Direction toMCDirection(Direction direction) {
