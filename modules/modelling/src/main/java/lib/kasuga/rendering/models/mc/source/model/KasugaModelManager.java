@@ -11,29 +11,51 @@ import net.minecraft.server.packs.resources.PreparableReloadListener;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.profiling.ProfilerFiller;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class KasugaModelManager extends SourceManager<JsonObject> implements PreparableReloadListener, AutoCloseable {
 
     private final Collection<KasugaTextureManager> textureManagers;
     private final Collection<Object> inputIdentifiers;
-    private final Supplier<ModelPipeLine> pipeLineSup;
 
-    public KasugaModelManager(SourceType type, Collection<KasugaTextureManager> textureManagers, String name, Supplier<ModelPipeLine> pipeLineSup) {
+    private ModelScanner modelScanner;
+    private PipeLineRouter pipeLineRouter;
+
+    public KasugaModelManager(SourceType type, Collection<KasugaTextureManager> textureManagers, String name) {
         super(type, name);
         this.textureManagers = textureManagers;
         this.inputIdentifiers = new ArrayList<>();
-        this.pipeLineSup = pipeLineSup;
+
+        this.modelScanner = new KasugaModelScanner();
+        this.pipeLineRouter = new KasugaPipeLineRouter();
+    }
+
+    public KasugaModelManager(SourceType type,
+                              String name,
+                              Collection<KasugaTextureManager> textureManagers,
+                              ModelScanner modelScanner,
+                              PipeLineRouter pipeLineRouter) {
+        super(type, name);
+        this.inputIdentifiers = new ArrayList<>();
+        this.textureManagers = textureManagers;
+        this.modelScanner = modelScanner;
+        this.pipeLineRouter = pipeLineRouter;
     }
 
     public void registerModel(Object inputIdentifier) {
         this.inputIdentifiers.add(inputIdentifier);
+    }
+
+    public void registerRouter(PipeLineRouter router) {
+        this.pipeLineRouter = router;
+    }
+
+    public void registerModelScanner(ModelScanner modelScanner) {
+        this.modelScanner = modelScanner;
     }
 
     @Override
@@ -46,16 +68,20 @@ public class KasugaModelManager extends SourceManager<JsonObject> implements Pre
                                           @NonNull ProfilerFiller reloadProfiler,
                                           @NonNull Executor backgroundExecutor,
                                           @NonNull Executor gameExecutor) {
-        // FIXME: remove this after testing completed.
-        ModelPipeLine pipe = pipeLineSup.get();
-        inputIdentifiers.add(
-                ResourceLocation.tryBuild(
-                        "kasuga_lib",
-                        "models/be/test_model_complicate.geo.json"
-                )
-        );
-        CompletableFuture<Void> future =
-                CompletableFuture.runAsync(() -> loadAllModels(pipe), backgroundExecutor);
+        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+
+            modelScanner.setConfig(ModelProxyConfigLoader.loadConfig(resourceManager));
+            List<ResourceLocation> scanned = modelScanner.scan(resourceManager);
+
+            Map<ModelPipeLine, List<ResourceLocation>> routed = pipeLineRouter.route(scanned);
+
+            for(Map.Entry<ModelPipeLine, List<ResourceLocation>> entry : routed.entrySet()) {
+                for(ResourceLocation location : entry.getValue()) {
+                    entry.getKey().loadModel(location, null);
+                }
+            }
+
+        }, backgroundExecutor);
         CompletableFuture<Void> allTexturesFuture = future.thenCompose(ignored -> {
             List<CompletableFuture<Void>> textureFutures = textureManagers.stream()
                     .map(manager -> manager.reload(barrier, resourceManager, preparationProfiler, reloadProfiler, backgroundExecutor, gameExecutor))

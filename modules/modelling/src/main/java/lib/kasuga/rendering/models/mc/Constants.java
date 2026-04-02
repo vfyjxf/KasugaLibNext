@@ -14,9 +14,7 @@ import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.be.BEModelLoader;
-import lib.kasuga.rendering.models.mc.source.model.FileJsonModelSource;
-import lib.kasuga.rendering.models.mc.source.model.JarJsonModelSource;
-import lib.kasuga.rendering.models.mc.source.model.KasugaModelManager;
+import lib.kasuga.rendering.models.mc.source.model.*;
 import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
 import lib.kasuga.rendering.models.mc.source.texture.FileTextureSource;
 import lib.kasuga.rendering.models.mc.source.texture.JarTextureSource;
@@ -88,7 +86,12 @@ public class Constants {
         TEXTURE_BASIC = basic;
 
         KasugaModelManager modelSource = new KasugaModelManager(MODEL_TYPE, List.of(basic),
-                "mc_model", () -> BE_PIPELINE);
+                "mc_model");
+
+        KasugaPipeLineRouter router = new KasugaPipeLineRouter();
+        router.registerByExtension(".geo.json", () -> BE_PIPELINE);
+        modelSource.registerRouter(router);
+        modelSource.registerModelScanner(new KasugaModelScanner());
 
         event.registerReloadListener(modelSource);
 
