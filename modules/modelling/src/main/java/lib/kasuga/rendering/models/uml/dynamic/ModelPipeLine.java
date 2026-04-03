@@ -42,14 +42,14 @@ public class ModelPipeLine<SourceOutputType,
 
     private final Map<String, Bridge<ModelDataType, BoneDataType, SkeletonDataType,
             MeshDataType, VertexDataType, TextureDataType, SkeletonInstanceDataType,
-            BoneBindingDataType, AnchorDataType, BackendInputType>> bridges;
+            BoneBindingDataType, AnchorDataType, ModelInstanceDataType, BackendInputType>> bridges;
 
     private final Map<StorageIdentifierType, Model<
             ModelDataType, BoneDataType, MeshDataType, VertexDataType,
             TextureDataType, SkeletonDataType, BoneBindingDataType, AnchorDataType>
             > models;
 
-    private final Map<String, Backend<Bridge, BackendInputType, ?>> backends;
+    private final Map<String, Backend<Bridge, ModelInstance, BackendInputType, ?, ?>> backends;
 
     private final Map<Model,
             HashMap<InstanceIdentifierType, ModelInstance<
@@ -65,8 +65,8 @@ public class ModelPipeLine<SourceOutputType,
                                 AnchorDataType, SourceOutputType, StorageIdentifierType> loader,
                           Map<String, Bridge<ModelDataType, BoneDataType, SkeletonDataType,
                                   MeshDataType, VertexDataType, TextureDataType, SkeletonInstanceDataType,
-                                  BoneBindingDataType, AnchorDataType, BackendInputType>> bridges,
-                          Map<String, Backend<Bridge, BackendInputType, ?>> backends,
+                                  BoneBindingDataType, AnchorDataType, ModelInstanceDataType, BackendInputType>> bridges,
+                          Map<String, Backend<Bridge, ModelInstance, BackendInputType, ?, ?>> backends,
                           Map<SourceType, HashMap<String, SourceManager<?>>> sidedSources
     ) {
         this.sourceManager = sourceManager;
@@ -179,15 +179,15 @@ public class ModelPipeLine<SourceOutputType,
         }
         Bridge<ModelDataType, BoneDataType, SkeletonDataType,
                 MeshDataType, VertexDataType, TextureDataType, SkeletonInstanceDataType,
-                BoneBindingDataType, AnchorDataType, BackendInputType> bridge = bridges.get(bridgeName);
+                BoneBindingDataType, AnchorDataType, ModelInstanceDataType, BackendInputType> bridge = bridges.get(bridgeName);
         if (bridge == null) {
             throw new IllegalArgumentException("No bridge found with name: " + bridgeName);
         }
-        Backend<Bridge, BackendInputType, ?> backend = backends.get(backendName);
+        Backend<Bridge, ModelInstance, BackendInputType, ?, ?> backend = backends.get(backendName);
         if (backend == null) {
             throw new IllegalArgumentException("No backend found with name: " + backendName);
         }
-        backend.add(instance, bridge.apply(instance.getModel(), instance.getSkeletonInstance()));
+        backend.add(instance, bridge, instance);
     }
 
     public boolean isRendering(
@@ -208,12 +208,12 @@ public class ModelPipeLine<SourceOutputType,
             return false;
         }
         if (backendName != null) {
-            Backend<Bridge, BackendInputType, ?> backend = backends.get(backendName);
+            Backend<Bridge, ModelInstance, BackendInputType, ?, ?> backend = backends.get(backendName);
             if (backend != null) {
                 return backend.contains(instance);
             }
         }
-        for (Backend<Bridge, BackendInputType, ?> backend : backends.values()) {
+        for (Backend<Bridge, ModelInstance, BackendInputType, ?, ?> backend : backends.values()) {
             if (backend.contains(instance)) {
                 return true;
             }
@@ -240,12 +240,12 @@ public class ModelPipeLine<SourceOutputType,
         }
         boolean removed = false;
         if (backendName != null) {
-            Backend<Bridge, BackendInputType, ?> backend = backends.get(backendName);
+            Backend<Bridge, ModelInstance, BackendInputType, ?, ?> backend = backends.get(backendName);
             if (backend != null) {
                 return backend.remove(instance);
             }
         }
-        for (Backend<Bridge, BackendInputType, ?> backend : backends.values()) {
+        for (Backend<Bridge, ModelInstance, BackendInputType, ?, ?> backend : backends.values()) {
             removed |= backend.remove(instance);
         }
         return removed;
@@ -268,8 +268,8 @@ public class ModelPipeLine<SourceOutputType,
                 AnchorDataType, SourceOutputType, StorageIdentifierType> loader;
         private final Map<String, Bridge<ModelDataType, BoneDataType, SkeletonDataType,
                 MeshDataType, VertexDataType, TextureDataType, SkeletonInstanceDataType,
-                BoneBindingDataType, AnchorDataType, BackendInputType>> bridges = new HashMap<>();
-        private final Map<String, Backend<Bridge, BackendInputType, ?>> backends = new HashMap<>();
+                BoneBindingDataType, AnchorDataType, ModelInstanceDataType, BackendInputType>> bridges = new HashMap<>();
+        private final Map<String, Backend<Bridge, ModelInstance, BackendInputType, ?, ?>> backends = new HashMap<>();
 
         public Builder<SourceOutputType,
                 ModelDataType, BoneDataType,
@@ -323,7 +323,7 @@ public class ModelPipeLine<SourceOutputType,
                 BackendInputType, StorageIdentifierType,
                 InstanceIdentifierType> withBridge(String name, Bridge<ModelDataType, BoneDataType, SkeletonDataType,
                         MeshDataType, VertexDataType, TextureDataType, SkeletonInstanceDataType,
-                        BoneBindingDataType, AnchorDataType, BackendInputType> bridge) {
+                        BoneBindingDataType, AnchorDataType, ModelInstanceDataType, BackendInputType> bridge) {
             this.bridges.put(name, bridge);
             return this;
         }
@@ -336,8 +336,8 @@ public class ModelPipeLine<SourceOutputType,
                 ModelInstanceDataType,
                 SkeletonInstanceDataType,
                 BackendInputType, StorageIdentifierType,
-                InstanceIdentifierType> withBackend(String name, Backend<Bridge, BackendInputType, ?> backend) {
-            this.backends.put(name, backend);
+                InstanceIdentifierType> withBackend(String name, Backend backend) {
+            this.backends.put(name, (Backend<Bridge, ModelInstance, BackendInputType, ?, ?>) backend);
             return this;
         }
 
