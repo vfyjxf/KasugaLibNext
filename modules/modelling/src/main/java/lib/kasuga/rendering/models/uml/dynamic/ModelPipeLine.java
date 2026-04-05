@@ -106,7 +106,8 @@ public class ModelPipeLine<SourceOutputType,
             loader.getSidedSources().putAll(this.sidedSources);
         }
         Map<StorageIdentifierType, Model<ModelDataType, BoneDataType, MeshDataType, VertexDataType,
-                TextureDataType, SkeletonDataType, BoneBindingDataType, AnchorDataType>> map = loader.load(sourceOutput.get());
+                TextureDataType, SkeletonDataType, BoneBindingDataType, AnchorDataType>> map =
+                loader.load((StorageIdentifierType) source, sourceOutput.get());
         models.putAll(map);
         return map;
     }
@@ -321,9 +322,7 @@ public class ModelPipeLine<SourceOutputType,
                 ModelInstanceDataType,
                 SkeletonInstanceDataType,
                 BackendInputType, StorageIdentifierType,
-                InstanceIdentifierType> withBridge(String name, Bridge<ModelDataType, BoneDataType, SkeletonDataType,
-                        MeshDataType, VertexDataType, TextureDataType, SkeletonInstanceDataType,
-                        BoneBindingDataType, AnchorDataType, ModelInstanceDataType, BackendInputType> bridge) {
+                InstanceIdentifierType> withBridge(String name, Bridge bridge) {
             this.bridges.put(name, bridge);
             return this;
         }

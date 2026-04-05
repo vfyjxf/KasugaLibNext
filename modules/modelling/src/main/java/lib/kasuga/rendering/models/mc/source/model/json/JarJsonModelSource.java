@@ -1,4 +1,4 @@
-package lib.kasuga.rendering.models.mc.source.model;
+package lib.kasuga.rendering.models.mc.source.model.json;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

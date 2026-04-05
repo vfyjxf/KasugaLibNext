@@ -60,6 +60,9 @@ public class Skeleton<T extends SkeletonData, R extends BoneData, Q extends Anch
             Pair<Bone<R>, Transform> pair = queue.poll();
             Bone<R> bone = pair.getFirst();
             Transform parentTransform = pair.getSecond();
+            if (bone == root) {
+                boneTransforms.put(bone, Pair.of(parentTransform.copy(), parentTransform.copy().invert()));
+            }
             if (bone.getChildren() == null) continue;
             for (Bone<R> child : bone.getChildren()) {
                 if (child == null) continue;

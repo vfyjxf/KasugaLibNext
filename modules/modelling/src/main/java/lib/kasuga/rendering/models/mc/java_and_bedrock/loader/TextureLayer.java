@@ -3,6 +3,7 @@ package lib.kasuga.rendering.models.mc.java_and_bedrock.loader;
 import com.google.gson.JsonObject;
 import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.mc.backend.RenderState;
+import lib.kasuga.rendering.models.mc.java_and_bedrock.IdentifierHelper;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTexture;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.source.texture.KasugaTextureManager;
@@ -17,6 +18,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Objects;
 
 public class TextureLayer extends Layer<JsonObject> {
 
@@ -27,19 +29,10 @@ public class TextureLayer extends Layer<JsonObject> {
             String val = input.get(key).getAsString();
             Object identifier;
             ResourceLocation rl;
-            try {
-                rl = ResourceLocation.tryParse(val);
-                identifier = ResourceLocation.tryBuild(
-                        rl.getNamespace(),
-                        "textures/" + rl.getPath().toLowerCase() + ".png"
-                );
-            } catch (Exception e) {
-                identifier = Path.of(val);
-                rl = ResourceLocation.tryBuild(
-                        "kasuga_lib",
-                        "file_texture/file_" + identifier.hashCode() + ".png"
-                );
-            }
+            Pair<ResourceLocation, Path> resolved = IdentifierHelper.getRLAndPath(val);
+            Objects.requireNonNull(resolved);
+            rl = resolved.getFirst();
+            identifier = resolved.getSecond() == null ? rl : resolved.getSecond();
             Material material = new Material(RenderState.KSG_LAYER_0, rl);
             HashMap<String, Pair<Material, MCTextureData>> textures = new HashMap<>();
             loader.loadType("texture", "mc_layer_0", identifier);

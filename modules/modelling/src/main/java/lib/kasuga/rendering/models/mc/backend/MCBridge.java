@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.mc.backend;
 
 import lib.kasuga.rendering.models.mc.backend.data_type.MCRenderableContext;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
+import lib.kasuga.rendering.models.mc.java_and_bedrock.data.SpriteHolder;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
 import lib.kasuga.rendering.models.uml.backend.BackendContext;
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
@@ -36,7 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCMeshData, VertexData,
-        MCTextureData, SkeletonInstanceData, BoneBindingData, AnchorData, ModelInstanceData, KsgVertexBuffer> {
+        TextureData, SkeletonInstanceData, BoneBindingData, AnchorData, ModelInstanceData, KsgVertexBuffer> {
 
 
     @Override
@@ -93,12 +94,14 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                     Vector2f uv = transformed.getUV(mesh, texture);
                     if (uv == null) continue;
                     float u0, v0, u1, v1;
-                    if (texture.getData() instanceof MCTextureData textureData) {
+                    boolean flipU = texture.isFlipU();
+                    boolean flipV = texture.isFlipV();
+                    if (texture.getData() instanceof SpriteHolder textureData) {
                         TextureAtlasSprite sprite = textureData.getSprite();
-                        u0 = sprite.getU0();
-                        v0 = sprite.getV0();
-                        u1 = sprite.getU1();
-                        v1 = sprite.getV1();
+                        u0 = flipU ? sprite.getU1() : sprite.getU0();
+                        v0 = flipV ? sprite.getV1() : sprite.getV0();
+                        u1 = flipU ? sprite.getU0() : sprite.getU1();
+                        v1 = flipV ? sprite.getV0() : sprite.getV1();
                     } else {
                         u0 = 0f; v0 = 0f; u1 = 1f; v1 = 1f;
                     }
@@ -123,7 +126,7 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
 
     @Override
     public BoneBindingFunc<BoneData> getBoneBindingFunc(
-            Model<BEModelData, BoneData, MCMeshData, VertexData, MCTextureData, SkeletonData, BoneBindingData, AnchorData> model,
+            Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData> model,
             SkeletonInstance<SkeletonInstanceData, SkeletonData, BoneData, BoneBindingData, AnchorData> skeleton,
             Vertex<?, BoneData, ?> vertex
     ) {
@@ -131,7 +134,7 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
     }
 
     @Override
-    public MCRenderableContext getBackendContext(ModelInstance<ModelInstanceData, BEModelData, BoneData, MCMeshData, VertexData, SkeletonData, SkeletonInstanceData, MCTextureData, AnchorData, BoneBindingData> modelInstance) {
+    public MCRenderableContext getBackendContext(ModelInstance<ModelInstanceData, BEModelData, BoneData, MCMeshData, VertexData, SkeletonData, SkeletonInstanceData, TextureData, AnchorData, BoneBindingData> modelInstance) {
         return  new MCRenderableContext(this, modelInstance);
     }
 

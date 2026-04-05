@@ -28,9 +28,6 @@ import java.util.Vector;
 
 public class MCBackend extends Backend<MCBridge, ModelInstance, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> {
 
-    private static float yRot = 0f;
-    private static BlockPos pos = new BlockPos(0, 0, 0);
-
     @Override
     public void render(BackendContext<MCBridge, KsgVertexBuffer, ModelInstance, MCBackendContext, BackendTransform> renderable, MCBackendContext context) {
         PoseStack poseStack = context.getPoseStack();

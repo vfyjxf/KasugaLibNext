@@ -13,6 +13,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
+import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
@@ -28,11 +29,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 
-public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, VertexData, BoneBindingData, MCTextureData, SkeletonData, AnchorData, JsonObject, ResourceLocation> {
+public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, VertexData, BoneBindingData,
+        TextureData, SkeletonData, AnchorData, JsonObject, ResourceLocation> {
 
-    private final HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData,
-            VertexData, MCTextureData, SkeletonData,
-            BoneBindingData, AnchorData>> loadedModels;
+    private final HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData>> loadedModels;
 
     @Getter
     private final String nameSpace;
@@ -53,7 +53,7 @@ public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, Ver
 
 
     @Override
-    public void build(HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, MCTextureData, SkeletonData, BoneBindingData, AnchorData>> resultMap) {
+    public void build(HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData>> resultMap) {
         if (resultMap != null) {
             resultMap.putAll(loadedModels);
             loadedModels.clear();
@@ -104,7 +104,7 @@ public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, Ver
                 vertexBindingFunc
         );
         Model<BEModelData, BoneData, MCMeshData,
-                VertexData, MCTextureData, SkeletonData,
+                VertexData, TextureData, SkeletonData,
                 BoneBindingData, AnchorData> model = new Model<>(
                             getVertices().toArray(new Vertex[0]),
                             getMeshes().toArray(new Mesh[0]),
@@ -119,8 +119,8 @@ public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, Ver
     }
 
     @Override
-    public HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, MCTextureData, SkeletonData, BoneBindingData, AnchorData>> load(JsonObject input) {
-        return super.load(input);
+    public HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData>> load(ResourceLocation loc, JsonObject input) {
+        return super.load(loc, input);
     }
 
     @Override

@@ -24,7 +24,7 @@ public interface ModelLoader<
         E extends BoneBindingData, F extends TextureData, G extends SkeletonData, H extends AnchorData,
         I, S> {
 
-    Map<S, Model<A, B, C, D, F, G, E, H>> load(I input);
+    Map<S, Model<A, B, C, D, F, G, E, H>> load(S identifier, I input);
 
     String getName();
 

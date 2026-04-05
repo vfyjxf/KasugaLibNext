@@ -1,8 +1,7 @@
-package lib.kasuga.rendering.models.mc.source.model;
+package lib.kasuga.rendering.models.mc.source.model.json;
 
 import com.google.gson.JsonObject;
 import lib.kasuga.rendering.models.uml.loaders.sources.Source;
-import net.minecraft.resources.ResourceLocation;
 
 public abstract class JsonModelSource<T> implements Source<T, JsonObject> {
 

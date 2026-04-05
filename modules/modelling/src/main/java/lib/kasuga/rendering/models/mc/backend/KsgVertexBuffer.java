@@ -47,7 +47,7 @@ public class KsgVertexBuffer {
     }
 
     public KsgVertexBuffer(int numVertices, int vertexSize, VertexFormat format, Builder modifier) {
-        this.buffer = ByteBuffer.allocate(numVertices * vertexSize);
+        this.buffer = ByteBuffer.allocateDirect(numVertices * vertexSize);
         buffer.order(ByteOrder.nativeOrder());
         this.building = true;
         this.vertexSize = vertexSize;
@@ -317,6 +317,7 @@ public class KsgVertexBuffer {
         private Vector4f tangent;
         private boolean modifying;
         private Pair<Mesh, Integer[]> modifyingVertexIndices;
+        private int buildingIndex;
 
         public Builder(Model model,
                        VertexFormat format) {
@@ -332,6 +333,7 @@ public class KsgVertexBuffer {
             vertices = new ArrayList<>(4 * model.getMeshes().length);
             this.modifying = false;
             this.modifyingVertexIndices = null;
+            this.buildingIndex = 0;
         }
 
         private int shouldIgnoredBytes(VertexFormat format) {
@@ -559,6 +561,7 @@ public class KsgVertexBuffer {
                 vertices.add(vertex);
                 indexVertexInMesh ++;
                 if (!modifying) vertexIndex++;
+                if (!modifying) buildingIndex += vertexDataSize;
             }
             this.reset();
             return this;
@@ -572,22 +575,33 @@ public class KsgVertexBuffer {
             if (indexVertexInMesh < 4) {
                 ByteBuffer built = vertexBuffer.buffer;
                 if (indexVertexInMesh < 3) {
-                    ByteBuffer firstVertex = built.slice(built.arrayOffset() - 2 * vertexDataSize, vertexDataSize);
-                    ByteBuffer secondVertex = built.slice(built.arrayOffset() - vertexDataSize, vertexDataSize);
+                    ByteBuffer firstVertex = built.slice(buildingIndex - 2 * vertexDataSize, vertexDataSize);
+                    ByteBuffer secondVertex = built.slice(buildingIndex - vertexDataSize, vertexDataSize);
                     Vertex vertex1 = vertices.get(vertices.size() - 2);
                     Vertex vertex2 = vertices.getLast();
-                    built.put(firstVertex);
-                    built.put(secondVertex);
+                    for (int i = 0; i < vertexDataSize; i++) {
+                        built.put(buildingIndex + i, firstVertex.get(i));
+                    }
+                    buildingIndex += vertexDataSize;
+                    for (int i = 0; i < vertexDataSize; i++) {
+                        built.put(buildingIndex + i, secondVertex.get(i));
+                    }
+//                    built.put(firstVertex);
+//                    built.put(secondVertex);
                     vertices.add(vertex1);
                     vertices.add(vertex2);
                     boneVertexMap.computeIfAbsent(vertex1, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
                     boneVertexMap.computeIfAbsent(vertex2, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
+                    buildingIndex += vertexDataSize;
                 } else {
-                    ByteBuffer thirdVertex = built.slice(built.arrayOffset() - vertexDataSize, vertexDataSize);
+                    ByteBuffer thirdVertex = built.slice(buildingIndex - vertexDataSize, vertexDataSize);
                     Vertex vertex3 = vertices.getLast();
-                    built.put(thirdVertex);
+                    for (int i = 0; i < vertexDataSize; i++) {
+                        built.put(buildingIndex + i, thirdVertex.get(i));
+                    }
                     vertices.add(vertex3);
                     boneVertexMap.computeIfAbsent(vertex3, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
+                    buildingIndex += vertexDataSize;
                 }
             }
             indexVertexInMesh = 0;

@@ -31,11 +31,11 @@ public interface BoneBindingFunc<T extends BoneData> {
             Vector3f posLocal = new Vector3f(vertex.getPosition());
             posLocal = boneContext.invTransform().apply(posLocal);
             Vector3f posTransformed = boneContext.absTransform().apply(posLocal);
+            posTransformed.mul(boneContext.weight());
+            posFinal.add(posTransformed);
             for (Map.Entry<Mesh, Vector3f> meshAndNormal : vertex.getNormals().entrySet()) {
                 Vector3f normalTransformed = boneContext.absTransform().normal().transform(new Vector3f(meshAndNormal.getValue()));
-                posTransformed.mul(boneContext.weight());
                 normalTransformed.mul(boneContext.weight());
-                posFinal.add(posTransformed);
                 if (normalFinals.containsKey(meshAndNormal.getKey())) {
                     normalFinals.get(meshAndNormal.getKey()).add(normalTransformed);
                 } else {

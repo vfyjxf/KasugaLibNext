@@ -1,34 +1,36 @@
-package lib.kasuga.rendering.models.mc.source.texture;
+package lib.kasuga.rendering.models.mc.source.model.str;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 
-import java.io.InputStream;
+import java.io.BufferedReader;
 import java.util.List;
 import java.util.Optional;
 
-public class JarTextureSource extends TextureSource<ResourceLocation> {
+public class JarStrModelSource extends StringModelSource<ResourceLocation> {
 
-
-    public JarTextureSource(String name) {
+    public JarStrModelSource(String name) {
         super(name);
     }
 
     @Override
-    public ResourceLocation toRL(ResourceLocation sourceIdentifier) {
-        return sourceIdentifier;
-    }
-
-    @Override
-    public Optional<InputStream> getInput(ResourceLocation input) {
-        ResourceLocation location = ResourceLocation.tryBuild(input.getNamespace(), "textures/" + input.getPath() + ".png");
+    public Optional<String> getInput(ResourceLocation input) {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
+        ResourceLocation location = ResourceLocation.tryBuild(
+                input.getNamespace(), input.getPath()
+        );
         List<Resource> resources = manager.getResourceStack(location);
         if (resources.isEmpty()) return Optional.empty();
-        try {
-            return Optional.of(resources.getFirst().open());
+        Resource resource = resources.getFirst();
+        try (BufferedReader reader = resource.openAsReader()) {
+            StringBuilder builder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                builder.append(line).append('\n');
+            }
+            return Optional.of(builder.toString());
         } catch (Exception e) {
             return Optional.empty();
         }

@@ -68,7 +68,7 @@ public abstract class Loader<
         this.processors.put(name, processor);
     }
 
-    public HashMap<S, Model<A, B, C, D, F, G, E, H>> load(I input) {
+    public HashMap<S, Model<A, B, C, D, F, G, E, H>> load(S source, I input) {
         HashMap<S, Model<A, B, C, D, F, G, E, H>> resultMap = new HashMap<>();
         Processor<I> processor = (Processor<I>) processors.get("root");
         if (processor == null) {

@@ -5,7 +5,7 @@ import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lombok.NonNull;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 
-public class MCTextureData implements TextureData {
+public class MCTextureData implements TextureData, SpriteHolder {
 
     @NonNull
     Object identifier;

@@ -17,7 +17,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class KasugaModelManager extends SourceManager<JsonObject> implements PreparableReloadListener, AutoCloseable {
+public class KasugaModelManager implements PreparableReloadListener, AutoCloseable {
 
     private final Collection<KasugaTextureManager> textureManagers;
     private final Collection<Object> inputIdentifiers;
@@ -25,8 +25,7 @@ public class KasugaModelManager extends SourceManager<JsonObject> implements Pre
     private ModelScanner modelScanner;
     private PipeLineRouter pipeLineRouter;
 
-    public KasugaModelManager(SourceType type, Collection<KasugaTextureManager> textureManagers, String name) {
-        super(type, name);
+    public KasugaModelManager(Collection<KasugaTextureManager> textureManagers) {
         this.textureManagers = textureManagers;
         this.inputIdentifiers = new ArrayList<>();
 
@@ -39,7 +38,6 @@ public class KasugaModelManager extends SourceManager<JsonObject> implements Pre
                               Collection<KasugaTextureManager> textureManagers,
                               ModelScanner modelScanner,
                               PipeLineRouter pipeLineRouter) {
-        super(type, name);
         this.inputIdentifiers = new ArrayList<>();
         this.textureManagers = textureManagers;
         this.modelScanner = modelScanner;
