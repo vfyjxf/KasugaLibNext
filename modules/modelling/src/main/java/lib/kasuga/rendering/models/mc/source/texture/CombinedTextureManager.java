@@ -81,7 +81,7 @@ public class CombinedTextureManager extends KasugaTextureManager {
                         SpriteContents content = v[i];
                         Objects.requireNonNull(content);
                         for (TextureAtlasSprite sprite : getAtlas(i).getTextures().values()) {
-                            if (sprite.contents() == content) {
+                            if (sprite.contents().equals(content)) {
                                 sprites[i] = sprite;
                                 break;
                             }
