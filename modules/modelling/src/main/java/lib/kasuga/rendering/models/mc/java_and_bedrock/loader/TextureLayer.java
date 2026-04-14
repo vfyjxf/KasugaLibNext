@@ -25,6 +25,7 @@ public class TextureLayer extends Layer<JsonObject> {
     @Override
     public void process(JsonObject input, Context context) {
         Loader loader = context.getLoader();
+        HashMap<String, Pair<Material, MCTextureData>> textures = new HashMap<>();
         for (String key : input.keySet()) {
             String val = input.get(key).getAsString();
             Object identifier;
@@ -34,7 +35,6 @@ public class TextureLayer extends Layer<JsonObject> {
             rl = resolved.getFirst();
             identifier = resolved.getSecond() == null ? rl : resolved.getSecond();
             Material material = new Material(RenderState.KSG_LAYER_0, rl);
-            HashMap<String, Pair<Material, MCTextureData>> textures = new HashMap<>();
             loader.loadType("texture", "mc_layer_0", identifier);
             KasugaTextureManager textureManager = (KasugaTextureManager)
                     ((HashMap<String, SourceManager>) loader.getSidedSources().get(Constants.TEXTURE_TYPE))
@@ -45,7 +45,7 @@ public class TextureLayer extends Layer<JsonObject> {
                     textureManager
             );
             textures.put(key, Pair.of(material, mcTextureData));
-            context.setData("textures", textures);
         }
+        context.setData("textures", textures);
     }
 }
