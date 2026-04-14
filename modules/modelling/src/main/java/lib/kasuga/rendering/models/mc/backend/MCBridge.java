@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.mc.backend;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import lib.kasuga.rendering.models.mc.backend.data_type.MCRenderableContext;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.SpriteHolder;
@@ -102,6 +103,10 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                         v0 = flipV ? sprite.getV1() : sprite.getV0();
                         u1 = flipU ? sprite.getU0() : sprite.getU1();
                         v1 = flipV ? sprite.getV0() : sprite.getV1();
+                        if (textureData.shouldDividedByTextureSize()) {
+                            NativeImage image = sprite.contents().getOriginalImage();
+                            uv = new Vector2f(uv).mul(1f / (float) image.getWidth(), 1f / (float) image.getHeight());
+                        }
                     } else {
                         u0 = 0f; v0 = 0f; u1 = 1f; v1 = 1f;
                     }
