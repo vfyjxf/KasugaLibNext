@@ -7,6 +7,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.BoneBinding;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.structure.Pair;
@@ -91,7 +92,7 @@ public class ObjContextData implements ContextData<ObjContextData> {
         for (int i = 0; i < bindings.size(); i++) {
             ArrayList<ObjVertexBinding> faces = bindings.get(i);
             meshes[i] = new Mesh(new Vertex[faces.size()], new Vector3f(), new Transform(),
-                    new Texture[]{loader.getTexture(this, loader, mtlName)},
+                    new Material[]{loader.getMaterial(this, loader, mtlName)},
                     loader.getMeshData(this, loader));
             int j = 0;
             for (ObjVertexBinding binding : faces) {
@@ -116,12 +117,12 @@ public class ObjContextData implements ContextData<ObjContextData> {
                 Mesh mesh = meshes[p.getFirst()];
                 if (position == null) {
                     position = vertexPositions.get(binding.vertexIndex());
-                    vertex = new Vertex<>(
+                    vertex = new Vertex(
                             position, loader.getVertexData(this, loader, boneName)
                     );
                 }
                 mesh.getVertices()[p.getSecond()] = vertex;
-                vertex.addUV(mesh, mesh.getTextures()[0], vertexUvs.get(binding.textureIndex()));
+                vertex.addUV(mesh, mesh.getMaterials()[0], vertexUvs.get(binding.textureIndex()));
                 vertex.getNormals().put(mesh, vertexNormals.get(binding.normalIndex()));
             }
             vertex.setBinding(new BoneBinding(new Pair[]{Pair.of(bone, 1.0f)}, loader.getBoneBindingData(

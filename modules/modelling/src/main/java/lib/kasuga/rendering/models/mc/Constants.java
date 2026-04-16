@@ -123,11 +123,8 @@ public class Constants {
         MCBackend mcBackend = new MCBackend();
         MC_BACKEND = mcBackend;
 
-        BE_PIPELINE = new ModelPipeLine.Builder<JsonObject, BEModelData, BoneData,
-                MCMeshData, VertexData, SkeletonData, BoneBindingData,
-                AnchorData, TextureData, ModelInstanceData,
-                SkeletonInstanceData, KsgVertexBuffer, ResourceLocation,
-                ResourceLocation>()
+        BE_PIPELINE = new ModelPipeLine.Builder<JsonObject, KsgVertexBuffer, ResourceLocation,
+                ResourceLocation, String>()
                 .withModelSource(jsonSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
                 .withLoader(loader)
@@ -135,11 +132,8 @@ public class Constants {
                 .withBackend("mc_backend", mcBackend)
                 .build();
 
-        OBJ_PIPELINE = new ModelPipeLine.Builder<String, ModelData, BoneData,
-                MeshData, VertexData, SkeletonData, BoneBindingData,
-                AnchorData, TextureData, ModelInstanceData,
-                SkeletonInstanceData, KsgVertexBuffer, ResourceLocation,
-                ResourceLocation>().withModelSource(strSource)
+        OBJ_PIPELINE = new ModelPipeLine.Builder<String, KsgVertexBuffer, ResourceLocation,
+                ResourceLocation, String>().withModelSource(strSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
                 .withLoader(new KsgObjLoader("obj_model"))
                 .withBridge("mc_bridge", mcBridge)

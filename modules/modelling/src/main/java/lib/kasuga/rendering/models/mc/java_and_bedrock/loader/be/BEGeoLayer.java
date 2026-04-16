@@ -7,6 +7,8 @@ import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTexture;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
 import lib.kasuga.rendering.models.mc.util.JsonHelper;
+import lib.kasuga.rendering.models.uml.loaders.MaterialSetBuilder;
+import lib.kasuga.rendering.models.uml.loaders.SpriteSetBuilder;
 import lib.kasuga.rendering.models.uml.loaders.structural.Context;
 import lib.kasuga.rendering.models.uml.loaders.structural.Layer;
 import lib.kasuga.rendering.models.uml.math.Transform;
@@ -14,6 +16,7 @@ import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.util.TransformStack;
 import lib.kasuga.structure.Pair;
 import net.minecraft.client.resources.model.Material;
+import org.joml.Vector2f;
 import org.joml.Vector3f;
 
 import java.util.HashMap;
@@ -39,9 +42,21 @@ public class BEGeoLayer extends Layer<JsonObject> {
         MCTexture rootTexture = new MCTexture(
                 "root", texture::getFirst,
                 textureWidth, textureHeight,
-                false, false,
                 texture.getSecond());
-        context.setData("texture", rootTexture);
+        MaterialSetBuilder builder = context.getLoader().getMaterialSetBuilder();
+        builder.registerTexture("root", rootTexture);
+        builder.beginMaterial()
+                .useTexture("root")
+                .addSpriteBuildingFunc((mtlb, sprb, mtl) -> {
+                    SpriteSetBuilder sprBuilder = (SpriteSetBuilder) sprb;
+                    sprBuilder.textureId("root")
+                            .rectangularUVs(new Vector2f(), new Vector2f(1f, 1f))
+                            .endSprite();
+                })
+                .endMaterial();
+        lib.kasuga.rendering.models.uml.structure.material.Material mat =
+                (lib.kasuga.rendering.models.uml.structure.material.Material) builder.getMaterials().getFirst();
+        context.setData("material", mat);
 
         BEModelData modelData = new BEModelData(
                 identifier, formatVersion,

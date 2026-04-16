@@ -14,26 +14,26 @@ import java.util.HashMap;
 import java.util.Queue;
 
 @Getter
-public class Skeleton<T extends SkeletonData, R extends BoneData, Q extends AnchorData, P extends BoneBindingData> {
+public class Skeleton {
 
-    private final Bone<R>[] bones;
+    private final Bone[] bones;
 
-    private final Bone<R> root;
+    private final Bone root;
 
-    private final T data;
+    private final SkeletonData data;
 
-    private final Anchor<R, Q, P>[] anchors;
+    private final Anchor[] anchors;
 
-    private final HashMap<String, Bone<R>> boneMap;
-    private final HashMap<Bone<R>, Pair<Transform, Transform>> boneTransforms;
+    private final HashMap<String, Bone> boneMap;
+    private final HashMap<Bone, Pair<Transform, Transform>> boneTransforms;
 
     @NonNull
     @Setter
     private Transform transform;
 
-    public Skeleton(Bone<R>[] bones, Bone<R> root,
-                    Anchor<R, Q, P>[] anchors,
-                    T data, @NonNull Transform transform) {
+    public Skeleton(Bone[] bones, Bone root,
+                    Anchor[] anchors,
+                    SkeletonData data, @NonNull Transform transform) {
         this.bones = bones;
         this.root = root;
         this.data = data;
@@ -41,7 +41,7 @@ public class Skeleton<T extends SkeletonData, R extends BoneData, Q extends Anch
         this.anchors = anchors;
         this.boneMap = new HashMap<>();
         this.boneTransforms = new HashMap<>();
-        for (Bone<R> bone : bones) {
+        for (Bone bone : bones) {
             if (bone.getName().isEmpty()) continue;
             boneMap.put(bone.getName(), bone);
         }
@@ -50,21 +50,21 @@ public class Skeleton<T extends SkeletonData, R extends BoneData, Q extends Anch
 
     public void getInverse() {
         if (!boneTransforms.isEmpty()) return;
-        Queue<Pair<Bone<R>, Transform>> queue = new java.util.LinkedList<>();
+        Queue<Pair<Bone, Transform>> queue = new java.util.LinkedList<>();
         queue.add(Pair.of(root, getTransform()));
         recursiveUpdate(queue);
     }
 
-    private void recursiveUpdate(Queue<Pair<Bone<R>, Transform>> queue) {
+    private void recursiveUpdate(Queue<Pair<Bone, Transform>> queue) {
         while (!queue.isEmpty()) {
-            Pair<Bone<R>, Transform> pair = queue.poll();
-            Bone<R> bone = pair.getFirst();
+            Pair<Bone, Transform> pair = queue.poll();
+            Bone bone = pair.getFirst();
             Transform parentTransform = pair.getSecond();
             if (bone == root) {
                 boneTransforms.put(bone, Pair.of(parentTransform.copy(), parentTransform.copy().invert()));
             }
             if (bone.getChildren() == null) continue;
-            for (Bone<R> child : bone.getChildren()) {
+            for (Bone child : bone.getChildren()) {
                 if (child == null) continue;
                 Transform transform = parentTransform.copy().mul(child.getTransform());
                 boneTransforms.put(child, Pair.of(transform, transform.invert()));

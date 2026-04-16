@@ -8,6 +8,7 @@ import lib.kasuga.rendering.models.mc.util.Direction;
 import lib.kasuga.rendering.models.mc.util.JsonHelper;
 import lib.kasuga.rendering.models.uml.loaders.structural.Context;
 import lib.kasuga.rendering.models.uml.loaders.structural.Processor;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.structure.Pair;
 import org.joml.Vector2f;
@@ -24,9 +25,9 @@ public class BEBoxLayerProcessor extends Processor<JsonArray> {
     @Override
     public void process(JsonArray input, Context context) {
         boolean mirror = (Boolean) context.getDataOrDefault("mirror", false);
-        Texture<MCTextureData> texture = (Texture<MCTextureData>) context.getData("texture");
-        float texWidth = texture.getWidth();
-        float texHeight = texture.getHeight();
+        Material material = (Material) context.getData("material");
+        float texWidth = material.getTexture("root").getWidth();
+        float texHeight = material.getTexture("root").getHeight();
         Vector2f textureOffset = JsonHelper.jsonToV2f(input).mul(1 / texWidth, 1 / texHeight);
         Vector3f org = (Vector3f) context.getData("origin");
         Vector3f size = (Vector3f) context.getData("size");
@@ -50,7 +51,7 @@ public class BEBoxLayerProcessor extends Processor<JsonArray> {
             boolean isUpAndDown = d == UP || d == DOWN;
             float defaultRotation = isUpAndDown ? 270 : 90;
             mapper.map(data.getFirst().mul(16f / texWidth, 16f / texHeight), data.getSecond().mul(16f / texWidth, 16f / texHeight),
-                    texture, d, defaultRotation, null, meshData, true, false);
+                    material, d, defaultRotation, null, meshData, true, false);
         }
     }
 

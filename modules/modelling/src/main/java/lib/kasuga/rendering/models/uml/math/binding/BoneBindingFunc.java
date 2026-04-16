@@ -15,13 +15,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public interface BoneBindingFunc<T extends BoneData> {
+public interface BoneBindingFunc {
 
-    Vertex<?, T, ?> apply(Vertex<?, T, ?> vertex, List<BoneContext<T>> context);
+    Vertex apply(Vertex vertex, List<BoneContext> context);
 
-    BoneBindingFunc<BoneData> IDENTITY = (vertex, context) -> vertex;
+    BoneBindingFunc IDENTITY = (vertex, context) -> vertex;
 
-    BoneBindingFunc<BoneData> BDEF = (vertex, context) -> {
+    BoneBindingFunc BDEF = (vertex, context) -> {
         if (context.isEmpty()) {
             return IDENTITY.apply(vertex, context);
         }
@@ -44,10 +44,10 @@ public interface BoneBindingFunc<T extends BoneData> {
             }
         }
         normalFinals.forEach((k, v) -> v.normalize());
-        return new Vertex<>(vertex, posFinal, normalFinals);
+        return new Vertex(vertex, posFinal, normalFinals);
     };
 
-    BoneBindingFunc<BoneData> SDEF = (vertex, context) -> {
+    BoneBindingFunc SDEF = (vertex, context) -> {
         if (context.size() < 2) {
             return BDEF.apply(vertex, context);
         }
@@ -128,10 +128,10 @@ public interface BoneBindingFunc<T extends BoneData> {
             normalFinals.put(meshAndNormal.getKey(), normalFinal);
         }
 
-        return new Vertex<>(vertex, posFinal, normalFinals);
+        return new Vertex(vertex, posFinal, normalFinals);
     };
 
-    BoneBindingFunc<BoneData> QDEF = (vertex, context) -> {
+    BoneBindingFunc QDEF = (vertex, context) -> {
         if (context.isEmpty()) {
             return IDENTITY.apply(vertex, context);
         }
@@ -150,6 +150,6 @@ public interface BoneBindingFunc<T extends BoneData> {
             normal.normalize();
             normalFinals.put(meshAndNormal.getKey(), normal);
         }
-        return new Vertex<>(vertex, posFinal, normalFinals);
+        return new Vertex(vertex, posFinal, normalFinals);
     };
 }

@@ -11,6 +11,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelData;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Anchor;
@@ -32,25 +33,23 @@ import java.util.Map;
 import java.util.Stack;
 
 public abstract class ObjModelLoader<
-        A extends ModelData, B extends BoneData, C extends MeshData, D extends VertexData,
-        E extends BoneBindingData, F extends TextureData, G extends SkeletonData, H extends AnchorData,
-        I, S> extends TextStreamLoader<A, B, C, D, E, F, G, H, I, S, ObjContextData> {
+        InputType, OutputIdentifier, TextureIdentifier> extends TextStreamLoader<InputType, OutputIdentifier, TextureIdentifier, ObjContextData> {
 
     @Setter
     @Getter
     private String mtllibURL;
 
     @Getter
-    private final ArrayList<Vertex<D, B, E>> vertices;
+    private final ArrayList<Vertex> vertices;
 
     @Getter
-    private final ArrayList<Mesh<C, D, F, B, E>> meshes;
+    private final ArrayList<Mesh> meshes;
 
     @Getter
-    private final ArrayList<Bone<B>> bones;
+    private final ArrayList<Bone> bones;
 
     @Getter
-    private I currentInput;
+    private InputType currentInput;
 
     @Getter
     private final MtlLoader mtlLoader;
@@ -78,7 +77,7 @@ public abstract class ObjModelLoader<
     }
 
     @Override
-    public Map<S, Model<A, B, C, D, F, G, E, H>> load(S identifier, I input) {
+    public Map<OutputIdentifier, Model> load(OutputIdentifier identifier, InputType input) {
         currentInput = input;
         return super.load(identifier, input);
     }
@@ -91,23 +90,25 @@ public abstract class ObjModelLoader<
         mtllibURL = null;
     }
 
-    public abstract @Nullable D getVertexData(ObjContextData data, ObjModelLoader loader, String boneName);
+    public abstract @Nullable VertexData getVertexData(ObjContextData data, ObjModelLoader loader, String boneName);
 
-    public abstract @Nullable C getMeshData(ObjContextData data, ObjModelLoader loader);
+    public abstract @Nullable MeshData getMeshData(ObjContextData data, ObjModelLoader loader);
 
     public abstract @NonNull Texture getTexture(ObjContextData data, ObjModelLoader loader, String mtlName);
 
-    public abstract @Nullable B getBoneData(ObjModelLoader loader, String boneName);
+    public abstract @NonNull Material getMaterial(ObjContextData data, ObjModelLoader loader, String mtlName);
 
-    public abstract @Nullable E getBoneBindingData(ObjModelLoader loader, Bone bone, Vertex vertex);
+    public abstract @Nullable BoneData getBoneData(ObjModelLoader loader, String boneName);
 
-    public abstract @Nullable G getSkeletonData(ObjModelLoader loader, Bone[] bones);
+    public abstract @Nullable BoneBindingData getBoneBindingData(ObjModelLoader loader, Bone bone, Vertex vertex);
 
-    public abstract @Nullable A getModelData(ObjModelLoader loader);
+    public abstract @Nullable SkeletonData getSkeletonData(ObjModelLoader loader, Bone[] bones);
 
-    public abstract @NonNull S getIdentifier(ObjModelLoader loader, I input);
+    public abstract @Nullable ModelData getModelData(ObjModelLoader loader);
 
-    public abstract @NonNull Anchor<B, H, E>[] getAnchors(ObjModelLoader loader, Bone<B>[] bones, Bone<B> rootBone);
+    public abstract @NonNull OutputIdentifier getIdentifier(ObjModelLoader loader, InputType input);
+
+    public abstract @NonNull Anchor[] getAnchors(ObjModelLoader loader, Bone[] bones, Bone rootBone);
 
     public abstract void consumeTexture(ObjTextureData texture);
 
@@ -128,7 +129,7 @@ public abstract class ObjModelLoader<
             }
         }
         if (boneName == null) boneName = "bone_" + tempStack.hashCode();
-        Bone bone = new Bone<>(boneName, new Transform(), getBoneData(this, boneName));
+        Bone bone = new Bone(boneName, new Transform(), getBoneData(this, boneName));
         while (!tempStack.isEmpty()) {
             cache = tempStack.pop();
             cache.buildVertexAndMesh(this, bone);
@@ -145,18 +146,18 @@ public abstract class ObjModelLoader<
     }
 
     @Override
-    public void build(HashMap<S, Model<A, B, C, D, F, G, E, H>> result) {
+    public void build(HashMap<OutputIdentifier, Model> result) {
         while (!getContext().isEmpty()) {
             endHighestGroup(getContext());
         }
-        Bone<B> rootBone;
+        Bone rootBone;
         if (bones.size() == 1) rootBone = bones.getFirst();
-        else rootBone = new Bone<B>("root", new Transform(), getBoneData(this, "root"));
+        else rootBone = new Bone("root", new Transform(), getBoneData(this, "root"));
         if (bones.size() > 1) {
             rootBone.setChildren(bones.toArray(new Bone[0]));
             bones.forEach(b -> b.setParent(rootBone));
         }
-        Bone<B>[] b = new Bone[bones.size() > 1 ? bones.size() + 1 : 1];
+        Bone[] b = new Bone[bones.size() > 1 ? bones.size() + 1 : 1];
         if (bones.size() > 1) {
             b[0] = rootBone;
             for (int i = 0; i < bones.size(); i++) {
@@ -165,14 +166,15 @@ public abstract class ObjModelLoader<
         } else {
             b[0] = rootBone;
         }
-        Skeleton<G, B, H, E> skeleton = new Skeleton<>(
+        Skeleton skeleton = new Skeleton(
                 b, rootBone, getAnchors(this, b, rootBone), getSkeletonData(this, b), new Transform()
         );
-        Model<A, B, C, D, F, G, E, H> model = new Model<A, B, C, D, F, G, E, H>(
+        Model model = new Model(
                 vertices.toArray(new Vertex[0]),
                 meshes.toArray(new Mesh[0]),
                 b,
                 skeleton,
+                materialSetBuilder().endMaterialSet(),
                 getModelData(this)
         );
         result.put(getIdentifier(this, currentInput), model);

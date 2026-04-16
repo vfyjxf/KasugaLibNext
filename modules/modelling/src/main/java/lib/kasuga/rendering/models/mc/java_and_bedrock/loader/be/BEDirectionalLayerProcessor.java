@@ -9,6 +9,7 @@ import lib.kasuga.rendering.models.mc.util.Direction;
 import lib.kasuga.rendering.models.mc.util.JsonHelper;
 import lib.kasuga.rendering.models.uml.loaders.structural.Context;
 import lib.kasuga.rendering.models.uml.loaders.structural.Processor;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import org.joml.Vector2f;
 import org.joml.Vector4f;
@@ -23,10 +24,10 @@ public class BEDirectionalLayerProcessor extends Processor<JsonObject> {
     public void process(JsonObject input, Context context) {
         HashMap<JsonElement, Direction> directionMap = (HashMap<JsonElement, Direction>) context.getData("direction");
         Direction direction = directionMap.get(input);
-        Texture<MCTextureData> texture = (Texture<MCTextureData>) context.getData("texture");
+        Material material = (Material) context.getData("material");
         CubeVerticesMapper mapper = (CubeVerticesMapper) context.getData("mapper");
-        float texWidth = texture.getWidth();
-        float texHeight = texture.getHeight();
+        float texWidth = material.getTexture("root").getWidth();
+        float texHeight = material.getTexture("root").getHeight();
         int uvRoataion = JsonHelper.jsonToInt(input, "uv_rotation", 0) % 360;
         Vector2f uvOrg = JsonHelper.jsonToV2f(input.getAsJsonArray("uv"))
                 .mul(1 / texWidth, 1 / texHeight);
@@ -39,7 +40,7 @@ public class BEDirectionalLayerProcessor extends Processor<JsonObject> {
         );
         boolean isUpAndDown = direction == UP || direction == DOWN;
         float defaultRotation = isUpAndDown ? 270 : 90;
-        mapper.map(uvOrg, uvSize, texture, direction, (uvRoataion + defaultRotation) % 360,
+        mapper.map(uvOrg, uvSize, material, direction, (uvRoataion + defaultRotation) % 360,
                 null, data, true, false);
     }
 }

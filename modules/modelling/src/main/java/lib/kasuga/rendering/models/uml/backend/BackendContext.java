@@ -8,9 +8,8 @@ import lombok.Setter;
 public abstract class BackendContext<
         BridgeType extends Bridge,
         BackendRenderableType,
-        ModelInstanceType extends ModelInstance,
         BackendContextType,
-        BackendTransformType> {
+        BackendTransformType> implements AutoCloseable {
 
     @Getter
     private final BridgeType bridge;
@@ -18,13 +17,13 @@ public abstract class BackendContext<
     private BackendRenderableType cache;
 
     @Getter
-    private final ModelInstanceType modelInstance;
+    private final ModelInstance modelInstance;
 
     @Setter
     @Getter
     private boolean render;
 
-    public BackendContext(BridgeType bridge, ModelInstanceType modelInstance) {
+    public BackendContext(BridgeType bridge, ModelInstance modelInstance) {
         this.bridge = bridge;
         this.modelInstance = modelInstance;
         this.cache = null;
@@ -39,4 +38,11 @@ public abstract class BackendContext<
     }
 
     public abstract BackendTransformType beforeRender(BackendContextType context);
+
+    @Override
+    public void close() throws Exception {
+        if (cache instanceof AutoCloseable) {
+            ((AutoCloseable) cache).close();
+        }
+    }
 }

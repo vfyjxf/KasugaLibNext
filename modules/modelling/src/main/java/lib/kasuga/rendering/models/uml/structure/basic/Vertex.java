@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.uml.structure.basic;
 
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lombok.Getter;
@@ -14,28 +15,28 @@ import org.joml.Vector3f;
 import java.util.HashMap;
 
 @Getter
-public class Vertex<T extends VertexData, R extends BoneData, P extends BoneBindingData> {
+public class Vertex {
 
     private final Vector3f position;
 
-    private final HashMap<Mesh, HashMap<Texture, Vector2f>> uvs;
+    private final HashMap<Mesh, HashMap<Material, Vector2f>> uvs;
     private final HashMap<Mesh, Vector3f> normals;
 
     @Nullable
-    private final T data;
+    private final VertexData data;
 
     @Setter
     @NonNull
-    private BoneBinding<R, P> binding;
+    private BoneBinding binding;
 
-    public Vertex(Vector3f position, @Nullable T data) {
+    public Vertex(Vector3f position, @Nullable VertexData data) {
         this.position = position;
         this.uvs = new HashMap<>();
         this.normals = new HashMap<>();
         this.data = data;
     }
 
-    public Vertex(Vector3f position, HashMap<Mesh, HashMap<Texture, Vector2f>> uvs, HashMap<Mesh, Vector3f> normals, BoneBinding<R, P> binding, @Nullable T data) {
+    public Vertex(Vector3f position, HashMap<Mesh, HashMap<Material, Vector2f>> uvs, HashMap<Mesh, Vector3f> normals, BoneBinding binding, @Nullable VertexData data) {
         this.position = position;
         this.uvs = uvs;
         this.normals = normals;
@@ -43,7 +44,7 @@ public class Vertex<T extends VertexData, R extends BoneData, P extends BoneBind
         this.binding = binding;
     }
 
-    public Vertex(Vertex<T, R, P> vertex, Vector3f position, HashMap<Mesh, Vector3f> normals) {
+    public Vertex(Vertex vertex, Vector3f position, HashMap<Mesh, Vector3f> normals) {
         this.position = position;
         this.uvs = vertex.uvs;
         this.normals = normals;
@@ -51,18 +52,18 @@ public class Vertex<T extends VertexData, R extends BoneData, P extends BoneBind
         this.binding = vertex.binding;
     }
 
-    public void addUV(Mesh mesh, Texture texture, Vector2f uv) {
-        uvs.computeIfAbsent(mesh, m -> new HashMap<>()).put(texture, uv);
+    public void addUV(Mesh mesh, Material material, Vector2f uv) {
+        uvs.computeIfAbsent(mesh, m -> new HashMap<>()).put(material, uv);
         normals.put(mesh, mesh.getNormal());
     }
 
     @Nullable
-    public Vector2f getUV(Mesh mesh, Texture texture) {
-        HashMap<Texture, Vector2f> meshUVs = uvs.get(mesh);
+    public Vector2f getUV(Mesh mesh, Material material) {
+        HashMap<Material, Vector2f> meshUVs = uvs.get(mesh);
         if (meshUVs == null) {
             return null;
         }
-        return meshUVs.get(texture);
+        return meshUVs.get(material);
     }
 
     public Vector3f getNormal(Mesh mesh) {

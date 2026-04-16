@@ -1,6 +1,7 @@
 package lib.kasuga.rendering.models.uml.structure.basic;
 
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
@@ -14,10 +15,9 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 @Getter
-public class Mesh<T extends MeshData, R extends VertexData, Q extends TextureData,
-        P extends BoneData, G extends BoneBindingData> {
+public class Mesh {
 
-    private final Vertex<R, P, G>[] vertices;
+    private final Vertex[] vertices;
 
     private final Vector3f normal;
 
@@ -25,20 +25,20 @@ public class Mesh<T extends MeshData, R extends VertexData, Q extends TextureDat
     private boolean visible = true, culled = false;
 
     @Nullable
-    private final T data;
+    private final MeshData data;
 
     @NonNull
     @Setter
     private Transform transform;
 
     @NonNull
-    private Texture<Q>[] textures;
+    private Material[] materials;
 
-    public Mesh(Vertex<R, P, G>[] vertices, Vector3f normal, @NonNull Transform transform, @NonNull Texture<Q>[] textures, @Nullable T data) {
+    public Mesh(Vertex[] vertices, Vector3f normal, @NonNull Transform transform, @NonNull Material[] materials, @Nullable MeshData data) {
         this.vertices = vertices;
         this.transform = transform;
         this.data = data;
         this.normal = normal;
-        this.textures = textures;
+        this.materials = materials;
     }
 }

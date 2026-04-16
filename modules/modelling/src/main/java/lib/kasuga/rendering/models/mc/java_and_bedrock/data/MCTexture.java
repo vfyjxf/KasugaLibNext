@@ -6,7 +6,7 @@ import net.minecraft.client.resources.model.Material;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class MCTexture extends Texture<MCTextureData> {
+public class MCTexture extends Texture {
 
     private final Supplier<Material> materialSupplier;
     private Material material;
@@ -14,9 +14,8 @@ public class MCTexture extends Texture<MCTextureData> {
     public MCTexture(String id, Supplier<Material> materialSupplier,
                      float textureWidth,
                      float textureHeight,
-                     boolean flipU, boolean flipV,
                      MCTextureData data) {
-        super(id, textureWidth, textureHeight, flipU, flipV, data);
+        super(id, textureWidth, textureHeight, data);
         this.materialSupplier = materialSupplier;
         this.material = null;
     }

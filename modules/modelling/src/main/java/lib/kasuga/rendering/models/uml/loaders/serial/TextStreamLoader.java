@@ -1,13 +1,18 @@
 package lib.kasuga.rendering.models.uml.loaders.serial;
 
+import lib.kasuga.rendering.models.uml.loaders.MaterialSetBuilder;
 import lib.kasuga.rendering.models.uml.loaders.ModelLoader;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceManager;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
 import lib.kasuga.rendering.models.uml.structure.Model;
+import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelData;
+import lib.kasuga.rendering.models.uml.structure.material.data.MaterialData;
+import lib.kasuga.rendering.models.uml.structure.material.data.SpriteData;
+import lib.kasuga.rendering.models.uml.structure.material.data.SpriteSetData;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
@@ -18,9 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public abstract class TextStreamLoader<
-        A extends ModelData, B extends BoneData, C extends MeshData, D extends VertexData,
-        E extends BoneBindingData, F extends TextureData, G extends SkeletonData, H extends AnchorData,
-        I, S, M extends ContextData<M>> implements ModelLoader<A, B, C, D, E, F, G, H, I, S> {
+        InputType, OutputIdentifier, TextureIdentifier, M extends ContextData<M>>
+        implements ModelLoader<InputType, OutputIdentifier, TextureIdentifier> {
 
     @Getter
     private final String separator;
@@ -40,19 +44,23 @@ public abstract class TextStreamLoader<
     @Getter
     private final HashMap<SourceType, HashMap<String, SourceManager<?>>> sidedSourceManagers;
 
+    @Getter
+    private final MaterialSetBuilder<TextureIdentifier> materialSetBuilder;
+
     public TextStreamLoader(String name, String separator, boolean trim) {
         this.separator = separator;
         this.processors = new HashMap<>();
         this.trim = trim;
         this.name = name;
         sidedSourceManagers =  new HashMap<>();
+        this.materialSetBuilder = new MaterialSetBuilder<>(this);
     }
 
     public void registerProcessor(String key, LineProcessor processor) {
         processors.put(key, processor);
     }
 
-    public abstract String getAsString(I input);
+    public abstract String getAsString(InputType input);
 
     public String[] split(String input) {
         String[] result = input.split(separator);
@@ -64,8 +72,8 @@ public abstract class TextStreamLoader<
     }
 
     @Override
-    public Map<S, Model<A, B, C, D, F, G, E, H>> load(S identifier, I input) {
-        HashMap<S, Model<A, B, C, D, F, G, E, H>> result = new HashMap<>();
+    public Map<OutputIdentifier, Model> load(OutputIdentifier identifier, InputType input) {
+        HashMap<OutputIdentifier, Model> result = new HashMap<>();
         String[] str = getString(input);
         LineProcessor lastProcessor = null;
         context = new SerialContext<>(this);
@@ -87,9 +95,9 @@ public abstract class TextStreamLoader<
         return result;
     }
 
-    public abstract void build(HashMap<S, Model<A, B, C, D, F, G, E, H>> result);
+    public abstract void build(HashMap<OutputIdentifier, Model> result);
 
-    public String[] getString(I input) {
+    public String[] getString(InputType input) {
         String str = getAsString(input);
         if (str == null) return new String[0];
         return split(str);
@@ -106,5 +114,10 @@ public abstract class TextStreamLoader<
     @Override
     public HashMap<SourceType, HashMap<String, SourceManager<?>>> getSidedSources() {
         return getSidedSourceManagers();
+    }
+
+    @Override
+    public MaterialSetBuilder<TextureIdentifier> materialSetBuilder() {
+        return materialSetBuilder;
     }
 }

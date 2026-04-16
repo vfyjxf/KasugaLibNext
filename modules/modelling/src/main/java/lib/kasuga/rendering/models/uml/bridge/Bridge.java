@@ -20,36 +20,31 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonInstanceD
 
 import java.util.HashMap;
 
-public interface Bridge<
-        A extends ModelData, B extends BoneData, C extends SkeletonData,
-        D extends MeshData, E extends VertexData, F extends TextureData,
-        G extends SkeletonInstanceData, H extends BoneBindingData, I extends AnchorData,
-        J extends ModelInstanceData,
-        R> {
-    HashMap<Vertex, Vertex> transformVertices(Model<A, B, D, E, F, C, H, I> model,
-                                              SkeletonInstance<G, C, B, H, I> skeleton,
-                                              Vertex<E, B, H>[] vertices);
+public interface Bridge<R> {
+    HashMap<Vertex, Vertex> transformVertices(Model model,
+                                              SkeletonInstance skeleton,
+                                              Vertex[] vertices);
 
-    Mesh<D, E, F, B, H>[] transformMeshes(Model<A, B, D, E, F, C, H, I> model,
-                                          SkeletonInstance<G, C, B, H, I> skeleton,
-                                          Mesh<D, E, F, B, H>[] meshes);
+    Mesh[] transformMeshes(Model model,
+                                          SkeletonInstance skeleton,
+                                          Mesh[] meshes);
 
-    R getBackendRenderable(ModelInstance<J, A, B, D, E, C, G, F, I, H> modelInstance,
-                           HashMap<Vertex, Vertex> vertices, Mesh<D, E, F, B, H>[] meshes);
+    R getBackendRenderable(ModelInstance modelInstance,
+                           HashMap<Vertex, Vertex> vertices, Mesh[] meshes);
 
-    BoneBindingFunc<B> getBoneBindingFunc(Model<A, B, D, E, F, C, H, I> model,
-                                          SkeletonInstance<G, C, B, H, I> skeleton,
-                                          Vertex<?, B, ?> vertex);
+    BoneBindingFunc getBoneBindingFunc(Model model,
+                                          SkeletonInstance skeleton,
+                                          Vertex vertex);
 
-    BackendContext<?, R, ModelInstance, ?, ?> getBackendContext(ModelInstance<J, A, B, D, E, C, G, F, I, H> modelInstance);
+    BackendContext<?, R, ?, ?> getBackendContext(ModelInstance modelInstance);
 
-    default R apply(ModelInstance<J, A, B, D, E, C, G, F, I, H> modelInstance) {
-        Model<A, B, D, E, F, C, H, I> model = modelInstance.getModel();
-        SkeletonInstance<G, C, B, H, I> skeleton = modelInstance.getSkeletonInstance();
-        Vertex<E, B, H>[] vertices = model.getVertices();
-        Mesh<D, E, F, B, H>[] meshes = model.getMeshes();
+    default R apply(ModelInstance modelInstance) {
+        Model model = modelInstance.getModel();
+        SkeletonInstance skeleton = modelInstance.getSkeletonInstance();
+        Vertex[] vertices = model.getVertices();
+        Mesh[] meshes = model.getMeshes();
         HashMap<Vertex, Vertex> vertexMap = transformVertices(model, skeleton, vertices);
-        Mesh<D, E, F, B, H>[] transformedMeshes = transformMeshes(model, skeleton, meshes);
+        Mesh[] transformedMeshes = transformMeshes(model, skeleton, meshes);
         return getBackendRenderable(modelInstance, vertexMap, transformedMeshes);
     }
 }

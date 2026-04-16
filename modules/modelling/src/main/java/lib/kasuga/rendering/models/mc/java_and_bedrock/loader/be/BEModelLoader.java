@@ -1,11 +1,17 @@
 package lib.kasuga.rendering.models.mc.java_and_bedrock.loader.be;
 
 import com.google.gson.JsonObject;
+import lib.kasuga.rendering.models.mc.Constants;
+import lib.kasuga.rendering.models.mc.backend.RenderState;
+import lib.kasuga.rendering.models.mc.java_and_bedrock.IdentifierHelper;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.TextureLayer;
+import lib.kasuga.rendering.models.mc.source.texture.KasugaTextureManager;
+import lib.kasuga.rendering.models.uml.loaders.MaterialSetBuilder;
 import lib.kasuga.rendering.models.uml.loaders.SkeletonBuilder;
+import lib.kasuga.rendering.models.uml.loaders.sources.SourceManager;
 import lib.kasuga.rendering.models.uml.loaders.structural.Loader;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.BoneBinding;
@@ -13,6 +19,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
+import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
@@ -21,18 +28,16 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
+import net.minecraft.client.resources.model.Material;
 import net.minecraft.resources.ResourceLocation;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
+import java.nio.file.Path;
+import java.util.*;
 import java.util.function.BiFunction;
 
-public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, VertexData, BoneBindingData,
-        TextureData, SkeletonData, AnchorData, JsonObject, ResourceLocation> {
+public class BEModelLoader extends Loader<JsonObject, ResourceLocation, String> {
 
-    private final HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData>> loadedModels;
+    private final HashMap<ResourceLocation, Model> loadedModels;
 
     @Getter
     private final String nameSpace;
@@ -53,78 +58,81 @@ public class BEModelLoader extends Loader<BEModelData, BoneData, MCMeshData, Ver
 
 
     @Override
-    public void build(HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData>> resultMap) {
+    public void build(HashMap<ResourceLocation, Model> resultMap) {
         if (resultMap != null) {
             resultMap.putAll(loadedModels);
             loadedModels.clear();
             return;
         }
         BiFunction<
-                SkeletonBuilder.AnchorRecord<AnchorData>,
-                List<Bone<BoneData>>, BoneBinding<BoneData,
-                ?>> anchorBindingFunc = (anchorRec, bones) -> {
-            List<Pair<Bone<BoneData>, Float>> parentBones = new ArrayList<>(bones.size());
+                SkeletonBuilder.AnchorRecord,
+                List<Bone>, BoneBinding> anchorBindingFunc = (anchorRec, bones) -> {
+            List<Pair<Bone, Float>> parentBones = new ArrayList<>(bones.size());
             for (String parentBoneName : anchorRec.parentBoneNames()) {
-                for (Bone<BoneData> bone : bones) {
+                for (Bone bone : bones) {
                     if (bone.getName().equals(parentBoneName)) {
                         parentBones.add(Pair.of(bone, 1f / bones.size()));
                         break;
                     }
                 }
             }
-            return new BoneBinding<>(
+            return new BoneBinding(
                     parentBones.toArray(new Pair[0]),
                     null
             );
         };
 
         BiFunction<
-                SkeletonBuilder.VertexRecord<BoneData, ?>,
-                List<Bone<BoneData>>,
-                BoneBinding<BoneData, ?>> vertexBindingFunc = (vertexRec, bones) -> {
-            List<Pair<Bone<BoneData>, Float>> parentBones = new ArrayList<>(bones.size());
+                SkeletonBuilder.VertexRecord,
+                List<Bone>,
+                BoneBinding> vertexBindingFunc = (vertexRec, bones) -> {
+            List<Pair<Bone, Float>> parentBones = new ArrayList<>(bones.size());
             for (String parentBoneName : vertexRec.parentBoneNames()) {
-                for (Bone<BoneData> bone : bones) {
+                for (Bone bone : bones) {
                     if (bone.getName().equals(parentBoneName)) {
                         parentBones.add(Pair.of(bone, 1f / bones.size()));
                         break;
                     }
                 }
             }
-            return new BoneBinding<>(
+            return new BoneBinding(
                     parentBones.toArray(new Pair[0]),
                     null
             );
         };
 
-        Skeleton<?, BoneData, AnchorData, ?> skeleton = getBones().build(
+        Skeleton skeleton = getBones().build(
                 null,
                 null,
                 anchorBindingFunc,
                 vertexBindingFunc
         );
-        Model<BEModelData, BoneData, MCMeshData,
-                VertexData, TextureData, SkeletonData,
-                BoneBindingData, AnchorData> model = new Model<>(
+        Model model = new Model(
                             getVertices().toArray(new Vertex[0]),
                             getMeshes().toArray(new Mesh[0]),
                             skeleton.getBones(),
-                            (Skeleton<SkeletonData, BoneData, AnchorData, BoneBindingData>) skeleton,
+                            skeleton,
+                            materialSetBuilder().endMaterialSet(),
                             getData()
         );
         this.loadedModels.put(ResourceLocation.tryBuild(
                 nameSpace,
-                getData().getIdentifier().toLowerCase(Locale.ROOT)
+                ((BEModelData) getData()).getIdentifier().toLowerCase(Locale.ROOT)
         ), model);
     }
 
     @Override
-    public HashMap<ResourceLocation, Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData>> load(ResourceLocation loc, JsonObject input) {
+    public HashMap<ResourceLocation, Model> load(ResourceLocation loc, JsonObject input) {
         return super.load(loc, input);
     }
 
     @Override
     public boolean isValidInput(Object input) {
         return input instanceof JsonObject;
+    }
+
+    @Override
+    public Texture loadTexture(Object textureIdentifier) {
+        return null;
     }
 }

@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.mc.obj;
 
+import com.google.gson.JsonObject;
 import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.mc.backend.RenderState;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.IdentifierHelper;
@@ -42,20 +43,20 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-public class KsgObjLoader extends ObjModelLoader<ModelData, BoneData, MeshData, VertexData, BoneBindingData, TextureData, SkeletonData, AnchorData, String, ResourceLocation> {
-
-    private final HashMap<String, Pair<Material, TextureData>> textureMap;
+public class KsgObjLoader extends ObjModelLoader<String, ResourceLocation, String> {
 
     private final HashMap<String, ResourceLocation> loadedModels;
 
+    private final HashMap<String, lib.kasuga.rendering.models.uml.structure.material.Material> materials;
+
     public KsgObjLoader(String name) {
         super(name, true, true, true);
-        textureMap = new HashMap<>();
         loadedModels = new HashMap<>();
+        materials = new HashMap<>();
     }
 
     @Override
-    public Map<ResourceLocation, Model<ModelData, BoneData, MeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData>> load(
+    public Map<ResourceLocation, Model> load(
             ResourceLocation identifier, String input
     ) {
         loadedModels.put(input, identifier);
@@ -74,9 +75,12 @@ public class KsgObjLoader extends ObjModelLoader<ModelData, BoneData, MeshData, 
 
     @Override
     public @NonNull Texture getTexture(ObjContextData data, ObjModelLoader loader, String mtlName) {
-        Pair<Material, TextureData> pair = textureMap.get(mtlName);
-        Objects.requireNonNull(pair);
-        return new MCTexture(mtlName, pair::getFirst, 1, 1, false, true, (MCTextureData) pair.getSecond());
+        return materialSetBuilder().getTexture(mtlName);
+    }
+
+    @Override
+    public lib.kasuga.rendering.models.uml.structure.material.@NonNull Material getMaterial(ObjContextData data, ObjModelLoader loader, String mtlName) {
+        return materials.get(mtlName);
     }
 
     @Override
@@ -105,7 +109,7 @@ public class KsgObjLoader extends ObjModelLoader<ModelData, BoneData, MeshData, 
     }
 
     @Override
-    public @NonNull Anchor<BoneData, AnchorData, BoneBindingData>[] getAnchors(ObjModelLoader loader, Bone<BoneData>[] bones, Bone<BoneData> rootBone) {
+    public @NonNull Anchor[] getAnchors(ObjModelLoader loader, Bone[] bones, Bone rootBone) {
         return new Anchor[0];
     }
 
@@ -124,7 +128,14 @@ public class KsgObjLoader extends ObjModelLoader<ModelData, BoneData, MeshData, 
                 identifier, textureManager
         );
         Material material = new Material(RenderState.KSG_LAYER_0, rl);
-        textureMap.put(texture.getName(), Pair.of(material, textureData));
+        MCTexture tex = new MCTexture(texture.getName(), () -> material, 1, 1, textureData);
+        materialSetBuilder()
+                .registerTexture(texture.getName(), tex)
+                .useTexture(texture.getName())
+                .addSpriteBuildingFunc((mtlb, sprb, mtl) -> {
+                    sprb.textureId(texture.getName()).flipV(true).endSprite();
+                }).endMaterial();
+        materials.put(texture.getName(), materialSetBuilder().getMaterials().getLast());
     }
 
     @Override
@@ -165,5 +176,10 @@ public class KsgObjLoader extends ObjModelLoader<ModelData, BoneData, MeshData, 
     @Override
     public boolean isValidInput(Object input) {
         return input instanceof String;
+    }
+
+    @Override
+    public Texture loadTexture(Object textureIdentifier) {
+        return getTexture(getContext().peek(), this, (String) textureIdentifier);
     }
 }

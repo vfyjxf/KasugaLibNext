@@ -26,10 +26,10 @@ import org.joml.Vector3f;
 import java.util.Objects;
 import java.util.Vector;
 
-public class MCBackend extends Backend<MCBridge, ModelInstance, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> {
+public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> {
 
     @Override
-    public void render(BackendContext<MCBridge, KsgVertexBuffer, ModelInstance, MCBackendContext, BackendTransform> renderable, MCBackendContext context) {
+    public void render(BackendContext<MCBridge, KsgVertexBuffer, MCBackendContext, BackendTransform> renderable, MCBackendContext context) {
         PoseStack poseStack = context.getPoseStack();
         poseStack.pushPose();
 

@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
 
-public class KsgVertexBuffer {
+public class KsgVertexBuffer implements AutoCloseable {
 
     private final ByteBuffer buffer;
     private boolean building = false;
@@ -32,7 +32,9 @@ public class KsgVertexBuffer {
     private final HashMap<VertexFormatElement, Integer> offsets;
     private final HashMap<VertexFormatElement, Integer> bufOffsets;
     private VertexFormatElement uv1_element, uv2_element;
-//    private final HashMap<Supplier<Boolean>, HashMap<VertexFormatElement, ElementUploader>> conditionalUploaders;
+
+    @Getter
+    private boolean closed = false;
 
     @Getter
     private final Builder modifier;
@@ -68,7 +70,16 @@ public class KsgVertexBuffer {
         this.modifier = modifier;
         uv1_element = null; uv2_element = null;
         findUv1AndUv2(format);
-//        conditionalUploaders = new HashMap<>();
+    }
+
+    @Override
+    public void close() throws Exception {
+        MemoryUtil.memFree(buffer);
+        closed = true;
+    }
+
+    public void checkClosed() {
+        if (closed) throw new IllegalStateException("This buffer is already closed!");
     }
 
     private void findUv1AndUv2(VertexFormat format) {
@@ -97,6 +108,7 @@ public class KsgVertexBuffer {
                                     int packedLight,
                                     int packedOverlay,
                                     boolean readAlpha) {
+        checkClosed();
         int bufOffset;
         for (int i = 0; i < numVertices; i++) {
             bufOffset = getBufPos(i, VertexFormatElement.POSITION);
@@ -140,43 +152,6 @@ public class KsgVertexBuffer {
         }
     }
 
-//    private void innerUpload(BufferBuilder builder, long pointer, int vertexIndex,
-//                             VertexFormatElement element,
-//                             PoseStack.Pose pose, float brightness,
-//                             int packedLight, int packedOverlay,
-//                             boolean readAlpha,
-//                             ElementUploader uploader) {
-//        if (!bufOffsets.containsKey(element)) return;
-//        long offset = getPos(pointer, element);
-//        int bufOffset = getBufPos(vertexIndex, element);
-//        uploader.upload(builder, offset, bufOffset, element, buffer, pose, brightness, packedLight, packedOverlay, readAlpha);
-//    }
-//
-//    private void customizeUpload(BufferBuilder builder, long uploadOffset, int indexVertexStart,
-//                                int indexCount, VertexFormat format, PoseStack.Pose pose,
-//                                float brightness, int packedLight,
-//                                int packedOverlay, boolean readAlpha,
-//                                HashMap<VertexFormatElement, ElementUploader> uploaders) {
-//        if (!uploaders.containsKey(VertexFormatElement.POSITION)) {
-//            throw new IllegalArgumentException("Uploader must include POSITION element uploader");
-//        }
-//        int formatSize = format.getVertexSize();
-//        long pointer = uploadOffset + ((long) indexVertexStart * formatSize);
-//        for (int i = 0; i < indexCount; i++) {
-//            for (VertexFormatElement element : format.getElements()) {
-//                if (!uploaders.containsKey(element)) continue;
-//                ElementUploader uploader = uploaders.get(element);
-//                if (uploader == null) continue;
-//                uploader.upload(
-//                        builder, pointer, indexVertexStart + i,
-//                        element, buffer, pose, brightness, packedLight,
-//                        packedOverlay, readAlpha
-//                );
-//            }
-//            pointer += formatSize;
-//        }
-//    }
-
     public void upload(BufferBuilder builder,
                        PoseStack.Pose pose,
                        @Nullable KasugaShaderInstance shader,
@@ -187,6 +162,7 @@ public class KsgVertexBuffer {
             uploadOnIrisPresent(builder, pose, brightness, packedLight, packedOverlay, readAlpha);
             return;
         }
+        checkClosed();
         Objects.requireNonNull(shader);
         shader.setCurrentPose(pose);
         shader.setEmissiveStrength(emissiveStrength);
@@ -283,6 +259,7 @@ public class KsgVertexBuffer {
 
     public void addVertex(ByteBuffer vertexData, int offset) {
         ensureBuilding();
+        checkClosed();
         if (vertexData.capacity() != vertexSize) {
             throw new IllegalArgumentException("Vertex data length does not match vertex size");
         }
@@ -294,6 +271,7 @@ public class KsgVertexBuffer {
 
     public void frozen(HashMap<Vertex, HashMap<Mesh, Integer[]>> boneTransformMap) {
         ensureBuilding();
+        checkClosed();
         this.vertexMap.putAll(boneTransformMap);
         this.building = false;
     }

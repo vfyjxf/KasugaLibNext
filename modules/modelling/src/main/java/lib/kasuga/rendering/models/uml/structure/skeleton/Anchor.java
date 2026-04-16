@@ -11,22 +11,22 @@ import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
 
 @Getter
-public class Anchor<T extends BoneData, R extends AnchorData, Q extends BoneBindingData> {
+public class Anchor {
 
     @NonNull
     private final String name;
 
     @NonNull
-    private final BoneBinding<T, Q> binding;
+    private final BoneBinding binding;
 
     @NonNull
     @Setter
     private Transform transform;
 
     @Nullable
-    private final R data;
+    private final AnchorData data;
 
-    public Anchor(@NonNull String name, @NonNull BoneBinding<T, Q> binding, @NonNull Transform transform, @Nullable R data) {
+    public Anchor(@NonNull String name, @NonNull BoneBinding binding, @NonNull Transform transform, @Nullable AnchorData data) {
         this.name = name;
         this.binding = binding;
         this.transform = transform;

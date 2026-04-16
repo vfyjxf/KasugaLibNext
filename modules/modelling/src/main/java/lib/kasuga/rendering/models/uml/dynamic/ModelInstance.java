@@ -17,19 +17,19 @@ import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 
 @Getter
-public class ModelInstance<A extends ModelInstanceData, B extends ModelData, C extends BoneData, D extends MeshData, E extends VertexData, F extends SkeletonData, G extends SkeletonInstanceData, H extends TextureData, I extends AnchorData, J extends BoneBindingData> {
+public class ModelInstance implements AutoCloseable {
 
-    private final Model<B, C, D, E, H, F, J, I> model;
+    private final Model model;
 
-    private final SkeletonInstance<G, F, C, J, I> skeletonInstance;
+    private final SkeletonInstance skeletonInstance;
 
     @Nullable
-    private A data;
+    private ModelInstanceData data;
 
-    public ModelInstance(Model<B, C, D, E, H, F, J, I> model, @Nullable Transform initTransform, @Nullable A data, @Nullable G skeletonInstanceData) {
+    public ModelInstance(Model model, @Nullable Transform initTransform, @Nullable ModelInstanceData data, @Nullable SkeletonInstanceData skeletonInstanceData) {
         this.model = model;
         this.data = data;
-        this.skeletonInstance = new SkeletonInstance<>(model.getSkeleton(), initTransform, skeletonInstanceData);
+        this.skeletonInstance = new SkeletonInstance(model.getSkeleton(), initTransform, skeletonInstanceData);
     }
 
     public void forceUpdate() {
@@ -40,4 +40,7 @@ public class ModelInstance<A extends ModelInstanceData, B extends ModelData, C e
         forceUpdate();
         skeletonInstance.updateTransform();
     }
+
+    @Override
+    public void close() throws Exception {}
 }

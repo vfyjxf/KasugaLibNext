@@ -9,6 +9,7 @@ import lib.kasuga.rendering.models.uml.loaders.VertexBuilder;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
@@ -37,7 +38,7 @@ public class MCMeshBuilder {
 //    public static final HashMap<Direction, FaceUVInfo> FACE_UV_INFO = getFaceInfo();
 
     @Setter
-    private Texture texture;
+    private Material material;
 
     @Setter
     @NonNull
@@ -50,7 +51,7 @@ public class MCMeshBuilder {
 
     public MCMeshBuilder(Vector2f uvOrg, Vector2f uvSize, Direction direction, float uvRotation) {
         this.vertices = new HashMap<>();
-        this.texture = null;
+        this.material = null;
         this.transform = new Transform();
         this.direction = direction;
         this.uvOrg = uvOrg;
@@ -100,17 +101,17 @@ public class MCMeshBuilder {
     }
 
     public Pair<Mesh, FaceInfo.VertexInfo[]> build(HashMap<FaceInfo.VertexInfo, VertexBuilder> vertexPos) {
-        Objects.requireNonNull(texture);
+        Objects.requireNonNull(material);
         genVertices();
         FaceInfo.VertexInfo[] vertexInfos = getSortedVertices();
         Vector3f pos1 = vertexPos.get(vertexInfos[0]).getPosition();
         Vector3f pos2 = vertexPos.get(vertexInfos[1]).getPosition();
         Vector3f pos3 = vertexPos.get(vertexInfos[2]).getPosition();
         Vector3f normal = getNormal(pos1, pos2, pos3);
-        Mesh mesh = new Mesh<>(new Vertex[4], normal, transform, new Texture[]{texture} , data);
+        Mesh mesh = new Mesh(new Vertex[4], normal, transform, new Material[]{material} , data);
         for (FaceInfo.VertexInfo info : vertexInfos) {
             VertexBuilder builder = vertexPos.get(info);
-            builder.uv(mesh, texture, vertices.get(info));
+            builder.uv(mesh, material, vertices.get(info));
             builder.normal(mesh, direction);
         }
         return Pair.of(mesh, vertexInfos);

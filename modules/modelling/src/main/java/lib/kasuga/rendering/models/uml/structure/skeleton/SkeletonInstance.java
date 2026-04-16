@@ -22,24 +22,24 @@ import org.joml.Vector3f;
 import java.util.*;
 
 @Getter
-public class SkeletonInstance<T extends SkeletonInstanceData, S extends SkeletonData, R extends BoneData, Q extends BoneBindingData, P extends AnchorData> {
+public class SkeletonInstance {
 
-    private final Skeleton<S, R, P, Q> skeleton;
+    private final Skeleton skeleton;
 
-    private final HashMap<Bone<R>, Transform> transforms;
-    private final HashMap<Bone<R>, Transform> absoluteTransforms;
+    private final HashMap<Bone, Transform> transforms;
+    private final HashMap<Bone, Transform> absoluteTransforms;
 
     private final Queue<Pair<Bone, Transform>> updateQueue = new LinkedList<>();
 
     @NonNull
     private Transform transform;
 
-    private T data;
+    private SkeletonInstanceData data;
 
     @Setter
     private boolean shouldUpdate;
 
-    public SkeletonInstance(Skeleton<S, R, P, Q> skeleton, @Nullable Transform transform, @Nullable T data) {
+    public SkeletonInstance(Skeleton skeleton, @Nullable Transform transform, @Nullable SkeletonInstanceData data) {
         this.skeleton = skeleton;
         this.transform = transform != null ? transform : new Transform();
         shouldUpdate = false;
@@ -59,7 +59,7 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
     }
 
     public boolean transform(String boneName, Transform transform) {
-        Bone<R> bone = skeleton.getBoneMap().get(boneName);
+        Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         transforms.put(bone, transform);
         shouldUpdate = true;
@@ -67,7 +67,7 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
     }
 
     public boolean mulTransform(String boneName, Transform transform) {
-        Bone<R> bone = skeleton.getBoneMap().get(boneName);
+        Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.mul(transform);
@@ -77,7 +77,7 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
     }
 
     public boolean offset(String boneName, Vector3f offset) {
-        Bone<R> bone = skeleton.getBoneMap().get(boneName);
+        Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.translate(offset);
@@ -87,7 +87,7 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
     }
 
     public boolean rotate(String boneName, Quaternionf rotation) {
-        Bone<R> bone = skeleton.getBoneMap().get(boneName);
+        Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.mul(rotation);
@@ -97,7 +97,7 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
     }
 
     public boolean scale(String boneName, Vector3f scale) {
-        Bone<R> bone = skeleton.getBoneMap().get(boneName);
+        Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.scale(scale.x(), scale.y(), scale.z());
@@ -107,7 +107,7 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
     }
 
     public boolean reset(String boneName) {
-        Bone<R> bone = skeleton.getBoneMap().get(boneName);
+        Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         transforms.remove(bone);
         shouldUpdate = true;
@@ -176,10 +176,10 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
         }
     }
 
-    public void collectBoneContexts(List<BoneContext<R>> contexts, Vertex<?, R, ?> vertex) {
+    public void collectBoneContexts(List<BoneContext> contexts, Vertex vertex) {
         contexts.clear();
-        for (Pair<Bone<R>, Float> weight : vertex.getBinding().getWeights()) {
-            Bone<R> bone = weight.getFirst();
+        for (Pair<Bone, Float> weight : vertex.getBinding().getWeights()) {
+            Bone bone = weight.getFirst();
             float w = weight.getSecond();
             Transform transform = transforms.getOrDefault(bone, new Transform());
             Transform absTransform = absoluteTransforms.get(bone);
@@ -190,9 +190,9 @@ public class SkeletonInstance<T extends SkeletonInstanceData, S extends Skeleton
 
     public HashMap<Vertex, Vertex> getVertexTransforms(Model model, Bridge bridge) {
         HashMap<Vertex, Vertex> vertexTransforms = new HashMap<>();
-        List<BoneContext<R>> contexts = new ArrayList<>();
+        List<BoneContext> contexts = new ArrayList<>();
         for (Vertex vertex : model.getVertices()) {
-            BoneBindingFunc<R> func = bridge.getBoneBindingFunc(model, this, vertex);
+            BoneBindingFunc func = bridge.getBoneBindingFunc(model, this, vertex);
             if (func == null) continue;
             collectBoneContexts(contexts, vertex);
             Vertex result = func.apply(vertex, contexts);

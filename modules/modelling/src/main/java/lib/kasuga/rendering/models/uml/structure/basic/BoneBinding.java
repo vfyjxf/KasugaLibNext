@@ -7,18 +7,18 @@ import lib.kasuga.structure.Pair;
 import lombok.Getter;
 
 @Getter
-public class BoneBinding<T extends BoneData, Q extends BoneBindingData> {
+public class BoneBinding {
 
-    private final Pair<Bone<T>, Float>[] weights;
+    private final Pair<Bone, Float>[] weights;
 
-    private final Q bindingData;
+    private final BoneBindingData bindingData;
 
-    public BoneBinding(Pair<Bone<T>, Float>[] weights, Q bindingData) {
+    public BoneBinding(Pair<Bone, Float>[] weights, BoneBindingData bindingData) {
         this.weights = weights;
         this.bindingData = bindingData;
         if (weights.length < 1) return;
         float w = 0;
-        for (Pair<Bone<T>, Float> weight : weights) {
+        for (Pair<Bone, Float> weight : weights) {
             w += weight.getSecond();
         }
         if (w == 0) {
@@ -26,7 +26,7 @@ public class BoneBinding<T extends BoneData, Q extends BoneBindingData> {
         }
         if (w != 1) {
             for (int i = 0; i < weights.length; i++) {
-                Pair<Bone<T>, Float> weight = weights[i];
+                Pair<Bone, Float> weight = weights[i];
                 weights[i] = Pair.of(weight.getFirst(), weight.getSecond() / w);
             }
         }

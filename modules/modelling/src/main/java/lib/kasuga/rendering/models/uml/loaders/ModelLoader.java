@@ -9,22 +9,26 @@ import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelData;
+import lib.kasuga.rendering.models.uml.structure.material.Texture;
+import lib.kasuga.rendering.models.uml.structure.material.data.MaterialData;
+import lib.kasuga.rendering.models.uml.structure.material.data.SpriteData;
+import lib.kasuga.rendering.models.uml.structure.material.data.SpriteSetData;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
 import lombok.NonNull;
+import org.checkerframework.checker.units.qual.A;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public interface ModelLoader<
-        A extends ModelData, B extends BoneData, C extends MeshData, D extends VertexData,
-        E extends BoneBindingData, F extends TextureData, G extends SkeletonData, H extends AnchorData,
-        I, S> {
+public interface ModelLoader<InputType, OutputIdentifier, TextureIdentifier> {
 
-    Map<S, Model<A, B, C, D, F, G, E, H>> load(S identifier, I input);
+    Map<OutputIdentifier, Model> load(OutputIdentifier identifier, InputType input);
+
+    MaterialSetBuilder<TextureIdentifier> materialSetBuilder();
 
     String getName();
 
@@ -103,4 +107,6 @@ public interface ModelLoader<
     default <T, R> R loadType(String sourceType, String sourceManagerName, T inputIdentifier) {
         return loadType(sourceType, sourceManagerName, null , inputIdentifier);
     }
+
+    Texture loadTexture(Object textureIdentifier);
 }

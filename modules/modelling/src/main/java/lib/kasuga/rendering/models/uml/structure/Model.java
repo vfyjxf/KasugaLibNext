@@ -6,6 +6,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
+import lib.kasuga.rendering.models.uml.structure.material.MaterialSet;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
@@ -16,36 +17,33 @@ import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 
 @Getter
-public class Model<
-        A extends ModelData,
-        B extends BoneData,
-        C extends MeshData,
-        D extends VertexData,
-        E extends TextureData,
-        F extends SkeletonData,
-        G extends BoneBindingData,
-        H extends AnchorData> {
+public class Model {
 
-    private final Vertex<D, B, G>[] vertices;
+    private final Vertex[] vertices;
 
-    private final Mesh<C, D, E, B, G>[] meshes;
+    private final Mesh[] meshes;
 
-    private final Bone<B>[] bones;
+    private final Bone[] bones;
 
-    private final Skeleton<F, B, H, G> skeleton;
+    private final Skeleton skeleton;
 
     @Nullable
-    private final A modelData;
+    private final ModelData modelData;
 
-    public Model(Vertex<D, B, G>[] vertices,
-                 Mesh<C, D, E, B, G>[] meshes,
-                 Bone<B>[] bones,
-                 Skeleton<F, B, H, G> skeleton,
-                 @Nullable A modelData) {
+    private final MaterialSet materialSet;
+
+
+    public Model(Vertex[] vertices,
+                 Mesh[] meshes,
+                 Bone[] bones,
+                 Skeleton skeleton,
+                 MaterialSet materialSet,
+                 @Nullable ModelData modelData) {
         this.vertices = vertices;
         this.meshes = meshes;
         this.bones = bones;
         this.skeleton = skeleton;
         this.modelData = modelData;
+        this.materialSet = materialSet;
     }
 }

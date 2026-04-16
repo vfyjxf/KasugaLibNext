@@ -8,7 +8,7 @@ import lib.kasuga.rendering.models.uml.backend.BackendContext;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import org.joml.Vector3f;
 
-public class MCRenderableContext extends BackendContext<MCBridge, KsgVertexBuffer, ModelInstance, MCBackendContext, MCBackend.BackendTransform> {
+public class MCRenderableContext extends BackendContext<MCBridge, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> {
 
     public MCRenderableContext(MCBridge bridge, ModelInstance modelInstance) {
         super(bridge, modelInstance);

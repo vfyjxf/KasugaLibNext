@@ -8,7 +8,7 @@ import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
 
 @Getter
-public class Bone<T extends BoneData> {
+public class Bone {
 
     private final String name;
 
@@ -17,17 +17,17 @@ public class Bone<T extends BoneData> {
     private Transform transform;
 
     @Nullable
-    private final T boneData;
+    private final BoneData boneData;
 
     @Nullable
     @Setter
-    private Bone<T> parent;
+    private Bone parent;
 
     @Nullable
     @Setter
-    private Bone<T>[] children;
+    private Bone[] children;
 
-    public Bone(String name, @NonNull Transform transform, @Nullable T boneData) {
+    public Bone(String name, @NonNull Transform transform, @Nullable BoneData boneData) {
         this.name = name;
         this.boneData = boneData;
         this.transform = transform;

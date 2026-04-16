@@ -20,6 +20,9 @@ import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelInstanceData;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
+import lib.kasuga.rendering.models.uml.structure.material.Sprite;
+import lib.kasuga.rendering.models.uml.structure.material.SpriteSet;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
@@ -37,8 +40,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCMeshData, VertexData,
-        TextureData, SkeletonInstanceData, BoneBindingData, AnchorData, ModelInstanceData, KsgVertexBuffer> {
+public class MCBridge implements Bridge<KsgVertexBuffer> {
 
 
     @Override
@@ -47,7 +49,7 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
     }
 
     @Override
-    public Mesh<?, ?, ?, ?, ?>[] transformMeshes(Model model, SkeletonInstance skeleton, Mesh[] meshes) {
+    public Mesh[] transformMeshes(Model model, SkeletonInstance skeleton, Mesh[] meshes) {
         return meshes;
     }
 
@@ -91,13 +93,15 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                         .setColor(255, 255, 255,255);
 
                 int i = 0;
-                for (Texture texture : mesh.getTextures()) {
-                    Vector2f uv = transformed.getUV(mesh, texture);
+                for (Material material : mesh.getMaterials()) {
+                    Vector2f uv = transformed.getUV(mesh, material);
                     if (uv == null) continue;
-                    float u0, v0, u1, v1;
-                    boolean flipU = texture.isFlipU();
-                    boolean flipV = texture.isFlipV();
-                    if (texture.getData() instanceof SpriteHolder textureData) {
+                    float u0, v0, u1, v1, u2, v2, u3, v3;
+                    SpriteSet spriteSet = material.getCurrentSprite();
+                    Sprite umlSprite = spriteSet.getSprite(0);
+                    boolean flipU = umlSprite.flipU;
+                    boolean flipV = umlSprite.flipV;
+                    if (umlSprite.getTexture().getData() instanceof SpriteHolder textureData) {
                         TextureAtlasSprite sprite = textureData.getSprite();
                         u0 = flipU ? sprite.getU1() : sprite.getU0();
                         v0 = flipV ? sprite.getV1() : sprite.getV0();
@@ -110,7 +114,21 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
                     } else {
                         u0 = 0f; v0 = 0f; u1 = 1f; v1 = 1f;
                     }
-                    Vector2f uvPos = getUVPosition(uv, u0, v0, u1, v1);
+                    float rectU = u1 - u0;
+                    float rectV = v1 - v0;
+                    float maxV = Math.max(v0, v1);
+                    float maxU = Math.max(u0, u1);
+                    float minV = Math.min(v0, v1);
+                    float minU = Math.min(u0, u1);
+                    u0 = Math.clamp(u0 + rectU * umlSprite.getUv0().x(), minU, maxU);
+                    v0 = Math.clamp(v0 + rectV * umlSprite.getUv0().y(), minV, maxV);
+                    u1 = Math.clamp(u0 + rectU * umlSprite.getUv1().x(), minU, maxU);
+                    v1 = Math.clamp(v0 + rectV * umlSprite.getUv1().y(), minV, maxV);
+                    u2 = Math.clamp(u0 + rectU * umlSprite.getUv2().x(), minU, maxU);
+                    v2 = Math.clamp(v0 + rectV * umlSprite.getUv2().y(), minV, maxV);
+                    u3 = Math.clamp(u0 + rectU * umlSprite.getUv3().x(), minU, maxU);
+                    v3 = Math.clamp(v0 + rectV * umlSprite.getUv3().y(), minV, maxV);
+                    Vector2f uvPos = getUVPosition(uv, u0, v0, u1, v1, u2, v2, u3, v3);
 
                     builder.setUv(i, uvPos);
                     i++;
@@ -122,24 +140,25 @@ public class MCBridge implements Bridge<BEModelData, BoneData, SkeletonData, MCM
         return builder.build(model);
     }
 
-    public static Vector2f getUVPosition(Vector2f uv, float u0, float v0, float u1, float v1) {
-        return new Vector2f(
-                uv.x() * (u1 - u0) + u0,
-                uv.y() * (v1 - v0) + v0
-        );
+    public static Vector2f getUVPosition(Vector2f uv, float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3) {
+        Vector2f result = new Vector2f(u0, v0).mul((1 - uv.x()) * (1 - uv.y()));
+        result.add(new Vector2f(u1, v1).mul(uv.x() * (1 - uv.y())));
+        result.add(new Vector2f(u2, v2).mul(uv.x() * uv.y()));
+        result.add(new Vector2f(u3, v3).mul((1 - uv.x()) * uv.y()));
+        return result;
     }
 
     @Override
-    public BoneBindingFunc<BoneData> getBoneBindingFunc(
-            Model<BEModelData, BoneData, MCMeshData, VertexData, TextureData, SkeletonData, BoneBindingData, AnchorData> model,
-            SkeletonInstance<SkeletonInstanceData, SkeletonData, BoneData, BoneBindingData, AnchorData> skeleton,
-            Vertex<?, BoneData, ?> vertex
+    public BoneBindingFunc getBoneBindingFunc(
+            Model model,
+            SkeletonInstance skeleton,
+            Vertex vertex
     ) {
         return BoneBindingFunc.BDEF;
     }
 
     @Override
-    public MCRenderableContext getBackendContext(ModelInstance<ModelInstanceData, BEModelData, BoneData, MCMeshData, VertexData, SkeletonData, SkeletonInstanceData, TextureData, AnchorData, BoneBindingData> modelInstance) {
+    public MCRenderableContext getBackendContext(ModelInstance modelInstance) {
         return  new MCRenderableContext(this, modelInstance);
     }
 

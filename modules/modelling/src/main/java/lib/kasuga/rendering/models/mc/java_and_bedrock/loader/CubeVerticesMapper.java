@@ -10,6 +10,7 @@ import lib.kasuga.rendering.models.uml.loaders.structural.Loader;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.structure.Pair;
 import org.jetbrains.annotations.Nullable;
@@ -47,7 +48,7 @@ public class CubeVerticesMapper {
         }
     }
 
-    public void map(Vector2f uvOrg, Vector2f uvSize, Texture<MCTextureData> texture, Direction direction,
+    public void map(Vector2f uvOrg, Vector2f uvSize, Material material, Direction direction,
                     float uvRotation, @Nullable Transform transform, @Nullable MCMeshData data,
                     boolean flipU, boolean flipV) {
         MCMeshBuilder meshBuilder = new MCMeshBuilder(uvOrg, uvSize, direction, uvRotation);
@@ -57,7 +58,7 @@ public class CubeVerticesMapper {
         if (flipV) {
             meshBuilder.flipV();
         }
-        meshBuilder.setTexture(texture);
+        meshBuilder.setMaterial(material);
         meshBuilder.setData(data);
         if (transform != null) {
             meshBuilder.setTransform(transform);

@@ -25,7 +25,7 @@ public class BEBoneLayer extends Layer<JsonObject> {
         HashMap<String, Vector3f> map = (HashMap<String, Vector3f>) context.getData("pivot_map");
 
         HashMap<String, Pair<Transform, Transform>> transformMap = (HashMap<String, Pair<Transform, Transform>>) context.getData("transform_map");
-        SkeletonBuilder<BoneData, AnchorData> skeletonBuilder = context.getLoader().getBones();
+        SkeletonBuilder skeletonBuilder = context.getLoader().getBones();
         HashMap<String, Object> data = context.getData();
         String name = JsonHelper.jsonToString(input, "name", "");
         Vector3f pivot = JsonHelper.jsonToV3f(input.get("pivot"));

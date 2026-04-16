@@ -6,6 +6,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
+import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lombok.Getter;
@@ -21,17 +22,17 @@ import java.util.List;
 
 @Setter
 @Getter
-public class VertexBuilder<T extends VertexData, R extends BoneData, P extends BoneBindingData> {
+public class VertexBuilder {
 
     @NonNull
     private Vector3f position;
 
-    private final HashMap<Mesh, HashMap<Texture, Vector2f>> uvs;
+    private final HashMap<Mesh, HashMap<Material, Vector2f>> uvs;
 
     private final HashMap<Mesh, Vector3f> normals;
 
     @Nullable
-    private T data;
+    private VertexData data;
 
     private final List<String> boneNames;
 
@@ -43,8 +44,8 @@ public class VertexBuilder<T extends VertexData, R extends BoneData, P extends B
         boneNames = new ArrayList<>();
     }
 
-    public void uv(@NonNull Mesh mesh, @NonNull Texture texture, @NonNull Vector2f uv) {
-        uvs.computeIfAbsent(mesh, m -> new HashMap<>()).put(texture, uv);
+    public void uv(@NonNull Mesh mesh, @NonNull Material material, @NonNull Vector2f uv) {
+        uvs.computeIfAbsent(mesh, m -> new HashMap<>()).put(material, uv);
     }
 
     public void normal(@NonNull Mesh mesh, @NonNull Vector3f normal) {
@@ -59,8 +60,12 @@ public class VertexBuilder<T extends VertexData, R extends BoneData, P extends B
         boneNames.add(boneName);
     }
 
-    public Vertex<T, R, P> build(Loader loader) {
-        Vertex<T, R, P> vertex = new Vertex<>(position, uvs, normals, null, data);
+    public void data(@Nullable VertexData data) {
+        this.data = data;
+    }
+
+    public Vertex build(Loader loader) {
+        Vertex vertex = new Vertex(position, uvs, normals, null, data);
         loader.getBones().addVertex(vertex, boneNames);
         return vertex;
     }

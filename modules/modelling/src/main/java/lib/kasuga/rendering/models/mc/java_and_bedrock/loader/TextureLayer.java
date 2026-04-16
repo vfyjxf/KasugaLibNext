@@ -7,6 +7,7 @@ import lib.kasuga.rendering.models.mc.java_and_bedrock.IdentifierHelper;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTexture;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.source.texture.KasugaTextureManager;
+import lib.kasuga.rendering.models.uml.loaders.MaterialSetBuilder;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceManager;
 import lib.kasuga.rendering.models.uml.loaders.structural.Context;
 import lib.kasuga.rendering.models.uml.loaders.structural.Layer;
