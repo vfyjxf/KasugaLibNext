@@ -97,7 +97,7 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
                     Vector2f uv = transformed.getUV(mesh, material);
                     if (uv == null) continue;
                     float u0, v0, u1, v1, u2, v2, u3, v3;
-                    SpriteSet spriteSet = material.getCurrentSprite();
+                    SpriteSet spriteSet = instance.getMaterialFrame(material);
                     Sprite umlSprite = spriteSet.getSprite(0);
                     boolean flipU = umlSprite.flipU;
                     boolean flipV = umlSprite.flipV;

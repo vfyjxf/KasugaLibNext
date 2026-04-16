@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Collection;
 import java.util.HashMap;
 
-public class MaterialSet implements AutoCloseable {
+public class MaterialSet {
 
     @Getter
     @NonNull
@@ -30,12 +30,5 @@ public class MaterialSet implements AutoCloseable {
     public MaterialSet(Collection<Texture> textures, @NonNull Collection<Material> materials) {
         this.textures = textures.toArray(new Texture[0]);
         this.materials = materials.toArray(new Material[0]);
-    }
-
-    @Override
-    public void close() throws Exception {
-        for (Material material : materials) {
-            material.close();
-        }
     }
 }

@@ -17,7 +17,7 @@ import org.joml.Vector4f;
 
 import java.util.*;
 
-public class Material implements Animatable, AutoCloseable {
+public class Material {
 
     @Getter
     @NonNull
@@ -31,19 +31,11 @@ public class Material implements Animatable, AutoCloseable {
 
     private final List<SpriteSet> sprites;
 
-    @Setter
-    private int currentFrame;
-
-    @Getter
-    private final List<Animator> animators;
-
     public Material(@NotNull Texture[] textures, @Nullable MaterialData data) {
         this.textures = textures;
         this.textureMap = new HashMap<>();
         this.data = data;
         this.sprites = new ArrayList<>();
-        this.currentFrame = 0;
-        this.animators = new ArrayList<>();
     }
 
     public void hookTextures() {
@@ -51,17 +43,6 @@ public class Material implements Animatable, AutoCloseable {
             if (texture == null) continue;
             textureMap.put(texture.getId(), texture);
         }
-    }
-
-    public void addAnimator(Animator animator) {
-        if (!animators.contains(animator)) {
-            animators.add(animator);
-        }
-    }
-
-    public void removeAnimator(Animator animator) {
-        animators.remove(animator);
-        animator.removeAnimatable(this);
     }
 
     public void addSprite(@NonNull SpriteSet sprite) {
@@ -84,18 +65,7 @@ public class Material implements Animatable, AutoCloseable {
         return textureMap.getOrDefault(id, defaultTexture);
     }
 
-    @Override
     public List<SpriteSet> getSprites() {
         return sprites;
-    }
-
-    @Override
-    public int getCurrentFrame() {
-        return currentFrame;
-    }
-
-    @Override
-    public void close() throws Exception {
-        animators.forEach(a -> a.removeAnimatable(this));
     }
 }

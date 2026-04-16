@@ -13,6 +13,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelData;
 import lib.kasuga.rendering.models.uml.structure.data.ModelInstanceData;
+import lib.kasuga.rendering.models.uml.structure.material.MaterialSetInstance;
 import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
@@ -91,7 +92,7 @@ public class ModelPipeLine<SourceOutputType, BackendInputType, StorageIdentifier
                                                 @Nullable SkeletonInstanceData skeletonInstanceData) {
         Model model = models.get(modelName);
         if (model == null) {return null;}
-        ModelInstance instance = new ModelInstance(model, transform, instanceData, skeletonInstanceData);
+        ModelInstance instance = new ModelInstance(model, transform, instanceData, skeletonInstanceData, new MaterialSetInstance(model.getMaterialSet()));
         modelInstances.computeIfAbsent(model, k -> new HashMap<>()).put(instanceIdentifier, instance);
         return instance;
     }
@@ -187,9 +188,6 @@ public class ModelPipeLine<SourceOutputType, BackendInputType, StorageIdentifier
         for (Backend<Bridge, BackendInputType, ?, ?> backend : backends.values()) {
             removed |= backend.remove(instance);
         }
-        try {
-            instance.close();
-        } catch (Exception ignored) {}
         return removed;
     }
 
