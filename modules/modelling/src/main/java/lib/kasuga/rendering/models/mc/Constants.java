@@ -11,6 +11,7 @@ import lib.kasuga.rendering.models.mc.backend.*;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.be.BEModelLoader;
+import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.je.JEModelLoader;
 import lib.kasuga.rendering.models.mc.source.model.zip.FileZipModelSource;
 import lib.kasuga.rendering.models.mc.source.model.zip.JarZipModelSource;
 import lib.kasuga.rendering.models.mc.source.model.zip.ZipModelSourceManager;
@@ -54,7 +55,7 @@ import static lib.kasuga.rendering.models.mc.backend.RenderState.UML_VERTEX_FORM
 @EventBusSubscriber
 public class Constants {
 
-    public static ModelPipeLine BE_PIPELINE, OBJ_PIPELINE, MMD_PIPELINE;
+    public static ModelPipeLine BE_PIPELINE, OBJ_PIPELINE, MMD_PIPELINE, JE_PIPELINE;
     public static CombinedTextureManager TEXTURE_BASIC;
     public static SourceType TEXTURE_TYPE, MODEL_TYPE;
     public static MCBackend MC_BACKEND;
@@ -103,6 +104,7 @@ public class Constants {
         router.registerByExtension(".geo.json", () -> BE_PIPELINE);
         router.registerByExtension(".obj", () -> OBJ_PIPELINE);
         router.registerByExtension(".mmd.zip", () -> MMD_PIPELINE);
+        router.registerByExtension(".json", () -> JE_PIPELINE);
         modelManager.registerRouter(router);
         modelManager.registerModelScanner(new KasugaModelScanner());
 
@@ -133,6 +135,15 @@ public class Constants {
                 .withModelSource(jsonSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
                 .withLoader(loader)
+                .withBridge("mc_bridge", mcBridge)
+                .withBackend("mc_backend", mcBackend)
+                .build();
+
+        JE_PIPELINE = new ModelPipeLine.Builder<JsonObject, KsgVertexBuffer, ResourceLocation,
+                ResourceLocation, String >()
+                .withModelSource(jsonSource)
+                .withSidedSource(basic.getType(), "mc_layer_0", basic)
+                .withLoader(new JEModelLoader("je_model", KasugaLib.MODID))
                 .withBridge("mc_bridge", mcBridge)
                 .withBackend("mc_backend", mcBackend)
                 .build();
@@ -280,6 +291,7 @@ public class Constants {
         testMMD();
 //        testObj();
 //        testBe();
+//        testJe();
     }
 
     public static void testMMD() {
@@ -312,5 +324,13 @@ public class Constants {
         if (BE_PIPELINE.hasInstance(loc, instanceLoc)) return;
         BE_PIPELINE.createInstance(loc, instanceLoc, null, null, null);
         BE_PIPELINE.addToRenderer(loc, instanceLoc, "mc_bridge", "mc_backend");
+    }
+
+    public static void testJe() {
+        ResourceLocation loc =  ResourceLocation.tryBuild("kasuga_lib", "models/je/test_je_fan.json");
+        ResourceLocation instanceLoc = ResourceLocation.tryBuild("kasuga_lib", "test_je");
+        if (JE_PIPELINE.hasInstance(loc, instanceLoc)) return;
+        JE_PIPELINE.createInstance(loc, instanceLoc, null, null, null);
+        JE_PIPELINE.addToRenderer(loc, instanceLoc, "mc_bridge", "mc_backend");
     }
 }

@@ -1,6 +1,7 @@
 {
   "kasuga_lib": [
     "models/be/test_model_complicate.geo.json",
-    "models/obj/df5_frame.obj"
+    "models/obj/df5_frame.obj",
+    "models/je/test_je_fan.json"
   ]
 }
