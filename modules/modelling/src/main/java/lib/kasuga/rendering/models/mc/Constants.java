@@ -10,10 +10,12 @@ import lib.kasuga.mixins.client.AccessorOnRegisterRenderTypesEvent;
 import lib.kasuga.rendering.models.mc.backend.*;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
-import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
-import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.be.BEModelLoader;
-import lib.kasuga.rendering.models.mc.obj.KsgObjLoader;
+import lib.kasuga.rendering.models.mc.source.model.zip.FileZipModelSource;
+import lib.kasuga.rendering.models.mc.source.model.zip.JarZipModelSource;
+import lib.kasuga.rendering.models.mc.source.model.zip.ZipModelSourceManager;
+import lib.kasuga.rendering.models.mc.source.texture.BufferedImageTextureSource;
+import lib.kasuga.rendering.models.mc.typo.KsgObjLoader;
 import lib.kasuga.rendering.models.mc.source.model.*;
 import lib.kasuga.rendering.models.mc.source.model.json.FileJsonModelSource;
 import lib.kasuga.rendering.models.mc.source.model.json.JarJsonModelSource;
@@ -24,18 +26,11 @@ import lib.kasuga.rendering.models.mc.source.model.str.StrModelSourceManager;
 import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
 import lib.kasuga.rendering.models.mc.source.texture.FileTextureSource;
 import lib.kasuga.rendering.models.mc.source.texture.JarTextureSource;
+import lib.kasuga.rendering.models.mc.typo.KsgPmxLoader;
+import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipHelper;
+import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipResource;
 import lib.kasuga.rendering.models.uml.dynamic.ModelPipeLine;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
-import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
-import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
-import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
-import lib.kasuga.rendering.models.uml.structure.data.ModelData;
-import lib.kasuga.rendering.models.uml.structure.data.ModelInstanceData;
-import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonInstanceData;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -51,6 +46,7 @@ import net.neoforged.neoforge.client.event.*;
 import org.joml.Matrix4f;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 
 import static lib.kasuga.rendering.models.mc.backend.RenderState.UML_VERTEX_FORMAT;
@@ -58,10 +54,11 @@ import static lib.kasuga.rendering.models.mc.backend.RenderState.UML_VERTEX_FORM
 @EventBusSubscriber
 public class Constants {
 
-    public static ModelPipeLine BE_PIPELINE, OBJ_PIPELINE;
+    public static ModelPipeLine BE_PIPELINE, OBJ_PIPELINE, MMD_PIPELINE;
     public static CombinedTextureManager TEXTURE_BASIC;
     public static SourceType TEXTURE_TYPE, MODEL_TYPE;
     public static MCBackend MC_BACKEND;
+    public static KsgPmxLoader PMX_LOADER;
 
     @SubscribeEvent
     public static void onClientSetup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {}
@@ -89,19 +86,23 @@ public class Constants {
 
         FileTextureSource fileTextureSource = new FileTextureSource("file");
         JarTextureSource jarTextureSource = new JarTextureSource("jar");
+        BufferedImageTextureSource bufferedImageTextureSource = new BufferedImageTextureSource("buffered_image");
 
         basic.registerSource(fileTextureSource);
         basic.registerSource(jarTextureSource);
+        basic.registerSource(bufferedImageTextureSource);
 
         TEXTURE_BASIC = basic;
 
         KasugaModelManager modelManager = new KasugaModelManager(List.of(basic));
         JsonModelSourceManager jsonSource = new JsonModelSourceManager("json");
         StrModelSourceManager strSource = new StrModelSourceManager("str");
+        ZipModelSourceManager zipSource = new ZipModelSourceManager("zip");
 
         KasugaPipeLineRouter router = new KasugaPipeLineRouter();
         router.registerByExtension(".geo.json", () -> BE_PIPELINE);
         router.registerByExtension(".obj", () -> OBJ_PIPELINE);
+        router.registerByExtension(".mmd.zip", () -> MMD_PIPELINE);
         modelManager.registerRouter(router);
         modelManager.registerModelScanner(new KasugaModelScanner());
 
@@ -111,12 +112,16 @@ public class Constants {
         JarJsonModelSource jarJsonModelSource = new JarJsonModelSource("jar_json");
         FileStrModelSource fileStrModelSource = new FileStrModelSource("file_str");
         JarStrModelSource jarStrModelSource = new JarStrModelSource("jar_str");
+        FileZipModelSource fileZipModelSource = new FileZipModelSource("file_zip");
+        JarZipModelSource jarZipModelSource = new JarZipModelSource("jar_zip");
 
 
         jsonSource.registerSource(fileJsonModelSource);
         jsonSource.registerSource(jarJsonModelSource);
         strSource.registerSource(fileStrModelSource);
         strSource.registerSource(jarStrModelSource);
+        zipSource.registerSource(fileZipModelSource);
+        zipSource.registerSource(jarZipModelSource);
 
         BEModelLoader loader = new BEModelLoader("be_model", KasugaLib.MODID);
         MCBridge mcBridge = new MCBridge();
@@ -136,6 +141,16 @@ public class Constants {
                 ResourceLocation, String>().withModelSource(strSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
                 .withLoader(new KsgObjLoader("obj_model"))
+                .withBridge("mc_bridge", mcBridge)
+                .withBackend("mc_backend", mcBackend)
+                .build();
+
+        PMX_LOADER = new KsgPmxLoader("pmx_model");
+
+        MMD_PIPELINE = new ModelPipeLine.Builder<ZipHelper, KsgVertexBuffer, ResourceLocation, ResourceLocation, ZipResource>()
+                .withModelSource(zipSource)
+                .withSidedSource(basic.getType(), "mc_layer_0", basic)
+                .withLoader(PMX_LOADER)
                 .withBridge("mc_bridge", mcBridge)
                 .withBackend("mc_backend", mcBackend)
                 .build();
@@ -245,7 +260,6 @@ public class Constants {
         RenderBuffers renderBuffers = Minecraft.getInstance().renderBuffers();
         MultiBufferSource.BufferSource source = renderBuffers.bufferSource();
         VertexConsumer consumer = source.getBuffer(RenderState.getRenderType());
-//        RenderSystem.setShader();
         MCBackendContext context = new MCBackendContext(
                 consumer, poseStack, renderBuffers,
                 source, camera, frustum, modelViewMatrix,
@@ -263,15 +277,40 @@ public class Constants {
     }
 
     private static void testModel() {
-        ResourceLocation loc=  ResourceLocation.tryBuild("kasuga_lib", "models/obj/df5_frame.obj");
+        testMMD();
+//        testObj();
+//        testBe();
+    }
+
+    public static void testMMD() {
+
+    }
+
+    public static void testMMD(String fileName, String modelName, String instanceName) {
+        ResourceLocation rl = PMX_LOADER.getLocByFileAndName(
+                ResourceLocation.tryBuild("kasuga_lib", "models/pmx/" + fileName),
+                modelName
+        );
+        if (rl == null) return;
+        ResourceLocation instanceLoc = ResourceLocation.tryBuild("kasuga_lib", instanceName);
+        if (MMD_PIPELINE.hasInstance(rl, instanceLoc)) return;
+        MMD_PIPELINE.createInstance(rl, instanceLoc, null, null, null);
+        MMD_PIPELINE.addToRenderer(rl, instanceLoc, "mc_bridge", "mc_backend");
+    }
+
+    public static void testObj() {
+        ResourceLocation loc =  ResourceLocation.tryBuild("kasuga_lib", "models/obj/df5_frame.obj");
         ResourceLocation instanceLoc = ResourceLocation.tryBuild("kasuga_lib", "test_wheel");
         if (OBJ_PIPELINE.hasInstance(loc, instanceLoc)) return;
         OBJ_PIPELINE.createInstance(loc, instanceLoc, null, null, null);
         OBJ_PIPELINE.addToRenderer(loc, instanceLoc, "mc_bridge", "mc_backend");
-//        ResourceLocation loc = ResourceLocation.tryBuild("kasuga_lib", "geometry.unknown");
-//        ResourceLocation instanceLoc = ResourceLocation.tryBuild("kasuga_lib", "test_model");
-//        if (BE_PIPELINE.hasInstance(loc, instanceLoc)) return;
-//        BE_PIPELINE.createInstance(loc, instanceLoc, null, null, null);
-//        BE_PIPELINE.addToRenderer(loc, instanceLoc, "mc_bridge", "mc_backend");
+    }
+
+    public static void testBe() {
+        ResourceLocation loc = ResourceLocation.tryBuild("kasuga_lib", "geometry.unknown");
+        ResourceLocation instanceLoc = ResourceLocation.tryBuild("kasuga_lib", "test_model");
+        if (BE_PIPELINE.hasInstance(loc, instanceLoc)) return;
+        BE_PIPELINE.createInstance(loc, instanceLoc, null, null, null);
+        BE_PIPELINE.addToRenderer(loc, instanceLoc, "mc_bridge", "mc_backend");
     }
 }

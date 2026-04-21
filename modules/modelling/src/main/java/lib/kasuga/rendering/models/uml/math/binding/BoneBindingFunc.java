@@ -4,7 +4,7 @@ import lib.kasuga.rendering.models.uml.math.BoneContext;
 import lib.kasuga.rendering.models.uml.math.DualQuaternion;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
-import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.SDEFVertexData;
+import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.SDEFBoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lib.kasuga.structure.Pair;
 import org.joml.Quaternionf;
@@ -67,7 +67,7 @@ public interface BoneBindingFunc {
 
         // 获取该顶点所对应的两个辅助参数r0和r1在骨骼空间中的位置
         Vector3f r0, r1;
-        if ((vertex.getData() instanceof SDEFVertexData sdefData)) {
+        if ((vertex.getData() instanceof SDEFBoneBindingData sdefData)) {
             r0 = sdefData.getSDEFData().r0();
             r1 = sdefData.getSDEFData().r1();
         } else {

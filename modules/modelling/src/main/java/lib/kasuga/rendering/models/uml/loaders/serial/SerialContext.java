@@ -1,7 +1,6 @@
 package lib.kasuga.rendering.models.uml.loaders.serial;
 
 import lib.kasuga.rendering.models.uml.loaders.ModelLoader;
-import lib.kasuga.rendering.models.uml.loaders.structural.Loader;
 import lombok.Getter;
 
 import java.util.Stack;

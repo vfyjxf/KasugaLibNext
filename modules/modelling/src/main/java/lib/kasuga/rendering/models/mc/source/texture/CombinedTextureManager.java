@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.mc.source.texture;
 
+import lib.kasuga.rendering.models.mc.backend.RenderState;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.uml.loaders.sources.Source;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
@@ -14,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -86,11 +88,10 @@ public class CombinedTextureManager extends KasugaTextureManager {
                                 break;
                             }
                         }
-                        Objects.requireNonNull(sprites[i]);
+                        Objects.requireNonNull(sprites[i], "Failed to find sprite for content: " + content.name());
                     }
                     loadedSprites.put(k, sprites);
-                }), gameExecutor)
-                .thenAcceptAsync(any -> this.caches.clear(), gameExecutor);
+                })).thenAcceptAsync(any -> this.caches.clear(), gameExecutor);
     }
 
     @Override
@@ -132,6 +133,11 @@ public class CombinedTextureManager extends KasugaTextureManager {
                 missingImages[0] != null ? missingImages[0].apply(missingNo) : MissingTextureAtlasSprite.create(),
                 missingImages[1] != null ? missingImages[1].apply(missingNo) : MissingTextureAtlasSprite.create(),
                 missingImages[2] != null ? missingImages[2].apply(missingNo) : MissingTextureAtlasSprite.create()
+        }));
+        combined.add(() -> Pair.of(RenderState.DEFAULT_TRANSPARENCY, new SpriteContents[] {
+                RenderState.createTransparencyDefaultSprite(),
+                RenderState.createTransparencyDefaultSprite(),
+                RenderState.createTransparencyDefaultSprite()
         }));
         for (SpriteUploader<?>[] uploader : spriteUploaders) {
             combined.add(() -> {
@@ -256,5 +262,29 @@ public class CombinedTextureManager extends KasugaTextureManager {
             case 2 -> getSpecularMap();
             default -> throw new IllegalArgumentException("Invalid atlas index: " + index);
         };
+    }
+
+    public void dumpAllContents(Path destDir) {
+        if (!destDir.toFile().exists()) {
+            destDir.toFile().mkdirs();
+        }
+        for (int i = 0; i < 3; i++) {
+            TextureAtlas atlas = getAtlas(i);
+            String suffix = switch (i) {
+                case 0 -> "texture";
+                case 1 -> "normal";
+                case 2 -> "specular";
+                default -> throw new IllegalArgumentException("Invalid atlas index: " + i);
+            };
+            Path path = destDir.resolve(suffix);
+            if (!path.toFile().exists()) {
+                path.toFile().mkdirs();
+            }
+            try {
+                atlas.dumpContents(ResourceLocation.tryParse("texture"), path);
+            } catch (Exception e) {
+                System.err.println("Failed to dump " + suffix + " atlas: " + e.getMessage());
+            }
+        }
     }
 }

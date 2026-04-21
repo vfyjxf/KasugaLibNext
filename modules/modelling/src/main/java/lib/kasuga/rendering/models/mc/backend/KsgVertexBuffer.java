@@ -530,10 +530,14 @@ public class KsgVertexBuffer implements AutoCloseable {
                 } catch (IllegalStateException ignored) {}
 
                 int tangentOffset = getOffsetFor(RenderState.TANGENT);
-                byteBuffer.putFloat(tangentOffset, tangent.x());
-                byteBuffer.putFloat(tangentOffset + 4, tangent.y());
-                byteBuffer.putFloat(tangentOffset + 8, tangent.z());
-                byteBuffer.putFloat(tangentOffset + 12, tangent.w());
+                try {
+                    byteBuffer.putFloat(tangentOffset, tangent.x());
+                    byteBuffer.putFloat(tangentOffset + 4, tangent.y());
+                    byteBuffer.putFloat(tangentOffset + 8, tangent.z());
+                    byteBuffer.putFloat(tangentOffset + 12, tangent.w());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
                 vertexBuffer.addVertex(byteBuffer, index);
                 boneVertexMap.computeIfAbsent(vertex, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex);
                 vertices.add(vertex);
@@ -564,12 +568,10 @@ public class KsgVertexBuffer implements AutoCloseable {
                     for (int i = 0; i < vertexDataSize; i++) {
                         built.put(buildingIndex + i, secondVertex.get(i));
                     }
-//                    built.put(firstVertex);
-//                    built.put(secondVertex);
                     vertices.add(vertex1);
                     vertices.add(vertex2);
-                    boneVertexMap.computeIfAbsent(vertex1, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
-                    boneVertexMap.computeIfAbsent(vertex2, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
+                    boneVertexMap.computeIfAbsent(vertex1, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex++);
+                    boneVertexMap.computeIfAbsent(vertex2, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex++);
                     buildingIndex += vertexDataSize;
                 } else {
                     ByteBuffer thirdVertex = built.slice(buildingIndex - vertexDataSize, vertexDataSize);
@@ -578,7 +580,7 @@ public class KsgVertexBuffer implements AutoCloseable {
                         built.put(buildingIndex + i, thirdVertex.get(i));
                     }
                     vertices.add(vertex3);
-                    boneVertexMap.computeIfAbsent(vertex3, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(++vertexIndex);
+                    boneVertexMap.computeIfAbsent(vertex3, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex++);
                     buildingIndex += vertexDataSize;
                 }
             }

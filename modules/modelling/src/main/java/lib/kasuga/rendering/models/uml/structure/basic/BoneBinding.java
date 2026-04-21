@@ -1,28 +1,34 @@
 package lib.kasuga.rendering.models.uml.structure.basic;
 
+import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
+import lombok.NonNull;
+import org.jetbrains.annotations.Nullable;
 
 @Getter
 public class BoneBinding {
 
     private final Pair<Bone, Float>[] weights;
 
-    private final BoneBindingData bindingData;
+    @Nullable
+    private final BoneBindingData data;
 
-    public BoneBinding(Pair<Bone, Float>[] weights, BoneBindingData bindingData) {
+    @Getter
+    @NonNull
+    private final BoneBindingFunc func;
+
+    public BoneBinding(Pair<Bone, Float>[] weights, BoneBindingFunc func, BoneBindingData data) {
         this.weights = weights;
-        this.bindingData = bindingData;
+        this.data = data;
+        this.func = func;
         if (weights.length < 1) return;
         float w = 0;
         for (Pair<Bone, Float> weight : weights) {
             w += weight.getSecond();
-        }
-        if (w == 0) {
-            throw new IllegalArgumentException("BoneBinding weight sum cannot be zero");
         }
         if (w != 1) {
             for (int i = 0; i < weights.length; i++) {

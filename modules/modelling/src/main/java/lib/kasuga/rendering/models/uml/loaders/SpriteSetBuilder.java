@@ -157,6 +157,11 @@ public class SpriteSetBuilder<TextureIdentifier> {
         return this;
     }
 
+    public void clearCache() {
+        sprites.clear();
+        spriteSets.clear();
+    }
+
     public SpriteSet endSpriteSet() {
         if (textureId != null) {endSprite();}
         SpriteSet spriteSet = new SpriteSet(currentSpriteSetData, sprites.toArray(new Sprite[0]));

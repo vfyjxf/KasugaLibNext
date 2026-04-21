@@ -2,10 +2,7 @@ package lib.kasuga.rendering.models.mc.backend;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import lib.kasuga.rendering.models.mc.backend.data_type.MCRenderableContext;
-import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.SpriteHolder;
-import lib.kasuga.rendering.models.mc.java_and_bedrock.data.be.BEModelData;
-import lib.kasuga.rendering.models.uml.backend.BackendContext;
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
 import lib.kasuga.rendering.models.mc.util.Direction;
@@ -14,31 +11,17 @@ import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
-import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.ColorizedMeshData;
-import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
-import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
-import lib.kasuga.rendering.models.uml.structure.data.ModelData;
-import lib.kasuga.rendering.models.uml.structure.data.ModelInstanceData;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Sprite;
 import lib.kasuga.rendering.models.uml.structure.material.SpriteSet;
-import lib.kasuga.rendering.models.uml.structure.material.Texture;
-import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonInstanceData;
-import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 public class MCBridge implements Bridge<KsgVertexBuffer> {
 
@@ -60,10 +43,11 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
         Model model = instance.getModel();
         KsgVertexBuffer.Builder builder = new KsgVertexBuffer.Builder(model, RenderState.UML_VERTEX_FORMAT);
 
+        int index = 0;
         for (Mesh mesh : meshes) {
             Vector4f meshColor = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
             if (mesh.getData() instanceof ColorizedMeshData colorized) {
-                meshColor = colorized.getColor();
+                meshColor = new Vector4f(colorized.getColor());
             }
             Direction direction = null;
             boolean visible = true;
@@ -101,7 +85,8 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
                     Sprite umlSprite = spriteSet.getSprite(0);
                     boolean flipU = umlSprite.flipU;
                     boolean flipV = umlSprite.flipV;
-                    if (umlSprite.getTexture().getData() instanceof SpriteHolder textureData) {
+                    if (umlSprite.getTexture() != null &&
+                            umlSprite.getTexture().getData() instanceof SpriteHolder textureData) {
                         TextureAtlasSprite sprite = textureData.getSprite();
                         u0 = flipU ? sprite.getU1() : sprite.getU0();
                         v0 = flipV ? sprite.getV1() : sprite.getV0();
@@ -136,6 +121,7 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
                 builder.pack(vertex, mesh, meshColor);
             }
             builder.endMesh(mesh);
+            index++;
         }
         return builder.build(model);
     }
@@ -154,7 +140,7 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
             SkeletonInstance skeleton,
             Vertex vertex
     ) {
-        return BoneBindingFunc.BDEF;
+        return vertex.getBinding().getFunc();
     }
 
     @Override

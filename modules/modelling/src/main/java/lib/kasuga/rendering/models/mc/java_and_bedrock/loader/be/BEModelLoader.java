@@ -13,6 +13,7 @@ import lib.kasuga.rendering.models.uml.loaders.MaterialSetBuilder;
 import lib.kasuga.rendering.models.uml.loaders.SkeletonBuilder;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceManager;
 import lib.kasuga.rendering.models.uml.loaders.structural.Loader;
+import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.BoneBinding;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
@@ -77,8 +78,7 @@ public class BEModelLoader extends Loader<JsonObject, ResourceLocation, String> 
                 }
             }
             return new BoneBinding(
-                    parentBones.toArray(new Pair[0]),
-                    null
+                    parentBones.toArray(new Pair[0]), BoneBindingFunc.BDEF, null
             );
         };
 
@@ -96,8 +96,7 @@ public class BEModelLoader extends Loader<JsonObject, ResourceLocation, String> 
                 }
             }
             return new BoneBinding(
-                    parentBones.toArray(new Pair[0]),
-                    null
+                    parentBones.toArray(new Pair[0]), BoneBindingFunc.BDEF, null
             );
         };
 

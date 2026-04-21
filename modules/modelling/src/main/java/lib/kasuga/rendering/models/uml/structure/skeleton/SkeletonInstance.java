@@ -184,7 +184,8 @@ public class SkeletonInstance {
             Transform transform = transforms.getOrDefault(bone, new Transform());
             Transform absTransform = absoluteTransforms.get(bone);
             Pair<Transform, Transform> pair = skeleton.getBoneTransforms().get(bone);
-            contexts.add(new BoneContext<>(bone, w, bone.getBoneData(), transform, pair.getFirst(), absTransform, pair.getSecond()));
+            contexts.add(new BoneContext<>(bone, w, bone.getBoneData(), transform,
+                    pair.getFirst(), absTransform, pair.getSecond()));
         }
     }
 

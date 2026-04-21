@@ -29,6 +29,7 @@ public class RenderState {
     public static RenderType RENDER_TYPE;
     public static RenderType IRIS_COMPAT_RENDER_TYPE;
     public static final RenderStateShard.EmptyTextureStateShard UML_TEXTURE_STATE;
+    public static final ResourceLocation DEFAULT_TRANSPARENCY = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/default_transparency.png");
 
     public static final VertexFormatElement TANGENT;
 
@@ -56,6 +57,7 @@ public class RenderState {
         Objects.requireNonNull(KSG_RENDER_TYPE);
         Objects.requireNonNull(KSG_IRIS_RENDER_TYPE);
         Objects.requireNonNull(KSG_EMISSIVE_MAP);
+        Objects.requireNonNull(DEFAULT_TRANSPARENCY);
 
         SPRITE_METADATA = (new ResourceMetadata.Builder())
                 .put(AnimationMetadataSection.SERIALIZER,
@@ -108,6 +110,20 @@ public class RenderState {
             }
         }
         return image;
+    }
+
+    public static NativeImage getTransparencyDefaultImage(int width, int height) {
+        NativeImage image = new NativeImage(width, height, false);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                image.setPixelRGBA(x, y, 0x00000000);  // (0, 0, 0, 0) = 0x00000000
+            }
+        }
+        return image;
+    }
+
+    public static SpriteContents createTransparencyDefaultSprite() {
+        return createDefaultSprite(DEFAULT_TRANSPARENCY, () -> getTransparencyDefaultImage(16, 16));
     }
 
     public static RenderType getRenderType() {
