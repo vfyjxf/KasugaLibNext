@@ -10,16 +10,18 @@ import org.joml.Vector3f;
 
 public class MCRenderableContext extends BackendContext<MCBridge, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> {
 
+    private static final MCBackend.BackendTransform DEFAULT_TRANSFORM = new MCBackend.BackendTransform(
+            new Vector3f(), null, null,
+            false, false, true, true,
+            1f, 1f, -1, -1
+    );
+
     public MCRenderableContext(MCBridge bridge, ModelInstance modelInstance) {
         super(bridge, modelInstance);
     }
 
     @Override
     public MCBackend.BackendTransform beforeRender(MCBackendContext context) {
-        return new MCBackend.BackendTransform(
-                new Vector3f(), null, null,
-                false, false, true, true,
-                1f, 1f, -1, -1
-        );
+        return DEFAULT_TRANSFORM;
     }
 }

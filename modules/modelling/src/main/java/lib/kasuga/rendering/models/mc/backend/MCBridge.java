@@ -25,6 +25,8 @@ import java.util.HashMap;
 
 public class MCBridge implements Bridge<KsgVertexBuffer> {
 
+    private static final Vector4f DEFAULT_MESH_COLOR = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
+    private static final Vector4f HIDDEN_MESH_COLOR = new Vector4f();
 
     @Override
     public HashMap<Vertex, Vertex> transformVertices(Model model, SkeletonInstance skeleton, Vertex[] vertices) {
@@ -43,11 +45,10 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
         Model model = instance.getModel();
         KsgVertexBuffer.Builder builder = new KsgVertexBuffer.Builder(model, RenderState.UML_VERTEX_FORMAT);
 
-        int index = 0;
         for (Mesh mesh : meshes) {
-            Vector4f meshColor = new Vector4f(1.0f, 1.0f, 1.0f, 1.0f);
+            Vector4f meshColor = DEFAULT_MESH_COLOR;
             if (mesh.getData() instanceof ColorizedMeshData colorized) {
-                meshColor = new Vector4f(colorized.getColor());
+                meshColor = colorized.getColor();
             }
             Direction direction = null;
             boolean visible = true;
@@ -60,7 +61,7 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
                 ambientOcclusion = mcMeshData.isAmbientOcclusion();
             }
             if (!visible) {
-                meshColor = new Vector4f();
+                meshColor = HIDDEN_MESH_COLOR;
             }
 
             for (Vertex vertex : mesh.getVertices()) {
@@ -121,17 +122,23 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
                 builder.pack(vertex, mesh, meshColor);
             }
             builder.endMesh(mesh);
-            index++;
         }
         return builder.build(model);
     }
 
     public static Vector2f getUVPosition(Vector2f uv, float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3) {
-        Vector2f result = new Vector2f(u0, v0).mul((1 - uv.x()) * (1 - uv.y()));
-        result.add(new Vector2f(u1, v1).mul(uv.x() * (1 - uv.y())));
-        result.add(new Vector2f(u2, v2).mul(uv.x() * uv.y()));
-        result.add(new Vector2f(u3, v3).mul((1 - uv.x()) * uv.y()));
-        return result;
+        float x = uv.x();
+        float y = uv.y();
+        float invX = 1f - x;
+        float invY = 1f - y;
+        float w0 = invX * invY;
+        float w1 = x * invY;
+        float w2 = x * y;
+        float w3 = invX * y;
+        return new Vector2f(
+                u0 * w0 + u1 * w1 + u2 * w2 + u3 * w3,
+                v0 * w0 + v1 * w1 + v2 * w2 + v3 * w3
+        );
     }
 
     @Override

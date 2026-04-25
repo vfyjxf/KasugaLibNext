@@ -19,6 +19,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
@@ -56,9 +57,25 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
         }
 
         KsgVertexBuffer buffer = renderable.apply();
+        if (!isVisible(context, transform, buffer)) {
+            poseStack.popPose();
+            return;
+        }
         buffer.upload(builder, poseStack.last(), shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
 
         poseStack.popPose();
+    }
+
+    private boolean isVisible(MCBackendContext context, @Nullable BackendTransform transform, KsgVertexBuffer buffer) {
+        if (context.getFrustum() == null || !buffer.hasBounds()) {
+            return true;
+        }
+        if (transform != null && (transform.getRotation() != null || transform.getScale() != null)) {
+            return true;
+        }
+        Vector3f position = transform == null ? null : transform.getPosition();
+        AABB bounds = buffer.getBounds(position);
+        return context.getFrustum().isVisible(bounds);
     }
 
     public record LightData(int blockLight, int skyLight, int packedLight, float brightness) {

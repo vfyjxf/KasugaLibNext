@@ -36,6 +36,7 @@ public abstract class Backend<T extends Bridge, R, Q, E> {
 
     public void renderAllObjects(Q renderContext) {
         for (BackendContext<T, R, Q, E> renderable : renderingObjects.values()) {
+            if (!renderable.isRender()) continue;
             render(renderable, renderContext);
         }
     }
