@@ -14,7 +14,6 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonInstanceD
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -36,8 +35,8 @@ public class SkeletonInstance {
 
     private SkeletonInstanceData data;
 
-    @Setter
     private boolean shouldUpdate;
+    private long version;
 
     public SkeletonInstance(Skeleton skeleton, @Nullable Transform transform, @Nullable SkeletonInstanceData data) {
         this.skeleton = skeleton;
@@ -46,6 +45,7 @@ public class SkeletonInstance {
         this.transforms = new HashMap<>();
         this.absoluteTransforms = new HashMap<>();
         this.data = data;
+        this.version = 0;
         updateTransform();
     }
 
@@ -56,6 +56,11 @@ public class SkeletonInstance {
         absoluteTransforms.put(rootBone, t);
         updateQueue.add(Pair.of(rootBone, t));
         recursiveUpdate();
+        version++;
+    }
+
+    public void setShouldUpdate(boolean shouldUpdate) {
+        this.shouldUpdate = shouldUpdate;
     }
 
     public boolean transform(String boneName, Transform transform) {
