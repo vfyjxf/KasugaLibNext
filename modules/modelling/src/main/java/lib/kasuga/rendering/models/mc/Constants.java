@@ -187,7 +187,7 @@ public class Constants {
                 "kasuga_lib:uml_render_type",
                 UML_VERTEX_FORMAT,
                 VertexFormat.Mode.QUADS,
-                256,
+                64 * 1024 * 1024,
                 true,
                 true,
                 RenderType.CompositeState.builder()
@@ -212,7 +212,7 @@ public class Constants {
                 "kasuga_lib:iris_compat_render_type",
                 DefaultVertexFormat.NEW_ENTITY,
                 VertexFormat.Mode.QUADS,
-                256,
+                256 * 1024,
                 true,
                 true,
                 RenderType.CompositeState.builder()
@@ -295,7 +295,15 @@ public class Constants {
     }
 
     public static void testMMD() {
-
+        String fileName1 = "test.mmd.zip";
+        String fileName2 = "test2.mmd.zip";
+        String fileName3 = "test3.mmd.zip";
+        String name = "公式服111.pmx";
+        String name2 = "OL制服弱音盘发.pmx";
+        String name3 = "OL制服弱音散发.pmx";
+        String name4 = "tda bunny miku 2.0.pmx";
+        testMMD(fileName1, name, "test_mmd");
+//        testMMD(fileName3, name4, "test_mmd_4");
     }
 
     public static void testMMD(String fileName, String modelName, String instanceName) {
