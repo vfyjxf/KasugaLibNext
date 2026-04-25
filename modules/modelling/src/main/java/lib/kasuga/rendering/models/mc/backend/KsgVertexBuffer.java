@@ -11,6 +11,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import net.minecraft.util.FastColor;
+import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2f;
@@ -32,6 +33,12 @@ public class KsgVertexBuffer implements AutoCloseable {
     private final HashMap<VertexFormatElement, Integer> offsets;
     private final HashMap<VertexFormatElement, Integer> bufOffsets;
     private VertexFormatElement uv1_element, uv2_element;
+    private float minX = Float.POSITIVE_INFINITY;
+    private float minY = Float.POSITIVE_INFINITY;
+    private float minZ = Float.POSITIVE_INFINITY;
+    private float maxX = Float.NEGATIVE_INFINITY;
+    private float maxY = Float.NEGATIVE_INFINITY;
+    private float maxZ = Float.NEGATIVE_INFINITY;
 
     @Getter
     private boolean closed = false;
@@ -109,42 +116,44 @@ public class KsgVertexBuffer implements AutoCloseable {
                                     int packedOverlay,
                                     boolean readAlpha) {
         checkClosed();
-        int bufOffset;
+        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
+        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
+        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+        float colorScale = brightness / 255f;
+        Vector3f pos = new Vector3f();
+        Vector3f norm = new Vector3f();
         for (int i = 0; i < numVertices; i++) {
-            bufOffset = getBufPos(i, VertexFormatElement.POSITION);
-            Vector3f pos = new Vector3f(
-                    buffer.getFloat(bufOffset),
-                    buffer.getFloat(bufOffset + 4),
-                    buffer.getFloat(bufOffset + 8)
-            );
+            int vertexOffset = i * vertexSize;
+            int bufOffset = vertexOffset + srcPositionOffset;
+            pos.set(buffer.getFloat(bufOffset), buffer.getFloat(bufOffset + 4), buffer.getFloat(bufOffset + 8));
             pose.pose().transformPosition(pos);
 
-            bufOffset = getBufPos(i, VertexFormatElement.COLOR);
-            float a = (buffer.get(bufOffset) & 0xff) / 255f;
-            float b = (buffer.get(bufOffset + 1) & 0xff) / 255f;
-            float g = (buffer.get(bufOffset + 2) & 0xff) / 255f;
-            float r = (buffer.get(bufOffset + 3) & 0xff) / 255f;
+            bufOffset = vertexOffset + srcColorOffset;
+            int a = buffer.get(bufOffset) & 0xff;
+            int b = buffer.get(bufOffset + 1) & 0xff;
+            int g = buffer.get(bufOffset + 2) & 0xff;
+            int r = buffer.get(bufOffset + 3) & 0xff;
+            int ma = buffer.get(bufOffset + 4) & 0xff;
+            int mb = buffer.get(bufOffset + 5) & 0xff;
+            int mg = buffer.get(bufOffset + 6) & 0xff;
+            int mr = buffer.get(bufOffset + 7) & 0xff;
 
-            float ma = (buffer.get(bufOffset + 4) & 0xff) / 255f;
-            float mb = (buffer.get(bufOffset + 5) & 0xff) / 255f;
-            float mg = (buffer.get(bufOffset + 6) & 0xff) / 255f;
-            float mr = (buffer.get(bufOffset + 7) & 0xff) / 255f;
+            int af = readAlpha ? (a * ma) / 255 : ma;
+            int bf = (int) (b * mb * colorScale);
+            int gf = (int) (g * mg * colorScale);
+            int rf = (int) (r * mr * colorScale);
+            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
 
-            r = r * brightness * mr * 255;
-            g = g * brightness * mg * 255;
-            b = b * brightness * mb * 255;
-            a = readAlpha ? a * ma * 255 : ma * 255;
-            int colorFinal = (int) a << 24 | (int) b << 16 | (int) g << 8 | (int) r;
-
-            bufOffset = getBufPos(i, VertexFormatElement.UV0);
+            bufOffset = vertexOffset + srcUv0Offset;
             float u0 = buffer.getFloat(bufOffset);
             float v0 = buffer.getFloat(bufOffset + 4);
 
-            bufOffset = getBufPos(i, VertexFormatElement.NORMAL);
+            bufOffset = vertexOffset + srcNormalOffset;
             float nx = ((float) buffer.get(bufOffset)) / 127f;
             float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
             float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
-            Vector3f norm = new Vector3f(nx, ny, nz);
+            norm.set(nx, ny, nz);
             pose.normal().transform(norm);
             nx = norm.x(); ny = norm.y(); nz = norm.z();
             builder.addVertex(pos.x(), pos.y(), pos.z(),
@@ -171,75 +180,68 @@ public class KsgVertexBuffer implements AutoCloseable {
         ByteBufferBuilder buf = accessor.getBuffer();
         int avs = accessor.getVertexSize();
         long pointer = buf.reserve(avs * numVertices);
-        long offset;
-        int bufOffset;
+        int dstPositionOffset = offsets.get(VertexFormatElement.POSITION);
+        int dstColorOffset = offsets.get(VertexFormatElement.COLOR);
+        int dstUv0Offset = offsets.get(VertexFormatElement.UV0);
+        int dstTangentOffset = offsets.get(RenderState.TANGENT);
+        int dstNormalOffset = offsets.get(VertexFormatElement.NORMAL);
+        int dstUv1LightOffset = offsets.get(VertexFormatElement.UV1);
+        int dstUv2LightOffset = offsets.get(VertexFormatElement.UV2);
+        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
+        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
+        int srcTangentOffset = bufOffsets.get(RenderState.TANGENT);
+        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+        int srcUv1Offset = uv1_element == null ? -1 : bufOffsets.get(uv1_element);
+        int srcUv2Offset = uv2_element == null ? -1 : bufOffsets.get(uv2_element);
+        int dstUv1Offset = uv1_element == null ? -1 : offsets.get(uv1_element);
+        int dstUv2Offset = uv2_element == null ? -1 : offsets.get(uv2_element);
+        long bufferPointer = MemoryUtil.memAddress(buffer);
+        float colorScale = brightness / 255f;
         for (int i = 0; i < numVertices; i++) {
-            offset = getPos(pointer, VertexFormatElement.POSITION);
-            bufOffset = getBufPos(i, VertexFormatElement.POSITION);
-            MemoryUtil.memPutFloat(offset, buffer.getFloat(bufOffset));
-            MemoryUtil.memPutFloat(offset + 4L, buffer.getFloat(bufOffset + 4));
-            MemoryUtil.memPutFloat(offset + 8L, buffer.getFloat(bufOffset + 8));
+            long vertexPointer = pointer + (long) i * avs;
+            int vertexOffset = i * vertexSize;
+            long sourcePointer = bufferPointer + vertexOffset;
+            MemoryUtil.memCopy(sourcePointer + srcPositionOffset, vertexPointer + dstPositionOffset, 12L);
 
-            offset = getPos(pointer, VertexFormatElement.COLOR);
-            bufOffset = getBufPos(i, VertexFormatElement.COLOR);
+            long offset = vertexPointer + dstColorOffset;
+            int bufOffset = vertexOffset + srcColorOffset;
 
-            float a = (buffer.get(bufOffset) & 0xff) / 255f;
-            float b = (buffer.get(bufOffset + 1) & 0xff) / 255f;
-            float g = (buffer.get(bufOffset + 2) & 0xff) / 255f;
-            float r = (buffer.get(bufOffset + 3) & 0xff) / 255f;
+            int a = buffer.get(bufOffset) & 0xff;
+            int b = buffer.get(bufOffset + 1) & 0xff;
+            int g = buffer.get(bufOffset + 2) & 0xff;
+            int r = buffer.get(bufOffset + 3) & 0xff;
+            int ma = buffer.get(bufOffset + 4) & 0xff;
+            int mb = buffer.get(bufOffset + 5) & 0xff;
+            int mg = buffer.get(bufOffset + 6) & 0xff;
+            int mr = buffer.get(bufOffset + 7) & 0xff;
 
-            float ma = (buffer.get(bufOffset + 4) & 0xff) / 255f;
-            float mb = (buffer.get(bufOffset + 5) & 0xff) / 255f;
-            float mg = (buffer.get(bufOffset + 6) & 0xff) / 255f;
-            float mr = (buffer.get(bufOffset + 7) & 0xff) / 255f;
-
-            r = r * brightness * mr * 255;
-            g = g * brightness * mg * 255;
-            b = b * brightness * mb * 255;
-            a = readAlpha ? a * ma * 255 : ma * 255;
-            int colorFinal = (int) a << 24 | (int) b << 16 | (int) g << 8 | (int) r;
+            int af = readAlpha ? (a * ma) / 255 : ma;
+            int bf = (int) (b * mb * colorScale);
+            int gf = (int) (g * mg * colorScale);
+            int rf = (int) (r * mr * colorScale);
+            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
             MemoryUtil.memPutInt(offset, IS_LITTLE_ENDIAN ?
                     colorFinal :
                     Integer.reverseBytes(colorFinal)
             );
 
-            offset = getPos(pointer, VertexFormatElement.UV0);
-            bufOffset = getBufPos(i, VertexFormatElement.UV0);
-            MemoryUtil.memPutFloat(offset, buffer.getFloat(bufOffset));
-            MemoryUtil.memPutFloat(offset + 4L, buffer.getFloat(bufOffset + 4));
+            MemoryUtil.memCopy(sourcePointer + srcUv0Offset, vertexPointer + dstUv0Offset, 8L);
+            MemoryUtil.memCopy(sourcePointer + srcTangentOffset, vertexPointer + dstTangentOffset, 16L);
+            MemoryUtil.memCopy(sourcePointer + srcNormalOffset, vertexPointer + dstNormalOffset, 3L);
 
-            offset = getPos(pointer, RenderState.TANGENT);
-            bufOffset = getBufPos(i, RenderState.TANGENT);
-            MemoryUtil.memPutFloat(offset, buffer.getFloat(bufOffset));
-            MemoryUtil.memPutFloat(offset + 4L, buffer.getFloat(bufOffset + 4));
-            MemoryUtil.memPutFloat(offset + 8L, buffer.getFloat(bufOffset + 8));
-            MemoryUtil.memPutFloat(offset + 12L, buffer.getFloat(bufOffset + 12));
-
-            offset = getPos(pointer, VertexFormatElement.NORMAL);
-            bufOffset = getBufPos(i, VertexFormatElement.NORMAL);
-            MemoryUtil.memPutByte(offset, buffer.get(bufOffset));
-            MemoryUtil.memPutByte(offset + 1L, buffer.get(bufOffset + 1));
-            MemoryUtil.memPutByte(offset + 2L, buffer.get(bufOffset + 2));
-
-            offset = getPos(pointer, VertexFormatElement.UV1);
+            offset = vertexPointer + dstUv1LightOffset;
             putPackedUV(offset, packedOverlay);
 
-            offset = getPos(pointer, VertexFormatElement.UV2);
+            offset = vertexPointer + dstUv2LightOffset;
             putPackedUV(offset, packedLight);
 
             if (uv1_element != null) {
-                offset = getPos(pointer, uv1_element);
-                bufOffset = getBufPos(i, uv1_element);
-                MemoryUtil.memPutFloat(offset, buffer.getFloat(bufOffset));
-                MemoryUtil.memPutFloat(offset + 4L, buffer.getFloat(bufOffset + 4));
+                MemoryUtil.memCopy(sourcePointer + srcUv1Offset, vertexPointer + dstUv1Offset, 8L);
             }
             if (uv2_element != null) {
-                offset = getPos(pointer, uv2_element);
-                bufOffset = getBufPos(i, uv2_element);
-                MemoryUtil.memPutFloat(offset, buffer.getFloat(bufOffset));
-                MemoryUtil.memPutFloat(offset + 4L, buffer.getFloat(bufOffset + 4));
+                MemoryUtil.memCopy(sourcePointer + srcUv2Offset, vertexPointer + dstUv2Offset, 8L);
             }
-            pointer += avs;
         }
         accessor.setVertices(accessor.getVertices() + numVertices);
     }
@@ -263,10 +265,33 @@ public class KsgVertexBuffer implements AutoCloseable {
         if (vertexData.capacity() != vertexSize) {
             throw new IllegalArgumentException("Vertex data length does not match vertex size");
         }
-        for (int i = 0; i < vertexData.capacity(); i++) {
-            buffer.put(offset * this.vertexSize + i, vertexData.get(i));
-        }
+        ByteBuffer src = vertexData.duplicate();
+        src.clear();
+        src.limit(vertexSize);
+        ByteBuffer dst = buffer.duplicate();
+        dst.position(offset * this.vertexSize);
+        dst.put(src);
         vertexData.clear();
+    }
+
+    private void includeBounds(float x, float y, float z) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        minZ = Math.min(minZ, z);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        maxZ = Math.max(maxZ, z);
+    }
+
+    public boolean hasBounds() {
+        return minX <= maxX && minY <= maxY && minZ <= maxZ;
+    }
+
+    public AABB getBounds(@Nullable Vector3f position) {
+        double x = position == null ? 0.0 : position.x();
+        double y = position == null ? 0.0 : position.y();
+        double z = position == null ? 0.0 : position.z();
+        return new AABB(minX + x, minY + y, minZ + z, maxX + x, maxY + y, maxZ + z);
     }
 
     public void frozen(HashMap<Vertex, HashMap<Mesh, Integer[]>> boneTransformMap) {
@@ -283,6 +308,16 @@ public class KsgVertexBuffer implements AutoCloseable {
         private final int vertexDataSize;
         private final HashMap<Vertex, HashMap<Mesh, ArrayList<Integer>>> boneVertexMap;
         private final ArrayList<Vertex> vertices;
+        private final VertexFormatElement uv1Element;
+        private final VertexFormatElement uv2Element;
+        private final int positionOffset;
+        private final int colorOffset;
+        private final int meshColorOffset;
+        private final int normalOffset;
+        private final int uv0Offset;
+        private final int uv1Offset;
+        private final int uv2Offset;
+        private final int tangentOffset;
 
         private int vertexIndex = 0;
         private int indexVertexInMesh;
@@ -301,10 +336,26 @@ public class KsgVertexBuffer implements AutoCloseable {
                        VertexFormat format) {
             this.format = format;
             this.vertexDataSize = format.getVertexSize() - shouldIgnoredBytes(format) + 4;
+            this.uv1Element = findUvElement(format, 1);
+            this.uv2Element = findUvElement(format, 2);
+            this.positionOffset = getOffsetFor(VertexFormatElement.POSITION);
+            this.colorOffset = getOffsetFor(VertexFormatElement.COLOR);
+            this.meshColorOffset = colorOffset + 4;
+            this.normalOffset = getOffsetFor(VertexFormatElement.NORMAL);
+            this.uv0Offset = getOffsetFor(VertexFormatElement.UV0);
+            this.uv1Offset = uv1Element == null ? -1 : getOffsetFor(uv1Element);
+            this.uv2Offset = uv2Element == null ? -1 : getOffsetFor(uv2Element);
+            this.tangentOffset = getOffsetFor(RenderState.TANGENT);
             this.vertexBuffer = new KsgVertexBuffer(
                     4 * model.getMeshes().length,
                     vertexDataSize, format, this
             );
+            position = new Vector3f();
+            normal = new Vector3f();
+            uv0 = new Vector2f();
+            uv1 = new Vector2f();
+            uv2 = new Vector2f();
+            tangent = new Vector4f();
             reset();
             indexVertexInMesh = 0;
             boneVertexMap = new HashMap<>();
@@ -312,6 +363,14 @@ public class KsgVertexBuffer implements AutoCloseable {
             this.modifying = false;
             this.modifyingVertexIndices = null;
             this.buildingIndex = 0;
+        }
+
+        private static VertexFormatElement findUvElement(VertexFormat format, int uvIndex) {
+            for (VertexFormatElement element : format.getElements()) {
+                if (!element.usage().equals(VertexFormatElement.Usage.UV)) continue;
+                if (element.index() == uvIndex + 2) return element;
+            }
+            return null;
         }
 
         private int shouldIgnoredBytes(VertexFormat format) {
@@ -326,13 +385,13 @@ public class KsgVertexBuffer implements AutoCloseable {
         }
 
         private void reset() {
-            position = new Vector3f();
+            position.set(0f, 0f, 0f);
             color = 0xFFFFFFFF;
-            setNormal(0f, 0f, 0f);
-            uv0 = new Vector2f();
-            this.uv1 = new Vector2f();
-            this.uv2 = new Vector2f();
-            tangent = new Vector4f();
+            normal.set(0f, 0f, 0f);
+            uv0.set(0f, 0f);
+            uv1.set(0f, 0f);
+            uv2.set(0f, 0f);
+            tangent.set(0f, 0f, 0f, 0f);
         }
 
         public int getOffsetFor(VertexFormatElement element) {
@@ -360,18 +419,20 @@ public class KsgVertexBuffer implements AutoCloseable {
 
         public VertexFormatElement ensureHasUv(int i) {
             if (i < 1) return VertexFormatElement.UV0;
-            for (VertexFormatElement element : format.getElements()) {
-                if (!element.usage().equals(VertexFormatElement.Usage.UV)) continue;
-                int index = element.index();
-                if (index == 0) continue;
-                if (index == i + 2) return element;
+            VertexFormatElement element = switch (i) {
+                case 1 -> uv1Element;
+                case 2 -> uv2Element;
+                default -> null;
+            };
+            if (element != null) {
+                return element;
             }
             throw new IllegalStateException("Vertex format does not have UV" + i);
         }
 
         public Builder modifyVertex(Vertex vertex, Mesh mesh, float x, float y, float z) {
             ensureFrozen();
-            this.position = new Vector3f(x, y, z);
+            this.position.set(x, y, z);
             HashMap<Mesh, Integer[]> map = vertexBuffer.vertexMap.get(vertex);
             if (map ==null) {
                 modifyingVertexIndices = null;
@@ -395,7 +456,7 @@ public class KsgVertexBuffer implements AutoCloseable {
             if (vertexIndex > vertexBuffer.numVertices) {
                 throw new IllegalStateException("Vertex index exceeds vertex buffer capacity");
             }
-            this.position = new Vector3f(x, y, z);
+            this.position.set(x, y, z);
             return this;
         }
 
@@ -416,12 +477,12 @@ public class KsgVertexBuffer implements AutoCloseable {
 
         @Override
         public @NotNull Builder setUv(float v, float v1) {
-            this.uv0 = new Vector2f(v, v1);
+            this.uv0.set(v, v1);
             return this;
         }
 
         public @NotNull Builder setUv(Vector2f uv) {
-            this.uv0 = uv;
+            this.uv0.set(uv);
             return this;
         }
 
@@ -429,8 +490,8 @@ public class KsgVertexBuffer implements AutoCloseable {
             if (uvIndex < 1) return setUv(uv);
             ensureHasUv(uvIndex);
             switch (uvIndex) {
-                case 1 -> this.uv1 = uv;
-                case 2 -> this.uv2 = uv;
+                case 1 -> this.uv1.set(uv);
+                case 2 -> this.uv2.set(uv);
                 default -> throw new IllegalArgumentException("Invalid UV index: " + uvIndex);
             }
             return this;
@@ -458,7 +519,7 @@ public class KsgVertexBuffer implements AutoCloseable {
 
         @Override
         public @NotNull Builder setNormal(float x, float y, float z) {
-            this.normal = new Vector3f(x, y, z);
+            this.normal.set(x, y, z);
             return this;
         }
 
@@ -490,14 +551,11 @@ public class KsgVertexBuffer implements AutoCloseable {
             try (MemoryStack memory = MemoryStack.stackPush()) {
                 if (!modifying) index = vertexIndex;
                 ByteBuffer byteBuffer = memory.malloc(vertexDataSize);
-                int posOffset = getOffsetFor(VertexFormatElement.POSITION);
-                byteBuffer.putFloat(posOffset, position.x());
-                byteBuffer.putFloat(posOffset + 4, position.y());
-                byteBuffer.putFloat(posOffset + 8, position.z());
+                byteBuffer.putFloat(positionOffset, position.x());
+                byteBuffer.putFloat(positionOffset + 4, position.y());
+                byteBuffer.putFloat(positionOffset + 8, position.z());
 
-                int colorOffset = getOffsetFor(VertexFormatElement.COLOR);
                 byteBuffer.putInt(colorOffset, color);
-                int meshColorOffset = colorOffset + 4;
                 int meshColorInt = FastColor.ABGR32.color(
                         (int) (meshColor.w * 255),
                         (int) (meshColor.z * 255),
@@ -506,38 +564,31 @@ public class KsgVertexBuffer implements AutoCloseable {
                 );
                 byteBuffer.putInt(meshColorOffset, meshColorInt);
 
-                int normalOffset = getOffsetFor(VertexFormatElement.NORMAL);
                 byteBuffer.put(normalOffset, (byte) ((int) (normal.x() * 127) & 0xFF));
                 byteBuffer.put(normalOffset + 1, (byte) ((int) (normal.y() * 127) & 0xFF));
                 byteBuffer.put(normalOffset + 2, (byte) ((int) (normal.z() * 127) & 0xFF));
 
-                int uv0Offset = getOffsetFor(VertexFormatElement.UV0);
                 byteBuffer.putFloat(uv0Offset, uv0.x());
                 byteBuffer.putFloat(uv0Offset + 4, uv0.y());
 
-                try {
-                    VertexFormatElement element = ensureHasUv(1);
-                    int uv1Offset = getOffsetFor(element);
+                if (uv1Offset >= 0) {
                     byteBuffer.putFloat(uv1Offset, uv1.x());
                     byteBuffer.putFloat(uv1Offset + 4, uv1.y());
-                } catch (IllegalStateException ignored) {}
+                }
 
-                try {
-                    VertexFormatElement element = ensureHasUv(2);
-                    int uv2Offset = getOffsetFor(element);
+                if (uv2Offset >= 0) {
                     byteBuffer.putFloat(uv2Offset, uv2.x());
                     byteBuffer.putFloat(uv2Offset + 4, uv2.y());
-                } catch (IllegalStateException ignored) {}
+                }
 
-                int tangentOffset = getOffsetFor(RenderState.TANGENT);
-                try {
+                if (tangentOffset >= 0) {
                     byteBuffer.putFloat(tangentOffset, tangent.x());
                     byteBuffer.putFloat(tangentOffset + 4, tangent.y());
                     byteBuffer.putFloat(tangentOffset + 8, tangent.z());
                     byteBuffer.putFloat(tangentOffset + 12, tangent.w());
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
+
+                vertexBuffer.includeBounds(position.x(), position.y(), position.z());
                 vertexBuffer.addVertex(byteBuffer, index);
                 boneVertexMap.computeIfAbsent(vertex, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex);
                 vertices.add(vertex);
