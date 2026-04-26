@@ -182,6 +182,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         return (int) ((index * vertexSize) + bufOffsets.get(element));
     }
 
+    @Deprecated
     public void uploadOnIrisPresent(BufferBuilder builder,
                                     PoseStack.Pose pose,
                                     float brightness,
@@ -192,10 +193,9 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
         ByteBufferBuilder dstBuffer = accessor.getBuffer();
         int avs = accessor.getVertexSize();
-        long pointer = dstBuffer.reserve(avs * numVertices);
         if (!isIrisStaticCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
             ensureIrisStaticCache(avs);
-            fillIrisStaticCache(MemoryUtil.memAddress(irisStaticCache), avs, brightness, packedLight, packedOverlay, readAlpha);
+            irisStaticCache = fillIrisGpuCache(builder, brightness, packedLight, packedOverlay, readAlpha).build().byteBuffer();
             irisStaticCacheVertexSize = avs;
             irisStaticCacheBrightness = brightness;
             irisStaticCachePackedLight = packedLight;
@@ -203,6 +203,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             irisStaticCacheReadAlpha = readAlpha;
             irisStaticCacheValid = true;
         }
+        long pointer = -1L;
         long staticPointer = MemoryUtil.memAddress(irisStaticCache);
         int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
         int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
@@ -274,6 +275,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         irisGpuBufferValid = false;
     }
 
+    @Deprecated
     private void fillIrisStaticCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
         int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
@@ -309,6 +311,60 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
     }
 
+    private ByteBufferBuilder fillIrisGpuCache(BufferBuilder builder, float brighness, int packedLight, int packedOverlay, boolean readAlpha) {
+        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
+        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
+        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+        float colorScale = brighness / 255f;
+
+        AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
+        int vertexSize = accessor.getVertexFormat().getVertexSize();
+
+        ByteBufferBuilder bbb = new ByteBufferBuilder(numVertices * vertexSize);
+        BufferBuilder bufferBuilder = new BufferBuilder(bbb, VertexFormat.Mode.QUADS, DefaultVertexFormat.NEW_ENTITY);
+
+        int bufOffset;
+        for (int i = 0; i < numVertices; i++) {
+            int vertexOffset = i * this.vertexSize;
+
+            bufOffset = vertexOffset + srcColorOffset;
+            int a = buffer.get(bufOffset) & 0xff;
+            int b = buffer.get(bufOffset + 1) & 0xff;
+            int g = buffer.get(bufOffset + 2) & 0xff;
+            int r = buffer.get(bufOffset + 3) & 0xff;
+            int ma = buffer.get(bufOffset + 4) & 0xff;
+            int mb = buffer.get(bufOffset + 5) & 0xff;
+            int mg = buffer.get(bufOffset + 6) & 0xff;
+            int mr = buffer.get(bufOffset + 7) & 0xff;
+
+            int af = readAlpha ? (a * ma) / 255 : ma;
+            int bf = (int) (b * mb * colorScale);
+            int gf = (int) (g * mg * colorScale);
+            int rf = (int) (r * mr * colorScale);
+            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
+
+            bufOffset = vertexOffset + srcPositionOffset;
+            float x = buffer.getFloat(bufOffset);
+            float y = buffer.getFloat(bufOffset + 4);
+            float z = buffer.getFloat(bufOffset + 8);
+
+            bufOffset = vertexOffset + srcNormalOffset;
+            float nx = ((float) buffer.get(bufOffset)) / 127f;
+            float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
+            float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
+
+            bufOffset = vertexOffset + srcUv0Offset;
+            float u = buffer.getFloat(bufOffset);
+            float v = buffer.getFloat(bufOffset + 4);
+
+            bufferBuilder.addVertex(x, y, z, colorFinal, u, v, packedOverlay, packedLight, nx, ny, nz);
+        }
+
+        return bbb;
+    }
+
+    @Deprecated
     private void fillIrisGpuCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
         int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
@@ -349,6 +405,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
     }
 
+    @Deprecated
     public void upload(BufferBuilder builder,
                        PoseStack.Pose pose,
                        @Nullable KasugaShaderInstance shader,
@@ -499,10 +556,12 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         shader.setCurrentPose(pose);
         shader.setEmissiveStrength(emissiveStrength);
         renderType.setupRenderState();
+
+        VertexBuffer bufferToUse = staticGpuBuffer;
         try {
             BufferUploader.reset();
-            staticGpuBuffer.bind();
-            staticGpuBuffer.drawWithShader(modelViewMatrix, projectionMatrix, shader);
+            bufferToUse.bind();
+            bufferToUse.drawWithShader(modelViewMatrix, projectionMatrix, shader);
         } finally {
             VertexBuffer.unbind();
             BufferUploader.reset();
@@ -510,7 +569,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
     }
 
-    public void drawStaticOnIrisPresent(RenderType renderType,
+    public void drawStaticOnIrisPresent(BufferBuilder builder, RenderType renderType,
                                         PoseStack.Pose pose,
                                         org.joml.Matrix4f modelViewMatrix,
                                         org.joml.Matrix4f projectionMatrix,
@@ -519,9 +578,9 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                                         int packedOverlay,
                                         boolean readAlpha) {
         checkClosed();
-        int gpuVertexSize = DefaultVertexFormat.NEW_ENTITY.getVertexSize();
+        int gpuVertexSize = ((AccessorBufferBuilder) builder).getVertexFormat().getVertexSize();
         if (!isIrisGpuBufferValid(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha)) {
-            uploadIrisGpuBuffer(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            uploadIrisGpuBuffer(builder, gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
         }
         renderType.setupRenderState();
         try {
@@ -590,12 +649,10 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         staticGpuBufferValid = true;
     }
 
-    private void uploadIrisGpuBuffer(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
-        int size = vertexSize * numVertices;
-        ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(size);
+    private void uploadIrisGpuBuffer(BufferBuilder builder, int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        ByteBufferBuilder byteBufferBuilder = null;
         try {
-            long pointer = byteBufferBuilder.reserve(size);
-            fillIrisGpuCache(pointer, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            byteBufferBuilder = fillIrisGpuCache(builder, brightness, packedLight, packedOverlay, readAlpha);
             ByteBufferBuilder.Result result = Objects.requireNonNull(byteBufferBuilder.build());
             MeshData meshData = new MeshData(result, new MeshData.DrawState(
                     DefaultVertexFormat.NEW_ENTITY,

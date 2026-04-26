@@ -65,7 +65,9 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
         RenderType renderType = RenderState.getRenderType();
         if (irisShaderPack) {
             BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
-            buffer.upload(builder, poseStack.last(), shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
+            buffer.drawStaticOnIrisPresent(builder, renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
+                    lightData.brightness, lightData.packedLight, overlay, true);
+//            buffer.upload(builder, poseStack.last(), shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
         } else {
             buffer.drawStatic(renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
                     shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);

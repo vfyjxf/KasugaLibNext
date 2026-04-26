@@ -195,7 +195,7 @@ public class Constants {
                         .setShaderState(RenderState.UML_SHADER)
                         .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
-                        .setCullState(RenderStateShard.NO_CULL)
+                        .setCullState(RenderStateShard.CULL)
                         .setLightmapState(RenderStateShard.LIGHTMAP)
                         .setOverlayState(RenderStateShard.OVERLAY)
                         .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
@@ -212,7 +212,7 @@ public class Constants {
                 "kasuga_lib:iris_compat_render_type",
                 DefaultVertexFormat.NEW_ENTITY,
                 VertexFormat.Mode.QUADS,
-                256 * 1024,
+                64 * 1024 * 1024,
                 true,
                 true,
                 RenderType.CompositeState.builder()
@@ -220,7 +220,7 @@ public class Constants {
                         .setShaderState(RenderStateShard.RENDERTYPE_ENTITY_TRANSLUCENT_SHADER)
                         .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
-                        .setCullState(RenderStateShard.NO_CULL)
+                        .setCullState(RenderStateShard.CULL)
                         .setLightmapState(RenderStateShard.LIGHTMAP)
                         .setOverlayState(RenderStateShard.OVERLAY)
                         .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
