@@ -1,16 +1,27 @@
 package lib.kasuga.rendering.models.mc.backend;
 
 import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.systems.RenderSystem;
 import lib.kasuga.mixins.client.AccessorBufferBuilder;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
+import lib.kasuga.rendering.models.uml.backend.VersionedBackendRenderable;
+import lib.kasuga.rendering.models.uml.bridge.Bridge;
+import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
+import lib.kasuga.rendering.models.uml.math.BoneContext;
 import lib.kasuga.rendering.models.uml.math.TangentHelper;
+import lib.kasuga.rendering.models.uml.math.Transform;
+import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
+import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
+import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import net.minecraft.util.FastColor;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -24,7 +35,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
 
-public class KsgVertexBuffer implements AutoCloseable {
+public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderable {
 
     private final ByteBuffer buffer;
     private boolean building = false;
@@ -39,6 +50,46 @@ public class KsgVertexBuffer implements AutoCloseable {
     private float maxX = Float.NEGATIVE_INFINITY;
     private float maxY = Float.NEGATIVE_INFINITY;
     private float maxZ = Float.NEGATIVE_INFINITY;
+    private Vertex[] skinningVertices = new Vertex[0];
+    private Mesh[] skinningMeshes = new Mesh[0];
+    private int[] skinningIndices = new int[0];
+    private Mesh[] tangentMeshes = new Mesh[0];
+    private float[] basePositions = new float[0];
+    private float[] baseNormals = new float[0];
+    private BoneBindingFunc[] bindingFuncs = new BoneBindingFunc[0];
+    private int[] boneWeightOffsets = new int[0];
+    private int[] boneWeightCounts = new int[0];
+    private Bone[] skinningBones = new Bone[0];
+    private Transform[] skinningBindInverses = new Transform[0];
+    private float[] skinningWeights = new float[0];
+    private ByteBuffer uploadCache;
+    private boolean uploadCacheValid = false;
+    private int uploadCacheVertexSize = -1;
+    private int uploadCachePackedLight = -1;
+    private int uploadCachePackedOverlay = -1;
+    private boolean uploadCacheReadAlpha = true;
+    private float uploadCacheBrightness = Float.NaN;
+    private ByteBuffer irisStaticCache;
+    private boolean irisStaticCacheValid = false;
+    private int irisStaticCacheVertexSize = -1;
+    private int irisStaticCachePackedLight = -1;
+    private int irisStaticCachePackedOverlay = -1;
+    private boolean irisStaticCacheReadAlpha = true;
+    private float irisStaticCacheBrightness = Float.NaN;
+    private VertexBuffer staticGpuBuffer;
+    private boolean staticGpuBufferValid = false;
+    private int staticGpuBufferVertexSize = -1;
+    private int staticGpuBufferPackedLight = -1;
+    private int staticGpuBufferPackedOverlay = -1;
+    private boolean staticGpuBufferReadAlpha = true;
+    private float staticGpuBufferBrightness = Float.NaN;
+    private VertexBuffer irisGpuBuffer;
+    private boolean irisGpuBufferValid = false;
+    private int irisGpuBufferVertexSize = -1;
+    private int irisGpuBufferPackedLight = -1;
+    private int irisGpuBufferPackedOverlay = -1;
+    private boolean irisGpuBufferReadAlpha = true;
+    private float irisGpuBufferBrightness = Float.NaN;
 
     @Getter
     private boolean closed = false;
@@ -46,6 +97,12 @@ public class KsgVertexBuffer implements AutoCloseable {
     @Getter
     private final Builder modifier;
     private static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN);
+    private static final int NEW_ENTITY_POSITION_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.POSITION);
+    private static final int NEW_ENTITY_COLOR_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.COLOR);
+    private static final int NEW_ENTITY_UV0_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.UV0);
+    private static final int NEW_ENTITY_UV1_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.UV1);
+    private static final int NEW_ENTITY_UV2_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.UV2);
+    private static final int NEW_ENTITY_NORMAL_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.NORMAL);
 
     public interface ElementUploader {
         void upload(BufferBuilder builder, long pointer, int vertexIndex,
@@ -82,6 +139,22 @@ public class KsgVertexBuffer implements AutoCloseable {
     @Override
     public void close() throws Exception {
         MemoryUtil.memFree(buffer);
+        if (uploadCache != null) {
+            MemoryUtil.memFree(uploadCache);
+            uploadCache = null;
+        }
+        if (irisStaticCache != null) {
+            MemoryUtil.memFree(irisStaticCache);
+            irisStaticCache = null;
+        }
+        if (staticGpuBuffer != null) {
+            staticGpuBuffer.close();
+            staticGpuBuffer = null;
+        }
+        if (irisGpuBuffer != null) {
+            irisGpuBuffer.close();
+            irisGpuBuffer = null;
+        }
         closed = true;
     }
 
@@ -116,20 +189,99 @@ public class KsgVertexBuffer implements AutoCloseable {
                                     int packedOverlay,
                                     boolean readAlpha) {
         checkClosed();
+        AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
+        ByteBufferBuilder dstBuffer = accessor.getBuffer();
+        int avs = accessor.getVertexSize();
+        long pointer = dstBuffer.reserve(avs * numVertices);
+        if (!isIrisStaticCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
+            ensureIrisStaticCache(avs);
+            fillIrisStaticCache(MemoryUtil.memAddress(irisStaticCache), avs, brightness, packedLight, packedOverlay, readAlpha);
+            irisStaticCacheVertexSize = avs;
+            irisStaticCacheBrightness = brightness;
+            irisStaticCachePackedLight = packedLight;
+            irisStaticCachePackedOverlay = packedOverlay;
+            irisStaticCacheReadAlpha = readAlpha;
+            irisStaticCacheValid = true;
+        }
+        long staticPointer = MemoryUtil.memAddress(irisStaticCache);
         int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+        org.joml.Matrix4f poseMatrix = pose.pose();
+        org.joml.Matrix3f normalMatrix = pose.normal();
+        for (int i = 0; i < numVertices; i++) {
+            long vertexPointer = pointer + (long) i * avs;
+            long cachedVertexPointer = staticPointer + (long) i * avs;
+            int vertexOffset = i * vertexSize;
+            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_COLOR_OFFSET, vertexPointer + NEW_ENTITY_COLOR_OFFSET, 4L);
+            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV0_OFFSET, vertexPointer + NEW_ENTITY_UV0_OFFSET, 8L);
+            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV1_OFFSET, vertexPointer + NEW_ENTITY_UV1_OFFSET, 4L);
+            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV2_OFFSET, vertexPointer + NEW_ENTITY_UV2_OFFSET, 4L);
+            int bufOffset = vertexOffset + srcPositionOffset;
+            float x = buffer.getFloat(bufOffset);
+            float y = buffer.getFloat(bufOffset + 4);
+            float z = buffer.getFloat(bufOffset + 8);
+            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET,
+                    poseMatrix.m00() * x + poseMatrix.m10() * y + poseMatrix.m20() * z + poseMatrix.m30());
+            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET + 4L,
+                    poseMatrix.m01() * x + poseMatrix.m11() * y + poseMatrix.m21() * z + poseMatrix.m31());
+            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET + 8L,
+                    poseMatrix.m02() * x + poseMatrix.m12() * y + poseMatrix.m22() * z + poseMatrix.m32());
+
+            bufOffset = vertexOffset + srcNormalOffset;
+            float nx = ((float) buffer.get(bufOffset)) / 127f;
+            float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
+            float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
+            float tx = normalMatrix.m00() * nx + normalMatrix.m10() * ny + normalMatrix.m20() * nz;
+            float ty = normalMatrix.m01() * nx + normalMatrix.m11() * ny + normalMatrix.m21() * nz;
+            float tz = normalMatrix.m02() * nx + normalMatrix.m12() * ny + normalMatrix.m22() * nz;
+            putNormal(vertexPointer + NEW_ENTITY_NORMAL_OFFSET, tx, ty, tz);
+        }
+        accessor.setVertices(accessor.getVertices() + numVertices);
+    }
+
+    private boolean isIrisStaticCacheValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        return irisStaticCacheValid &&
+                irisStaticCache != null &&
+                irisStaticCacheVertexSize == vertexSize &&
+                irisStaticCachePackedLight == packedLight &&
+                irisStaticCachePackedOverlay == packedOverlay &&
+                irisStaticCacheReadAlpha == readAlpha &&
+                Float.compare(irisStaticCacheBrightness, brightness) == 0;
+    }
+
+    private void ensureIrisStaticCache(int vertexSize) {
+        int size = vertexSize * numVertices;
+        if (irisStaticCache != null && irisStaticCache.capacity() >= size) {
+            irisStaticCache.clear();
+            return;
+        }
+        if (irisStaticCache != null) {
+            MemoryUtil.memFree(irisStaticCache);
+        }
+        irisStaticCache = MemoryUtil.memAlloc(size);
+        irisStaticCache.order(ByteOrder.nativeOrder());
+    }
+
+    private void invalidateIrisStaticCache() {
+        irisStaticCacheValid = false;
+    }
+
+    private void invalidateStaticGpuBuffer() {
+        staticGpuBufferValid = false;
+    }
+
+    private void invalidateIrisGpuBuffer() {
+        irisGpuBufferValid = false;
+    }
+
+    private void fillIrisStaticCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
         int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
-        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
         float colorScale = brightness / 255f;
-        Vector3f pos = new Vector3f();
-        Vector3f norm = new Vector3f();
         for (int i = 0; i < numVertices; i++) {
+            long vertexPointer = pointer + (long) i * avs;
             int vertexOffset = i * vertexSize;
-            int bufOffset = vertexOffset + srcPositionOffset;
-            pos.set(buffer.getFloat(bufOffset), buffer.getFloat(bufOffset + 4), buffer.getFloat(bufOffset + 8));
-            pose.pose().transformPosition(pos);
-
-            bufOffset = vertexOffset + srcColorOffset;
+            int bufOffset = vertexOffset + srcColorOffset;
             int a = buffer.get(bufOffset) & 0xff;
             int b = buffer.get(bufOffset + 1) & 0xff;
             int g = buffer.get(bufOffset + 2) & 0xff;
@@ -144,20 +296,56 @@ public class KsgVertexBuffer implements AutoCloseable {
             int gf = (int) (g * mg * colorScale);
             int rf = (int) (r * mr * colorScale);
             int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
+            MemoryUtil.memPutInt(vertexPointer + NEW_ENTITY_COLOR_OFFSET, IS_LITTLE_ENDIAN ?
+                    colorFinal :
+                    Integer.reverseBytes(colorFinal)
+            );
 
             bufOffset = vertexOffset + srcUv0Offset;
-            float u0 = buffer.getFloat(bufOffset);
-            float v0 = buffer.getFloat(bufOffset + 4);
+            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_UV0_OFFSET, buffer.getFloat(bufOffset));
+            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_UV0_OFFSET + 4L, buffer.getFloat(bufOffset + 4));
+            putPackedUV(vertexPointer + NEW_ENTITY_UV1_OFFSET, packedOverlay);
+            putPackedUV(vertexPointer + NEW_ENTITY_UV2_OFFSET, packedLight);
+        }
+    }
 
-            bufOffset = vertexOffset + srcNormalOffset;
-            float nx = ((float) buffer.get(bufOffset)) / 127f;
-            float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
-            float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
-            norm.set(nx, ny, nz);
-            pose.normal().transform(norm);
-            nx = norm.x(); ny = norm.y(); nz = norm.z();
-            builder.addVertex(pos.x(), pos.y(), pos.z(),
-                    colorFinal, u0, v0, packedOverlay, packedLight, nx, ny, nz);
+    private void fillIrisGpuCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
+        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
+        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+        long bufferPointer = MemoryUtil.memAddress(buffer);
+        float colorScale = brightness / 255f;
+        for (int i = 0; i < numVertices; i++) {
+            long vertexPointer = pointer + (long) i * avs;
+            int vertexOffset = i * vertexSize;
+            long sourcePointer = bufferPointer + vertexOffset;
+            MemoryUtil.memCopy(sourcePointer + srcPositionOffset, vertexPointer + NEW_ENTITY_POSITION_OFFSET, 12L);
+
+            int bufOffset = vertexOffset + srcColorOffset;
+            int a = buffer.get(bufOffset) & 0xff;
+            int b = buffer.get(bufOffset + 1) & 0xff;
+            int g = buffer.get(bufOffset + 2) & 0xff;
+            int r = buffer.get(bufOffset + 3) & 0xff;
+            int ma = buffer.get(bufOffset + 4) & 0xff;
+            int mb = buffer.get(bufOffset + 5) & 0xff;
+            int mg = buffer.get(bufOffset + 6) & 0xff;
+            int mr = buffer.get(bufOffset + 7) & 0xff;
+
+            int af = readAlpha ? (a * ma) / 255 : ma;
+            int bf = (int) (b * mb * colorScale);
+            int gf = (int) (g * mg * colorScale);
+            int rf = (int) (r * mr * colorScale);
+            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
+            MemoryUtil.memPutInt(vertexPointer + NEW_ENTITY_COLOR_OFFSET, IS_LITTLE_ENDIAN ?
+                    colorFinal :
+                    Integer.reverseBytes(colorFinal)
+            );
+
+            MemoryUtil.memCopy(sourcePointer + srcUv0Offset, vertexPointer + NEW_ENTITY_UV0_OFFSET, 8L);
+            putPackedUV(vertexPointer + NEW_ENTITY_UV1_OFFSET, packedOverlay);
+            putPackedUV(vertexPointer + NEW_ENTITY_UV2_OFFSET, packedLight);
+            MemoryUtil.memCopy(sourcePointer + srcNormalOffset, vertexPointer + NEW_ENTITY_NORMAL_OFFSET, 3L);
         }
     }
 
@@ -180,6 +368,55 @@ public class KsgVertexBuffer implements AutoCloseable {
         ByteBufferBuilder buf = accessor.getBuffer();
         int avs = accessor.getVertexSize();
         long pointer = buf.reserve(avs * numVertices);
+        if (isUploadCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
+            MemoryUtil.memCopy(MemoryUtil.memAddress(uploadCache), pointer, (long) avs * numVertices);
+            accessor.setVertices(accessor.getVertices() + numVertices);
+            return;
+        }
+        ensureUploadCache(avs);
+        long cachePointer = MemoryUtil.memAddress(uploadCache);
+        fillUploadCache(cachePointer, avs, brightness, packedLight, packedOverlay, readAlpha);
+        MemoryUtil.memCopy(cachePointer, pointer, (long) avs * numVertices);
+        uploadCacheVertexSize = avs;
+        uploadCacheBrightness = brightness;
+        uploadCachePackedLight = packedLight;
+        uploadCachePackedOverlay = packedOverlay;
+        uploadCacheReadAlpha = readAlpha;
+        uploadCacheValid = true;
+        accessor.setVertices(accessor.getVertices() + numVertices);
+    }
+
+    private boolean isUploadCacheValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        return uploadCacheValid &&
+                uploadCache != null &&
+                uploadCacheVertexSize == vertexSize &&
+                uploadCachePackedLight == packedLight &&
+                uploadCachePackedOverlay == packedOverlay &&
+                uploadCacheReadAlpha == readAlpha &&
+                Float.compare(uploadCacheBrightness, brightness) == 0;
+    }
+
+    private void ensureUploadCache(int vertexSize) {
+        int size = vertexSize * numVertices;
+        if (uploadCache != null && uploadCache.capacity() >= size) {
+            uploadCache.clear();
+            return;
+        }
+        if (uploadCache != null) {
+            MemoryUtil.memFree(uploadCache);
+        }
+        uploadCache = MemoryUtil.memAlloc(size);
+        uploadCache.order(ByteOrder.nativeOrder());
+    }
+
+    private void invalidateUploadCache() {
+        uploadCacheValid = false;
+        invalidateIrisStaticCache();
+        invalidateStaticGpuBuffer();
+        invalidateIrisGpuBuffer();
+    }
+
+    private void fillUploadCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
         int dstPositionOffset = offsets.get(VertexFormatElement.POSITION);
         int dstColorOffset = offsets.get(VertexFormatElement.COLOR);
         int dstUv0Offset = offsets.get(VertexFormatElement.UV0);
@@ -243,7 +480,148 @@ public class KsgVertexBuffer implements AutoCloseable {
                 MemoryUtil.memCopy(sourcePointer + srcUv2Offset, vertexPointer + dstUv2Offset, 8L);
             }
         }
-        accessor.setVertices(accessor.getVertices() + numVertices);
+    }
+
+    public void drawStatic(RenderType renderType,
+                           PoseStack.Pose pose,
+                           org.joml.Matrix4f modelViewMatrix,
+                           org.joml.Matrix4f projectionMatrix,
+                           KasugaShaderInstance shader,
+                           float brightness, float emissiveStrength,
+                           int packedLight, int packedOverlay,
+                           boolean readAlpha) {
+        checkClosed();
+        Objects.requireNonNull(shader);
+        int gpuVertexSize = RenderState.UML_VERTEX_FORMAT.getVertexSize();
+        if (!isStaticGpuBufferValid(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha)) {
+            uploadStaticGpuBuffer(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+        }
+        shader.setCurrentPose(pose);
+        shader.setEmissiveStrength(emissiveStrength);
+        renderType.setupRenderState();
+        try {
+            BufferUploader.reset();
+            staticGpuBuffer.bind();
+            staticGpuBuffer.drawWithShader(modelViewMatrix, projectionMatrix, shader);
+        } finally {
+            VertexBuffer.unbind();
+            BufferUploader.reset();
+            renderType.clearRenderState();
+        }
+    }
+
+    public void drawStaticOnIrisPresent(RenderType renderType,
+                                        PoseStack.Pose pose,
+                                        org.joml.Matrix4f modelViewMatrix,
+                                        org.joml.Matrix4f projectionMatrix,
+                                        float brightness,
+                                        int packedLight,
+                                        int packedOverlay,
+                                        boolean readAlpha) {
+        checkClosed();
+        int gpuVertexSize = DefaultVertexFormat.NEW_ENTITY.getVertexSize();
+        if (!isIrisGpuBufferValid(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha)) {
+            uploadIrisGpuBuffer(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+        }
+        renderType.setupRenderState();
+        try {
+            ShaderInstance shader = RenderSystem.getShader();
+            BufferUploader.reset();
+            irisGpuBuffer.bind();
+            irisGpuBuffer.drawWithShader(new org.joml.Matrix4f(modelViewMatrix).mul(pose.pose()), projectionMatrix, shader);
+        } finally {
+            VertexBuffer.unbind();
+            BufferUploader.reset();
+            renderType.clearRenderState();
+        }
+    }
+
+    private boolean isStaticGpuBufferValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        return staticGpuBufferValid &&
+                staticGpuBuffer != null &&
+                staticGpuBufferVertexSize == vertexSize &&
+                staticGpuBufferPackedLight == packedLight &&
+                staticGpuBufferPackedOverlay == packedOverlay &&
+                staticGpuBufferReadAlpha == readAlpha &&
+                Float.compare(staticGpuBufferBrightness, brightness) == 0;
+    }
+
+    private boolean isIrisGpuBufferValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        return irisGpuBufferValid &&
+                irisGpuBuffer != null &&
+                irisGpuBufferVertexSize == vertexSize &&
+                irisGpuBufferPackedLight == packedLight &&
+                irisGpuBufferPackedOverlay == packedOverlay &&
+                irisGpuBufferReadAlpha == readAlpha &&
+                Float.compare(irisGpuBufferBrightness, brightness) == 0;
+    }
+
+    private void uploadStaticGpuBuffer(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        int size = vertexSize * numVertices;
+        ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(size);
+        try {
+            long pointer = byteBufferBuilder.reserve(size);
+            fillUploadCache(pointer, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            ByteBufferBuilder.Result result = Objects.requireNonNull(byteBufferBuilder.build());
+            MeshData meshData = new MeshData(result, new MeshData.DrawState(
+                    RenderState.UML_VERTEX_FORMAT,
+                    numVertices,
+                    VertexFormat.Mode.QUADS.indexCount(numVertices),
+                    VertexFormat.Mode.QUADS,
+                    VertexFormat.IndexType.least(numVertices)
+            ));
+            if (staticGpuBuffer == null) {
+                staticGpuBuffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+            }
+            staticGpuBuffer.bind();
+            try {
+                staticGpuBuffer.upload(meshData);
+            } finally {
+                VertexBuffer.unbind();
+            }
+        } finally {
+            byteBufferBuilder.close();
+        }
+        staticGpuBufferVertexSize = vertexSize;
+        staticGpuBufferBrightness = brightness;
+        staticGpuBufferPackedLight = packedLight;
+        staticGpuBufferPackedOverlay = packedOverlay;
+        staticGpuBufferReadAlpha = readAlpha;
+        staticGpuBufferValid = true;
+    }
+
+    private void uploadIrisGpuBuffer(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        int size = vertexSize * numVertices;
+        ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(size);
+        try {
+            long pointer = byteBufferBuilder.reserve(size);
+            fillIrisGpuCache(pointer, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            ByteBufferBuilder.Result result = Objects.requireNonNull(byteBufferBuilder.build());
+            MeshData meshData = new MeshData(result, new MeshData.DrawState(
+                    DefaultVertexFormat.NEW_ENTITY,
+                    numVertices,
+                    VertexFormat.Mode.QUADS.indexCount(numVertices),
+                    VertexFormat.Mode.QUADS,
+                    VertexFormat.IndexType.least(numVertices)
+            ));
+            if (irisGpuBuffer == null) {
+                irisGpuBuffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+            }
+            irisGpuBuffer.bind();
+            try {
+                irisGpuBuffer.upload(meshData);
+            } finally {
+                VertexBuffer.unbind();
+            }
+        } finally {
+            byteBufferBuilder.close();
+        }
+        irisGpuBufferVertexSize = vertexSize;
+        irisGpuBufferBrightness = brightness;
+        irisGpuBufferPackedLight = packedLight;
+        irisGpuBufferPackedOverlay = packedOverlay;
+        irisGpuBufferReadAlpha = readAlpha;
+        irisGpuBufferValid = true;
     }
 
     private static void putPackedUV(long pointer, int packedUv) {
@@ -253,6 +631,24 @@ public class KsgVertexBuffer implements AutoCloseable {
             MemoryUtil.memPutShort(pointer, (short)(packedUv & '\uffff'));
             MemoryUtil.memPutShort(pointer + 2L, (short)(packedUv >> 16 & '\uffff'));
         }
+    }
+
+    private static void putNormal(long pointer, float x, float y, float z) {
+        MemoryUtil.memPutByte(pointer, (byte) ((int) (x * 127) & 0xFF));
+        MemoryUtil.memPutByte(pointer + 1L, (byte) ((int) (y * 127) & 0xFF));
+        MemoryUtil.memPutByte(pointer + 2L, (byte) ((int) (z * 127) & 0xFF));
+        MemoryUtil.memPutByte(pointer + 3L, (byte) 0);
+    }
+
+    private static int getFormatOffset(VertexFormat format, VertexFormatElement element) {
+        int offset = 0;
+        for (VertexFormatElement current : format.getElements()) {
+            if (current.equals(element)) {
+                return offset;
+            }
+            offset += current.byteSize();
+        }
+        return -1;
     }
 
     public void ensureBuilding() {
@@ -283,6 +679,12 @@ public class KsgVertexBuffer implements AutoCloseable {
         maxZ = Math.max(maxZ, z);
     }
 
+    private void includeBounds(Bounds bounds) {
+        if (bounds == null || !bounds.hasBounds()) return;
+        includeBounds(bounds.minX, bounds.minY, bounds.minZ);
+        includeBounds(bounds.maxX, bounds.maxY, bounds.maxZ);
+    }
+
     public boolean hasBounds() {
         return minX <= maxX && minY <= maxY && minZ <= maxZ;
     }
@@ -292,6 +694,189 @@ public class KsgVertexBuffer implements AutoCloseable {
         double y = position == null ? 0.0 : position.y();
         double z = position == null ? 0.0 : position.z();
         return new AABB(minX + x, minY + y, minZ + z, maxX + x, maxY + y, maxZ + z);
+    }
+
+    private void resetBounds() {
+        minX = Float.POSITIVE_INFINITY;
+        minY = Float.POSITIVE_INFINITY;
+        minZ = Float.POSITIVE_INFINITY;
+        maxX = Float.NEGATIVE_INFINITY;
+        maxY = Float.NEGATIVE_INFINITY;
+        maxZ = Float.NEGATIVE_INFINITY;
+    }
+
+    private void setSkinningData(Model model, ArrayList<Vertex> vertices, ArrayList<Mesh> meshes, ArrayList<Integer> indices, Mesh[] tangentMeshes) {
+        this.skinningVertices = vertices.toArray(new Vertex[0]);
+        this.skinningMeshes = meshes.toArray(new Mesh[0]);
+        this.skinningIndices = new int[indices.size()];
+        for (int i = 0; i < indices.size(); i++) {
+            this.skinningIndices[i] = indices.get(i);
+        }
+        this.tangentMeshes = tangentMeshes;
+        this.basePositions = new float[vertices.size() * 3];
+        this.baseNormals = new float[vertices.size() * 3];
+        this.bindingFuncs = new BoneBindingFunc[vertices.size()];
+        this.boneWeightOffsets = new int[vertices.size()];
+        this.boneWeightCounts = new int[vertices.size()];
+        ArrayList<Bone> bones = new ArrayList<>();
+        ArrayList<Transform> bindInverses = new ArrayList<>();
+        ArrayList<Float> weights = new ArrayList<>();
+        for (int i = 0; i < vertices.size(); i++) {
+            Vertex vertex = vertices.get(i);
+            Mesh mesh = meshes.get(i);
+            int componentOffset = i * 3;
+            Vector3f position = vertex.getPosition();
+            Vector3f normal = vertex.getNormal(mesh);
+            basePositions[componentOffset] = position.x();
+            basePositions[componentOffset + 1] = position.y();
+            basePositions[componentOffset + 2] = position.z();
+            baseNormals[componentOffset] = normal.x();
+            baseNormals[componentOffset + 1] = normal.y();
+            baseNormals[componentOffset + 2] = normal.z();
+            bindingFuncs[i] = vertex.getBinding().getFunc();
+            boneWeightOffsets[i] = bones.size();
+            Pair<Bone, Float>[] bindingWeights = vertex.getBinding().getWeights();
+            boneWeightCounts[i] = bindingWeights.length;
+            for (Pair<Bone, Float> pair : bindingWeights) {
+                Bone bone = pair.getFirst();
+                bones.add(bone);
+                Pair<Transform, Transform> bindTransforms = model.getSkeleton().getBoneTransforms().get(bone);
+                bindInverses.add(bindTransforms == null ? null : bindTransforms.getSecond());
+                weights.add(pair.getSecond());
+            }
+        }
+        this.skinningBones = bones.toArray(new Bone[0]);
+        this.skinningBindInverses = bindInverses.toArray(new Transform[0]);
+        this.skinningWeights = new float[weights.size()];
+        for (int i = 0; i < weights.size(); i++) {
+            this.skinningWeights[i] = weights.get(i);
+        }
+    }
+
+    @Override
+    public void updateForVersion(ModelInstance modelInstance, Bridge<?> bridge) {
+        checkClosed();
+        invalidateUploadCache();
+        SkeletonInstance skeleton = modelInstance.getSkeletonInstance();
+        int vertexCount = skinningVertices.length;
+        resetBounds();
+        Bounds bounds = new Bounds();
+        updateSkinningRange(modelInstance, bridge, skeleton, 0, vertexCount, bounds);
+        includeBounds(bounds);
+        for (Mesh mesh : tangentMeshes) {
+            modifier.calculateTangent(mesh);
+        }
+    }
+
+    private void updateSkinningRange(ModelInstance modelInstance, Bridge<?> bridge, SkeletonInstance skeleton,
+                                     int startInclusive, int endExclusive, Bounds bounds) {
+        List<BoneContext> contexts = new ArrayList<>();
+        Map<Bone, Transform> absoluteTransforms = skeleton.getAbsoluteTransforms();
+        Vector3f position = new Vector3f();
+        Vector3f normal = new Vector3f();
+        Vector3f scratchPosition = new Vector3f();
+        Vector3f scratchNormal = new Vector3f();
+        for (int i = startInclusive; i < endExclusive; i++) {
+            Vertex vertex = skinningVertices[i];
+            Mesh mesh = skinningMeshes[i];
+            BoneBindingFunc func = bindingFuncs[i];
+            if (func == null || func == BoneBindingFunc.IDENTITY) {
+                setBasePosition(i, position);
+                setBaseNormal(i, normal);
+            } else if (func == BoneBindingFunc.BDEF) {
+                applyBdef(i, absoluteTransforms, position, normal, scratchPosition, scratchNormal);
+            } else {
+                skeleton.collectBoneContexts(contexts, vertex);
+                Vertex transformed = func.apply(vertex, contexts);
+                position.set(transformed.getPosition());
+                normal.set(transformed.getNormal(mesh));
+            }
+            putSkinnedVertex(skinningIndices[i], position, normal);
+            bounds.include(position);
+        }
+    }
+
+    private void setBasePosition(int index, Vector3f position) {
+        int componentOffset = index * 3;
+        position.set(basePositions[componentOffset], basePositions[componentOffset + 1], basePositions[componentOffset + 2]);
+    }
+
+    private void setBaseNormal(int index, Vector3f normal) {
+        int componentOffset = index * 3;
+        normal.set(baseNormals[componentOffset], baseNormals[componentOffset + 1], baseNormals[componentOffset + 2]);
+    }
+
+    private void applyBdef(int skinningIndex, Map<Bone, Transform> absoluteTransforms, Vector3f position, Vector3f normal,
+                           Vector3f scratchPosition, Vector3f scratchNormal) {
+        position.zero();
+        normal.zero();
+        int weightOffset = boneWeightOffsets[skinningIndex];
+        int weightCount = boneWeightCounts[skinningIndex];
+        if (weightCount == 0) {
+            setBasePosition(skinningIndex, position);
+            setBaseNormal(skinningIndex, normal);
+            return;
+        }
+        int componentOffset = skinningIndex * 3;
+        float baseX = basePositions[componentOffset];
+        float baseY = basePositions[componentOffset + 1];
+        float baseZ = basePositions[componentOffset + 2];
+        float normalX = baseNormals[componentOffset];
+        float normalY = baseNormals[componentOffset + 1];
+        float normalZ = baseNormals[componentOffset + 2];
+        for (int i = 0; i < weightCount; i++) {
+            int index = weightOffset + i;
+            Bone bone = skinningBones[index];
+            float weight = skinningWeights[index];
+            Transform absTransform = absoluteTransforms.get(bone);
+            Transform bindInverse = skinningBindInverses[index];
+            if (absTransform == null || bindInverse == null) continue;
+            scratchPosition.set(baseX, baseY, baseZ);
+            bindInverse.apply(scratchPosition);
+            absTransform.apply(scratchPosition);
+            position.add(scratchPosition.mul(weight));
+
+            scratchNormal.set(normalX, normalY, normalZ);
+            absTransform.normal().transform(scratchNormal);
+            normal.add(scratchNormal.mul(weight));
+        }
+    }
+
+    private void putSkinnedVertex(int index, Vector3f position, Vector3f normal) {
+        int posOffset = getBufPos(index, VertexFormatElement.POSITION);
+        buffer.putFloat(posOffset, position.x());
+        buffer.putFloat(posOffset + 4, position.y());
+        buffer.putFloat(posOffset + 8, position.z());
+
+        int normalOffset = getBufPos(index, VertexFormatElement.NORMAL);
+        if (normal.lengthSquared() > 0f) {
+            normal.normalize();
+        }
+        buffer.put(normalOffset, (byte) ((int) (normal.x() * 127) & 0xFF));
+        buffer.put(normalOffset + 1, (byte) ((int) (normal.y() * 127) & 0xFF));
+        buffer.put(normalOffset + 2, (byte) ((int) (normal.z() * 127) & 0xFF));
+    }
+
+    private static class Bounds {
+        private float minX = Float.POSITIVE_INFINITY;
+        private float minY = Float.POSITIVE_INFINITY;
+        private float minZ = Float.POSITIVE_INFINITY;
+        private float maxX = Float.NEGATIVE_INFINITY;
+        private float maxY = Float.NEGATIVE_INFINITY;
+        private float maxZ = Float.NEGATIVE_INFINITY;
+
+        private void include(Vector3f position) {
+            minX = Math.min(minX, position.x());
+            minY = Math.min(minY, position.y());
+            minZ = Math.min(minZ, position.z());
+            maxX = Math.max(maxX, position.x());
+            maxY = Math.max(maxY, position.y());
+            maxZ = Math.max(maxZ, position.z());
+        }
+
+        private boolean hasBounds() {
+            return minX <= maxX && minY <= maxY && minZ <= maxZ;
+        }
     }
 
     public void frozen(HashMap<Vertex, HashMap<Mesh, Integer[]>> boneTransformMap) {
@@ -308,6 +893,9 @@ public class KsgVertexBuffer implements AutoCloseable {
         private final int vertexDataSize;
         private final HashMap<Vertex, HashMap<Mesh, ArrayList<Integer>>> boneVertexMap;
         private final ArrayList<Vertex> vertices;
+        private final ArrayList<Vertex> skinningVertices;
+        private final ArrayList<Mesh> skinningMeshes;
+        private final ArrayList<Integer> skinningIndices;
         private final VertexFormatElement uv1Element;
         private final VertexFormatElement uv2Element;
         private final int positionOffset;
@@ -360,6 +948,9 @@ public class KsgVertexBuffer implements AutoCloseable {
             indexVertexInMesh = 0;
             boneVertexMap = new HashMap<>();
             vertices = new ArrayList<>(4 * model.getMeshes().length);
+            skinningVertices = new ArrayList<>(4 * model.getMeshes().length);
+            skinningMeshes = new ArrayList<>(4 * model.getMeshes().length);
+            skinningIndices = new ArrayList<>(4 * model.getMeshes().length);
             this.modifying = false;
             this.modifyingVertexIndices = null;
             this.buildingIndex = 0;
@@ -588,16 +1179,26 @@ public class KsgVertexBuffer implements AutoCloseable {
                     byteBuffer.putFloat(tangentOffset + 12, tangent.w());
                 }
 
+                vertexBuffer.invalidateUploadCache();
                 vertexBuffer.includeBounds(position.x(), position.y(), position.z());
                 vertexBuffer.addVertex(byteBuffer, index);
-                boneVertexMap.computeIfAbsent(vertex, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex);
-                vertices.add(vertex);
-                indexVertexInMesh ++;
-                if (!modifying) vertexIndex++;
-                if (!modifying) buildingIndex += vertexDataSize;
+                if (!modifying) {
+                    boneVertexMap.computeIfAbsent(vertex, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(index);
+                    vertices.add(vertex);
+                    recordSkinningVertex(index, vertex, mesh);
+                    indexVertexInMesh ++;
+                    vertexIndex++;
+                    buildingIndex += vertexDataSize;
+                }
             }
             this.reset();
             return this;
+        }
+
+        private void recordSkinningVertex(int index, Vertex vertex, Mesh mesh) {
+            skinningIndices.add(index);
+            skinningVertices.add(vertex);
+            skinningMeshes.add(mesh);
         }
 
         public Builder endMesh(Mesh mesh) {
@@ -621,8 +1222,12 @@ public class KsgVertexBuffer implements AutoCloseable {
                     }
                     vertices.add(vertex1);
                     vertices.add(vertex2);
-                    boneVertexMap.computeIfAbsent(vertex1, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex++);
-                    boneVertexMap.computeIfAbsent(vertex2, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex++);
+                    int vertexIndex1 = vertexIndex++;
+                    int vertexIndex2 = vertexIndex++;
+                    boneVertexMap.computeIfAbsent(vertex1, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex1);
+                    boneVertexMap.computeIfAbsent(vertex2, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex2);
+                    recordSkinningVertex(vertexIndex1, vertex1, mesh);
+                    recordSkinningVertex(vertexIndex2, vertex2, mesh);
                     buildingIndex += vertexDataSize;
                 } else {
                     ByteBuffer thirdVertex = built.slice(buildingIndex - vertexDataSize, vertexDataSize);
@@ -631,7 +1236,9 @@ public class KsgVertexBuffer implements AutoCloseable {
                         built.put(buildingIndex + i, thirdVertex.get(i));
                     }
                     vertices.add(vertex3);
-                    boneVertexMap.computeIfAbsent(vertex3, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex++);
+                    int vertexIndex3 = vertexIndex++;
+                    boneVertexMap.computeIfAbsent(vertex3, k -> new HashMap<>()).computeIfAbsent(mesh, m -> new ArrayList<>()).add(vertexIndex3);
+                    recordSkinningVertex(vertexIndex3, vertex3, mesh);
                     buildingIndex += vertexDataSize;
                 }
             }
@@ -640,12 +1247,86 @@ public class KsgVertexBuffer implements AutoCloseable {
         }
 
         public Builder calculateTangent(Mesh mesh) {
-            TangentHelper.computeTangents(
-                    mesh,
-                    v -> this.getPosUVNormal(v, mesh),
-                    (v, t) -> this.setVertexTangent(v, mesh, t)
-            );
+            Vertex[] meshVertices = mesh.getVertices();
+            if (meshVertices.length < 3 || tangentOffset < 0) return this;
+            for (int i = 0; i < meshVertices.length; i++) {
+                Vertex self = meshVertices[i];
+                Vertex edge1 = meshVertices[(i + meshVertices.length - 1) % meshVertices.length];
+                Vertex edge2 = meshVertices[(i + 1) % meshVertices.length];
+                int selfIndex = getFirstVertexIndex(self, mesh);
+                int edge1Index = getFirstVertexIndex(edge1, mesh);
+                int edge2Index = getFirstVertexIndex(edge2, mesh);
+                if (selfIndex < 0 || edge1Index < 0 || edge2Index < 0) continue;
+                calculateAndSetTangent(self, mesh, selfIndex, edge1Index, edge2Index);
+            }
             return this;
+        }
+
+        private int getFirstVertexIndex(Vertex vertex, Mesh mesh) {
+            HashMap<Mesh, Integer[]> map = vertexBuffer.vertexMap.get(vertex);
+            if (map == null) return -1;
+            Integer[] pointers = map.get(mesh);
+            if (pointers == null || pointers.length == 0) return -1;
+            return pointers[0];
+        }
+
+        private void calculateAndSetTangent(Vertex vertex, Mesh mesh, int selfIndex, int edge1Index, int edge2Index) {
+            int selfPosOffset = vertexBuffer.getBufPos(selfIndex, VertexFormatElement.POSITION);
+            int edge1PosOffset = vertexBuffer.getBufPos(edge1Index, VertexFormatElement.POSITION);
+            int edge2PosOffset = vertexBuffer.getBufPos(edge2Index, VertexFormatElement.POSITION);
+            float selfX = vertexBuffer.buffer.getFloat(selfPosOffset);
+            float selfY = vertexBuffer.buffer.getFloat(selfPosOffset + 4);
+            float selfZ = vertexBuffer.buffer.getFloat(selfPosOffset + 8);
+            float edge1X = vertexBuffer.buffer.getFloat(edge1PosOffset) - selfX;
+            float edge1Y = vertexBuffer.buffer.getFloat(edge1PosOffset + 4) - selfY;
+            float edge1Z = vertexBuffer.buffer.getFloat(edge1PosOffset + 8) - selfZ;
+            float edge2X = vertexBuffer.buffer.getFloat(edge2PosOffset) - selfX;
+            float edge2Y = vertexBuffer.buffer.getFloat(edge2PosOffset + 4) - selfY;
+            float edge2Z = vertexBuffer.buffer.getFloat(edge2PosOffset + 8) - selfZ;
+
+            int selfUvOffset = vertexBuffer.getBufPos(selfIndex, VertexFormatElement.UV0);
+            int edge1UvOffset = vertexBuffer.getBufPos(edge1Index, VertexFormatElement.UV0);
+            int edge2UvOffset = vertexBuffer.getBufPos(edge2Index, VertexFormatElement.UV0);
+            float selfU = vertexBuffer.buffer.getFloat(selfUvOffset);
+            float selfV = vertexBuffer.buffer.getFloat(selfUvOffset + 4);
+            float deltaUv1X = vertexBuffer.buffer.getFloat(edge1UvOffset) - selfU;
+            float deltaUv1Y = vertexBuffer.buffer.getFloat(edge1UvOffset + 4) - selfV;
+            float deltaUv2X = vertexBuffer.buffer.getFloat(edge2UvOffset) - selfU;
+            float deltaUv2Y = vertexBuffer.buffer.getFloat(edge2UvOffset + 4) - selfV;
+
+            float denominator = deltaUv1X * deltaUv2Y - deltaUv2X * deltaUv1Y;
+            float factor = denominator == 0.0f ? 1.0f : 1.0f / denominator;
+            float tangentX = factor * (deltaUv2Y * edge1X - deltaUv1Y * edge2X);
+            float tangentY = factor * (deltaUv2Y * edge1Y - deltaUv1Y * edge2Y);
+            float tangentZ = factor * (deltaUv2Y * edge1Z - deltaUv1Y * edge2Z);
+            float tangentLength = (float) Math.sqrt(tangentX * tangentX + tangentY * tangentY + tangentZ * tangentZ);
+            if (tangentLength == 0.0f || Float.isNaN(tangentLength)) {
+                setVertexTangent(vertex, mesh, 0.0f, 0.0f, 0.0f, 0.0f);
+                return;
+            }
+            tangentX /= tangentLength;
+            tangentY /= tangentLength;
+            tangentZ /= tangentLength;
+
+            int normalOffset = vertexBuffer.getBufPos(selfIndex, VertexFormatElement.NORMAL);
+            float normalX = ((float) vertexBuffer.buffer.get(normalOffset)) / 127f;
+            float normalY = ((float) vertexBuffer.buffer.get(normalOffset + 1)) / 127f;
+            float normalZ = ((float) vertexBuffer.buffer.get(normalOffset + 2)) / 127f;
+            float biTangentX = factor * (tangentY * normalZ - tangentZ * normalY);
+            float biTangentY = factor * (tangentZ * normalX - tangentX * normalZ);
+            float biTangentZ = factor * (tangentX * normalY - tangentY * normalX);
+            float bitangentLength = (float) Math.sqrt(
+                    biTangentX * biTangentX + biTangentY * biTangentY + biTangentZ * biTangentZ
+            );
+            if (bitangentLength == 0.0f || Float.isNaN(bitangentLength)) {
+                setVertexTangent(vertex, mesh, 0.0f, 0.0f, 0.0f, 0.0f);
+                return;
+            }
+            setVertexTangent(vertex, mesh,
+                    biTangentX / bitangentLength,
+                    biTangentY / bitangentLength,
+                    biTangentZ / bitangentLength,
+                    bitangentLength < 0.0f ? -1.0f : 1.0f);
         }
 
         @Nullable
@@ -678,6 +1359,10 @@ public class KsgVertexBuffer implements AutoCloseable {
         }
 
         public void setVertexTangent(Vertex vertex, Mesh mesh, Vector4f tangent) {
+            setVertexTangent(vertex, mesh, tangent.x(), tangent.y(), tangent.z(), tangent.w());
+        }
+
+        public void setVertexTangent(Vertex vertex, Mesh mesh, float x, float y, float z, float w) {
             HashMap<Mesh, Integer[]> map = vertexBuffer.vertexMap.get(vertex);
             if (map == null) {
                 return;
@@ -689,10 +1374,10 @@ public class KsgVertexBuffer implements AutoCloseable {
             for (Integer i : pointers) {
                 int index = i;
                 int tangentOffset = vertexBuffer.getBufPos(index, RenderState.TANGENT);
-                vertexBuffer.buffer.putFloat(tangentOffset, tangent.x());
-                vertexBuffer.buffer.putFloat(tangentOffset + 4, tangent.y());
-                vertexBuffer.buffer.putFloat(tangentOffset + 8, tangent.z());
-                vertexBuffer.buffer.putFloat(tangentOffset + 12, tangent.w());
+                vertexBuffer.buffer.putFloat(tangentOffset, x);
+                vertexBuffer.buffer.putFloat(tangentOffset + 4, y);
+                vertexBuffer.buffer.putFloat(tangentOffset + 8, z);
+                vertexBuffer.buffer.putFloat(tangentOffset + 12, w);
             }
         }
 
@@ -708,6 +1393,7 @@ public class KsgVertexBuffer implements AutoCloseable {
                 boneTransformMap.put(bone, intMap);
             }
             vertexBuffer.frozen(boneTransformMap);
+            vertexBuffer.setSkinningData(model, skinningVertices, skinningMeshes, skinningIndices, model.getMeshes());
             for (Mesh mesh : model.getMeshes()) {
                 calculateTangent(mesh);
             }

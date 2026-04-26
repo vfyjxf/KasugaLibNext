@@ -14,6 +14,7 @@ import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.math.QuaternionHelper;
 import lombok.Getter;
 import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
@@ -34,9 +35,9 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
         PoseStack poseStack = context.getPoseStack();
         poseStack.pushPose();
 
-        BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
         KasugaShaderInstance shader = null;
-        if (!IrisCompat.isUsingShaderPack()) {
+        boolean irisShaderPack = IrisCompat.isUsingShaderPack();
+        if (!irisShaderPack) {
             RenderSystem.setShader(() -> RenderState.UML_SHADER_INSTANCE);
             shader  = (KasugaShaderInstance) RenderSystem.getShader();
         }
@@ -61,7 +62,14 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
             poseStack.popPose();
             return;
         }
-        buffer.upload(builder, poseStack.last(), shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
+        RenderType renderType = RenderState.getRenderType();
+        if (irisShaderPack) {
+            BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
+            buffer.upload(builder, poseStack.last(), shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
+        } else {
+            buffer.drawStatic(renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
+                    shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
+        }
 
         poseStack.popPose();
     }

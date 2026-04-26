@@ -15,6 +15,7 @@ public abstract class BackendContext<
     private final BridgeType bridge;
 
     private BackendRenderableType cache;
+    private long skeletonVersion;
 
     @Getter
     private final ModelInstance modelInstance;
@@ -27,22 +28,39 @@ public abstract class BackendContext<
         this.bridge = bridge;
         this.modelInstance = modelInstance;
         this.cache = null;
+        this.skeletonVersion = Long.MIN_VALUE;
         this.render = true;
     }
 
     @SuppressWarnings("unchecked")
     public BackendRenderableType apply() {
-        if (cache != null) return cache;
+        modelInstance.getSkeletonInstance().tick();
+        long currentVersion = modelInstance.getSkeletonInstance().getVersion();
+        if (cache != null && skeletonVersion == currentVersion) return cache;
+        if (cache instanceof VersionedBackendRenderable versioned) {
+            versioned.updateForVersion(modelInstance, bridge);
+            skeletonVersion = currentVersion;
+            return cache;
+        }
+        closeCache();
         cache = (BackendRenderableType) bridge.apply(modelInstance);
+        skeletonVersion = currentVersion;
         return cache;
+    }
+
+    private void closeCache() {
+        if (cache instanceof AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception ignored) {}
+        }
+        cache = null;
     }
 
     public abstract BackendTransformType beforeRender(BackendContextType context);
 
     @Override
     public void close() throws Exception {
-        if (cache instanceof AutoCloseable) {
-            ((AutoCloseable) cache).close();
-        }
+        closeCache();
     }
 }
