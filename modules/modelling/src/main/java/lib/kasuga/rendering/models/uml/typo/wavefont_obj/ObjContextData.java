@@ -32,6 +32,9 @@ public class ObjContextData implements ContextData<ObjContextData> {
     private final ArrayList<ArrayList<ObjVertexBinding>> bindings;
 
     @Getter
+    private final ArrayList<String> bindingMaterials;
+
+    @Getter
     private String mtlName;
 
     @Getter
@@ -47,6 +50,7 @@ public class ObjContextData implements ContextData<ObjContextData> {
         vertexNormals = new ArrayList<>();
         vertexUvs = new ArrayList<>();
         this.bindings = new ArrayList<>();
+        this.bindingMaterials = new ArrayList<>();
         mtlName = null;
         smoothShading = false;
         this.isGroup = isGroup;
@@ -77,6 +81,7 @@ public class ObjContextData implements ContextData<ObjContextData> {
             throw new IllegalArgumentException("Face must have at least 2 vertices");
         }
         bindings.add(vertexBindings);
+        bindingMaterials.add(mtlName);
     }
 
     @Override
@@ -89,8 +94,9 @@ public class ObjContextData implements ContextData<ObjContextData> {
         Mesh[] meshes = new Mesh[bindings.size()];
         for (int i = 0; i < bindings.size(); i++) {
             ArrayList<ObjVertexBinding> faces = bindings.get(i);
+            String materialName = bindingMaterials.get(i);
             meshes[i] = new Mesh(new Vertex[faces.size()], new Vector3f(), new Transform(),
-                    new Material[]{loader.getMaterial(this, loader, mtlName)},
+                    new Material[]{loader.getMaterial(this, loader, materialName)},
                     loader.getMeshData(this, loader));
             int j = 0;
             for (ObjVertexBinding binding : faces) {
