@@ -2,6 +2,8 @@ package lib.kasuga.rendering.models.uml.math;
 
 import org.joml.*;
 
+import java.lang.Math;
+
 public class Transform {
 
 
@@ -101,6 +103,29 @@ public class Transform {
         transform.identity();
         normal.identity();
         return this;
+    }
+
+    public boolean isIdentity() {
+        return close(transform.m00(), 1.0f) &&
+                close(transform.m01(), 0.0f) &&
+                close(transform.m02(), 0.0f) &&
+                close(transform.m03(), 0.0f) &&
+                close(transform.m10(), 0.0f) &&
+                close(transform.m11(), 1.0f) &&
+                close(transform.m12(), 0.0f) &&
+                close(transform.m13(), 0.0f) &&
+                close(transform.m20(), 0.0f) &&
+                close(transform.m21(), 0.0f) &&
+                close(transform.m22(), 1.0f) &&
+                close(transform.m23(), 0.0f) &&
+                close(transform.m30(), 0.0f) &&
+                close(transform.m31(), 0.0f) &&
+                close(transform.m32(), 0.0f) &&
+                close(transform.m33(), 1.0f);
+    }
+
+    private static boolean close(float a, float b) {
+        return Math.abs(a - b) < 1.0e-6f;
     }
 
     public static Matrix4f createScalingMatrix(float x, float y, float z) {

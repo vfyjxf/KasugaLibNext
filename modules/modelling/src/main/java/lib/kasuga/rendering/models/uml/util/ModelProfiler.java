@@ -16,7 +16,7 @@ public final class ModelProfiler {
     private ModelProfiler() {}
 
     public static boolean enabled() {
-        return readBoolean("kasuga.profileModel", "KASUGA_PROFILE_MODEL", false);
+        return readBoolean("KASUGA_PROFILE_MODEL", "kasuga.profileModel", false);
     }
 
     public static long start() {
@@ -57,28 +57,28 @@ public final class ModelProfiler {
     }
 
     private static long reportIntervalMillis() {
-        String property = System.getProperty("kasuga.profileModel.intervalMs");
-        if (property == null || property.isBlank()) {
-            property = System.getenv("KASUGA_PROFILE_MODEL_INTERVAL_MS");
+        String value = System.getenv("KASUGA_PROFILE_MODEL_INTERVAL_MS");
+        if (value == null || value.isBlank()) {
+            value = System.getProperty("kasuga.profileModel.intervalMs");
         }
-        if (property == null || property.isBlank()) {
+        if (value == null || value.isBlank()) {
             return 2000L;
         }
         try {
-            return Math.max(1L, Long.parseLong(property));
+            return Math.max(1L, Long.parseLong(value));
         } catch (NumberFormatException ignored) {
             return 2000L;
         }
     }
 
-    private static boolean readBoolean(String propertyName, String envName, boolean fallback) {
-        String property = System.getProperty(propertyName);
-        if (property != null && !property.isBlank()) {
-            return Boolean.parseBoolean(property);
-        }
+    private static boolean readBoolean(String envName, String propertyName, boolean fallback) {
         String env = System.getenv(envName);
         if (env != null && !env.isBlank()) {
             return Boolean.parseBoolean(env);
+        }
+        String property = System.getProperty(propertyName);
+        if (property != null && !property.isBlank()) {
+            return Boolean.parseBoolean(property);
         }
         return fallback;
     }

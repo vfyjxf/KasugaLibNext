@@ -179,6 +179,10 @@ public class SkeletonInstance {
         }
     }
 
+    public boolean isBindPose() {
+        return transforms.isEmpty() && transform.isIdentity();
+    }
+
     private void recursiveUpdate() {
         while (!updateQueue.isEmpty()) {
             Pair<Bone, Transform> boneTransformPair = updateQueue.poll();

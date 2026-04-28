@@ -58,7 +58,12 @@ public abstract class BackendContext<
             return cache;
         }
         closeCache();
+        long buildStart = ModelProfiler.start();
         cache = (BackendRenderableType) bridge.apply(modelInstance);
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("backend.buildRenderable", buildStart,
+                    "version=" + currentVersion);
+        }
         skeletonVersion = currentVersion;
         return cache;
     }

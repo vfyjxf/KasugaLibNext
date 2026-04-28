@@ -2,7 +2,9 @@ package lib.kasuga.rendering.models.mc.backend;
 
 import com.mojang.blaze3d.vertex.*;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.platform.GlStateManager;
 import lib.kasuga.mixins.client.AccessorBufferBuilder;
+import lib.kasuga.mixins.client.AccessorVertexBuffer;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.uml.backend.VersionedBackendRenderable;
@@ -29,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
@@ -86,6 +89,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private int staticGpuBufferPackedOverlay = -1;
     private boolean staticGpuBufferReadAlpha = true;
     private float staticGpuBufferBrightness = Float.NaN;
+    private final BitSet staticGpuDirtyVertices = new BitSet();
+    private ByteBuffer staticRangeUploadCache;
     private VertexBuffer irisGpuBuffer;
     private boolean irisGpuBufferValid = false;
     private int irisGpuBufferVertexSize = -1;
@@ -106,6 +111,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private static final int NEW_ENTITY_UV1_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.UV1);
     private static final int NEW_ENTITY_UV2_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.UV2);
     private static final int NEW_ENTITY_NORMAL_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.NORMAL);
+    private static final int RANGE_UPLOAD_MAX_MERGE_GAP_VERTICES = 64;
 
     public interface ElementUploader {
         void upload(BufferBuilder builder, long pointer, int vertexIndex,
@@ -153,6 +159,10 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         if (staticGpuBuffer != null) {
             staticGpuBuffer.close();
             staticGpuBuffer = null;
+        }
+        if (staticRangeUploadCache != null) {
+            MemoryUtil.memFree(staticRangeUploadCache);
+            staticRangeUploadCache = null;
         }
         if (irisGpuBuffer != null) {
             irisGpuBuffer.close();
@@ -272,6 +282,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
 
     private void invalidateStaticGpuBuffer() {
         staticGpuBufferValid = false;
+        staticGpuDirtyVertices.clear();
     }
 
     private void invalidateIrisGpuBuffer() {
@@ -470,13 +481,22 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     }
 
     private void invalidateUploadCache() {
-        uploadCacheValid = false;
-        invalidateIrisStaticCache();
+        invalidateCpuUploadCaches();
         invalidateStaticGpuBuffer();
         invalidateIrisGpuBuffer();
     }
 
+    private void invalidateCpuUploadCaches() {
+        uploadCacheValid = false;
+        invalidateIrisStaticCache();
+    }
+
     private void fillUploadCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        fillUploadCacheRange(pointer, avs, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices);
+    }
+
+    private void fillUploadCacheRange(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha,
+                                      int startInclusive, int endExclusive) {
         int dstPositionOffset = offsets.get(VertexFormatElement.POSITION);
         int dstColorOffset = offsets.get(VertexFormatElement.COLOR);
         int dstUv0Offset = offsets.get(VertexFormatElement.UV0);
@@ -495,8 +515,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         int dstUv2Offset = uv2_element == null ? -1 : offsets.get(uv2_element);
         long bufferPointer = MemoryUtil.memAddress(buffer);
         float colorScale = brightness / 255f;
-        for (int i = 0; i < numVertices; i++) {
-            long vertexPointer = pointer + (long) i * avs;
+        for (int i = startInclusive; i < endExclusive; i++) {
+            long vertexPointer = pointer + (long) (i - startInclusive) * avs;
             int vertexOffset = i * vertexSize;
             long sourcePointer = bufferPointer + vertexOffset;
             MemoryUtil.memCopy(sourcePointer + srcPositionOffset, vertexPointer + dstPositionOffset, 12L);
@@ -554,8 +574,13 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         Objects.requireNonNull(shader);
         int gpuVertexSize = RenderState.UML_VERTEX_FORMAT.getVertexSize();
         boolean cacheValid = isStaticGpuBufferValid(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+        String cacheState = "hit";
         if (!cacheValid) {
             uploadStaticGpuBuffer(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            cacheState = "miss";
+        } else if (!staticGpuDirtyVertices.isEmpty()) {
+            uploadStaticGpuRanges(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            cacheState = "range";
         }
         long drawStart = ModelProfiler.start();
         shader.setCurrentPose(pose);
@@ -574,7 +599,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("render.drawStatic", drawStart,
-                    "cache=" + (cacheValid ? "hit" : "miss") + ", vertices=" + numVertices);
+                    "cache=" + cacheState + ", vertices=" + numVertices);
         }
     }
 
@@ -646,7 +671,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                     VertexFormat.IndexType.least(numVertices)
             ));
             if (staticGpuBuffer == null) {
-                staticGpuBuffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                staticGpuBuffer = new VertexBuffer(VertexBuffer.Usage.DYNAMIC);
             }
             staticGpuBuffer.bind();
             try {
@@ -663,10 +688,68 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         staticGpuBufferPackedOverlay = packedOverlay;
         staticGpuBufferReadAlpha = readAlpha;
         staticGpuBufferValid = true;
+        staticGpuDirtyVertices.clear();
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("gpu.uploadStatic.full", uploadStart,
                     "bytes=" + size + ", vertices=" + numVertices);
         }
+    }
+
+    private void uploadStaticGpuRanges(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        int dirtyVertices = staticGpuDirtyVertices.cardinality();
+        if (dirtyVertices * 4 >= numVertices * 3) {
+            uploadStaticGpuBuffer(vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            return;
+        }
+        long uploadStart = ModelProfiler.start();
+        RenderSystem.assertOnRenderThread();
+        BufferUploader.reset();
+        int previousBinding = GL15.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+        int ranges = 0;
+        int uploadedBytes = 0;
+        try {
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, ((AccessorVertexBuffer) staticGpuBuffer).getVertexBufferId());
+            int start = staticGpuDirtyVertices.nextSetBit(0);
+            while (start >= 0) {
+                int end = staticGpuDirtyVertices.nextClearBit(start);
+                int next = staticGpuDirtyVertices.nextSetBit(end);
+                while (next >= 0 && next - end <= RANGE_UPLOAD_MAX_MERGE_GAP_VERTICES) {
+                    end = staticGpuDirtyVertices.nextClearBit(next);
+                    next = staticGpuDirtyVertices.nextSetBit(end);
+                }
+                end = Math.min(end, numVertices);
+                int byteCount = (end - start) * vertexSize;
+                ensureStaticRangeUploadCache(byteCount);
+                staticRangeUploadCache.clear();
+                fillUploadCacheRange(MemoryUtil.memAddress(staticRangeUploadCache), vertexSize,
+                        brightness, packedLight, packedOverlay, readAlpha, start, end);
+                staticRangeUploadCache.limit(byteCount);
+                GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, (long) start * vertexSize, staticRangeUploadCache);
+                uploadedBytes += byteCount;
+                ranges++;
+                start = next;
+            }
+        } finally {
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, previousBinding);
+        }
+        staticGpuDirtyVertices.clear();
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("gpu.uploadStatic.range", uploadStart,
+                    "bytes=" + uploadedBytes +
+                            ", vertices=" + dirtyVertices +
+                            ", ranges=" + ranges);
+        }
+    }
+
+    private void ensureStaticRangeUploadCache(int byteCount) {
+        if (staticRangeUploadCache != null && staticRangeUploadCache.capacity() >= byteCount) {
+            return;
+        }
+        if (staticRangeUploadCache != null) {
+            MemoryUtil.memFree(staticRangeUploadCache);
+        }
+        staticRangeUploadCache = MemoryUtil.memAlloc(byteCount);
+        staticRangeUploadCache.order(ByteOrder.nativeOrder());
     }
 
     private void uploadIrisGpuBuffer(BufferBuilder builder, int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
@@ -863,9 +946,17 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             }
             return;
         }
+        long collectStart = ModelProfiler.start();
         BitSet dirtyIndices = collectDirtySkinningIndices(skeleton.getLastDirtyBones(), vertexCount);
         int dirtyCount = dirtyIndices.cardinality();
-        if (dirtyCount == 0) return;
+        if (dirtyCount == 0) {
+            if (ModelProfiler.enabled()) {
+                ModelProfiler.record("skinning.cpu.none", collectStart,
+                        "vertices=" + vertexCount +
+                                ", dirtyBones=" + skeleton.getLastDirtyBones().size());
+            }
+            return;
+        }
         if (dirtyCount * 4 >= vertexCount * 3) {
             long updateStart = ModelProfiler.start();
             updateAllSkinning(modelInstance, bridge, skeleton, vertexCount);
@@ -876,7 +967,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             return;
         }
         long updateStart = ModelProfiler.start();
-        invalidateUploadCache();
+        invalidateCpuUploadCaches();
+        invalidateIrisGpuBuffer();
         Bounds bounds = new Bounds();
         HashSet<Mesh> dirtyMeshes = new HashSet<>();
         int start = dirtyIndices.nextSetBit(0);
@@ -892,12 +984,42 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         for (Mesh mesh : dirtyMeshes) {
             modifier.calculateTangent(mesh);
         }
+        markStaticGpuDirty(dirtyIndices, dirtyMeshes);
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("skinning.cpu.partial", updateStart,
                     "vertices=" + vertexCount +
                             ", dirty=" + dirtyCount +
                             ", dirtyBones=" + skeleton.getLastDirtyBones().size() +
                             ", dirtyMeshes=" + dirtyMeshes.size());
+        }
+    }
+
+    private void markStaticGpuDirty(BitSet dirtyIndices, Set<Mesh> dirtyMeshes) {
+        if (!staticGpuBufferValid || staticGpuBuffer == null) {
+            return;
+        }
+        for (int i = dirtyIndices.nextSetBit(0); i >= 0; i = dirtyIndices.nextSetBit(i + 1)) {
+            int vertexIndex = skinningIndices[i];
+            if (vertexIndex >= 0 && vertexIndex < numVertices) {
+                staticGpuDirtyVertices.set(vertexIndex);
+            }
+        }
+        for (Mesh mesh : dirtyMeshes) {
+            markMeshVerticesDirty(mesh);
+        }
+    }
+
+    private void markMeshVerticesDirty(Mesh mesh) {
+        for (Vertex vertex : mesh.getVertices()) {
+            HashMap<Mesh, Integer[]> byMesh = vertexMap.get(vertex);
+            if (byMesh == null) continue;
+            Integer[] indices = byMesh.get(mesh);
+            if (indices == null) continue;
+            for (Integer index : indices) {
+                if (index != null && index >= 0 && index < numVertices) {
+                    staticGpuDirtyVertices.set(index);
+                }
+            }
         }
     }
 
@@ -1543,6 +1665,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
 
         public KsgVertexBuffer build(Model model) {
+            long freezeStart = ModelProfiler.start();
             HashMap<Vertex, HashMap<Mesh, Integer[]>> boneTransformMap = new HashMap<>();
             for (Vertex bone : boneVertexMap.keySet()) {
                 HashMap<Mesh, ArrayList<Integer>> map = boneVertexMap.get(bone);
@@ -1554,9 +1677,23 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                 boneTransformMap.put(bone, intMap);
             }
             vertexBuffer.frozen(boneTransformMap);
+            if (ModelProfiler.enabled()) {
+                ModelProfiler.record("vertexBuffer.freezeMap", freezeStart,
+                        "vertices=" + boneTransformMap.size());
+            }
+            long skinningDataStart = ModelProfiler.start();
             vertexBuffer.setSkinningData(model, skinningVertices, skinningMeshes, skinningIndices, model.getMeshes());
+            if (ModelProfiler.enabled()) {
+                ModelProfiler.record("vertexBuffer.setSkinningData", skinningDataStart,
+                        "skinningVertices=" + skinningVertices.size());
+            }
+            long tangentStart = ModelProfiler.start();
             for (Mesh mesh : model.getMeshes()) {
                 calculateTangent(mesh);
+            }
+            if (ModelProfiler.enabled()) {
+                ModelProfiler.record("vertexBuffer.calculateTangents", tangentStart,
+                        "meshes=" + model.getMeshes().length);
             }
             this.vertices.clear();
             this.modifying = true;

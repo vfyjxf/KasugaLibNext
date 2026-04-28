@@ -16,6 +16,7 @@ import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Sprite;
 import lib.kasuga.rendering.models.uml.structure.material.SpriteSet;
 import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
+import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
@@ -30,6 +31,9 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
 
     @Override
     public HashMap<Vertex, Vertex> transformVertices(Model model, SkeletonInstance skeleton, Vertex[] vertices) {
+        if (skeleton.isBindPose()) {
+            return new HashMap<>();
+        }
         return skeleton.getVertexTransforms(model, this);
     }
 
@@ -43,8 +47,10 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
         @SuppressWarnings("unchecked")
         HashMap<Vertex, Vertex> vertexHashMap = (HashMap<Vertex, Vertex>) vertexMap;
         Model model = instance.getModel();
+        long buildStart = ModelProfiler.start();
         KsgVertexBuffer.Builder builder = new KsgVertexBuffer.Builder(model, RenderState.UML_VERTEX_FORMAT);
 
+        long packStart = ModelProfiler.start();
         for (Mesh mesh : meshes) {
             Vector4f meshColor = DEFAULT_MESH_COLOR;
             if (mesh.getData() instanceof ColorizedMeshData colorized) {
@@ -123,7 +129,21 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
             }
             builder.endMesh(mesh);
         }
-        return builder.build(model);
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("mcbridge.packMeshes", packStart,
+                    "meshes=" + meshes.length + ", vertices=" + (meshes.length * 4));
+        }
+        long finalizeStart = ModelProfiler.start();
+        KsgVertexBuffer buffer = builder.build(model);
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("mcbridge.finalizeVertexBuffer", finalizeStart,
+                    "meshes=" + meshes.length + ", vertices=" + (meshes.length * 4));
+        }
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("mcbridge.buildVertexBuffer", buildStart,
+                    "meshes=" + meshes.length + ", vertices=" + (meshes.length * 4));
+        }
+        return buffer;
     }
 
     public static Vector2f getUVPosition(Vector2f uv, float u0, float v0, float u1, float v1, float u2, float v2, float u3, float v3) {
