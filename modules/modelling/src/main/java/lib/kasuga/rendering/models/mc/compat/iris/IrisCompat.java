@@ -1,6 +1,7 @@
 package lib.kasuga.rendering.models.mc.compat.iris;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import lombok.Getter;
 import net.irisshaders.iris.api.v0.IrisApi;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -89,5 +90,10 @@ public class IrisCompat {
     public static Object createPBRTextureAtlasSprite(ResourceLocation name, Object content, int x0, int y0, int x1, int y1, TextureAtlasSprite sprite) throws Exception {
         if (!isIrisPresent()) return null;
         return pbrTextureConstructor.newInstance(name, content, x0, y0, x1, y1, sprite);
+    }
+
+    public static VertexFormat getIrisCompatibleFormat(VertexFormat format) {
+        if (!isUsingShaderPack()) return format;
+        return IrisConstants.getIrisFormat(format);
     }
 }
