@@ -60,6 +60,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private Mesh[] tangentMeshes = new Mesh[0];
     private float[] basePositions = new float[0];
     private float[] baseNormals = new float[0];
+    private float[] baseTangents = new float[0];
     private BoneBindingFunc[] bindingFuncs = new BoneBindingFunc[0];
     private int[] boneWeightOffsets = new int[0];
     private int[] boneWeightCounts = new int[0];
@@ -880,6 +881,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         this.tangentMeshes = tangentMeshes;
         this.basePositions = new float[vertices.size() * 3];
         this.baseNormals = new float[vertices.size() * 3];
+        this.baseTangents = new float[vertices.size() * 4];
         this.bindingFuncs = new BoneBindingFunc[vertices.size()];
         this.boneWeightOffsets = new int[vertices.size()];
         this.boneWeightCounts = new int[vertices.size()];
@@ -931,6 +933,20 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         this.dirtySkinningIndices = new BitSet(vertices.size());
     }
 
+    private void captureBaseTangents() {
+        if (baseTangents.length != skinningVertices.length * 4) {
+            baseTangents = new float[skinningVertices.length * 4];
+        }
+        for (int i = 0; i < skinningVertices.length; i++) {
+            int tangentOffset = getBufPos(skinningIndices[i], RenderState.TANGENT);
+            int componentOffset = i * 4;
+            baseTangents[componentOffset] = buffer.getFloat(tangentOffset);
+            baseTangents[componentOffset + 1] = buffer.getFloat(tangentOffset + 4);
+            baseTangents[componentOffset + 2] = buffer.getFloat(tangentOffset + 8);
+            baseTangents[componentOffset + 3] = buffer.getFloat(tangentOffset + 12);
+        }
+    }
+
     @Override
     public void updateForVersion(ModelInstance modelInstance, Bridge<?> bridge) {
         checkClosed();
@@ -969,28 +985,47 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         long updateStart = ModelProfiler.start();
         invalidateCpuUploadCaches();
         invalidateIrisGpuBuffer();
+        boolean recalculateTangents = recalculateDynamicTangents();
         Bounds bounds = new Bounds();
         HashSet<Mesh> dirtyMeshes = new HashSet<>();
+        long skinningStart = ModelProfiler.start();
         int start = dirtyIndices.nextSetBit(0);
         while (start >= 0) {
             int end = dirtyIndices.nextClearBit(start);
-            updateSkinningRange(modelInstance, bridge, skeleton, start, end, bounds);
+            updateSkinningRange(modelInstance, bridge, skeleton, start, end, bounds, !recalculateTangents);
             for (int i = start; i < end; i++) {
                 dirtyMeshes.add(skinningMeshes[i]);
             }
             start = dirtyIndices.nextSetBit(end);
         }
-        includeBounds(bounds);
-        for (Mesh mesh : dirtyMeshes) {
-            modifier.calculateTangent(mesh);
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("skinning.cpu.partial.vertices", skinningStart,
+                    "dirty=" + dirtyCount);
         }
-        markStaticGpuDirty(dirtyIndices, dirtyMeshes);
+        includeBounds(bounds);
+        if (recalculateTangents) {
+            long tangentStart = ModelProfiler.start();
+            for (Mesh mesh : dirtyMeshes) {
+                modifier.calculateTangent(mesh);
+            }
+            if (ModelProfiler.enabled()) {
+                ModelProfiler.record("skinning.cpu.partial.tangents", tangentStart,
+                        "dirtyMeshes=" + dirtyMeshes.size());
+            }
+        }
+        long dirtyUploadStart = ModelProfiler.start();
+        markStaticGpuDirty(dirtyIndices, recalculateTangents ? dirtyMeshes : Collections.emptySet());
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("skinning.cpu.partial.markUpload", dirtyUploadStart,
+                    "dirtyMeshes=" + (recalculateTangents ? dirtyMeshes.size() : 0));
+        }
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("skinning.cpu.partial", updateStart,
                     "vertices=" + vertexCount +
                             ", dirty=" + dirtyCount +
                             ", dirtyBones=" + skeleton.getLastDirtyBones().size() +
-                            ", dirtyMeshes=" + dirtyMeshes.size());
+                            ", dirtyMeshes=" + dirtyMeshes.size() +
+                            ", tangents=" + (recalculateTangents ? "mesh" : "skinned"));
         }
     }
 
@@ -1027,11 +1062,26 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         invalidateUploadCache();
         resetBounds();
         Bounds bounds = new Bounds();
-        updateSkinningRange(modelInstance, bridge, skeleton, 0, vertexCount, bounds);
+        boolean recalculateTangents = recalculateDynamicTangents();
+        updateSkinningRange(modelInstance, bridge, skeleton, 0, vertexCount, bounds, !recalculateTangents);
         includeBounds(bounds);
-        for (Mesh mesh : tangentMeshes) {
-            modifier.calculateTangent(mesh);
+        if (recalculateTangents) {
+            for (Mesh mesh : tangentMeshes) {
+                modifier.calculateTangent(mesh);
+            }
         }
+    }
+
+    private boolean recalculateDynamicTangents() {
+        String env = System.getenv("KASUGA_PROFILE_MODEL_RECALCULATE_DYNAMIC_TANGENTS");
+        if (env != null && !env.isBlank()) {
+            return Boolean.parseBoolean(env);
+        }
+        String property = System.getProperty("kasuga.profileModel.recalculateDynamicTangents");
+        if (property != null && !property.isBlank()) {
+            return Boolean.parseBoolean(property);
+        }
+        return false;
     }
 
     private BitSet collectDirtySkinningIndices(Set<Bone> dirtyBones, int vertexCount) {
@@ -1052,13 +1102,15 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     }
 
     private void updateSkinningRange(ModelInstance modelInstance, Bridge<?> bridge, SkeletonInstance skeleton,
-                                     int startInclusive, int endExclusive, Bounds bounds) {
+                                     int startInclusive, int endExclusive, Bounds bounds, boolean updateTangents) {
         List<BoneContext> contexts = new ArrayList<>();
         Map<Bone, Transform> absoluteTransforms = skeleton.getAbsoluteTransforms();
         Vector3f position = new Vector3f();
         Vector3f normal = new Vector3f();
+        Vector4f tangent = new Vector4f();
         Vector3f scratchPosition = new Vector3f();
         Vector3f scratchNormal = new Vector3f();
+        Vector3f scratchTangent = new Vector3f();
         for (int i = startInclusive; i < endExclusive; i++) {
             Vertex vertex = skinningVertices[i];
             Mesh mesh = skinningMeshes[i];
@@ -1066,15 +1118,18 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             if (func == null || func == BoneBindingFunc.IDENTITY) {
                 setBasePosition(i, position);
                 setBaseNormal(i, normal);
+                if (updateTangents) setBaseTangent(i, tangent);
             } else if (func == BoneBindingFunc.BDEF) {
-                applyBdef(i, absoluteTransforms, position, normal, scratchPosition, scratchNormal);
+                applyBdef(i, absoluteTransforms, position, normal, updateTangents ? tangent : null,
+                        scratchPosition, scratchNormal, scratchTangent);
             } else {
                 skeleton.collectBoneContexts(contexts, vertex);
                 Vertex transformed = func.apply(vertex, contexts);
                 position.set(transformed.getPosition());
                 normal.set(transformed.getNormal(mesh));
+                if (updateTangents) setBaseTangent(i, tangent);
             }
-            putSkinnedVertex(skinningIndices[i], position, normal);
+            putSkinnedVertex(skinningIndices[i], position, normal, updateTangents ? tangent : null);
             bounds.include(position);
         }
     }
@@ -1089,15 +1144,30 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         normal.set(baseNormals[componentOffset], baseNormals[componentOffset + 1], baseNormals[componentOffset + 2]);
     }
 
+    private void setBaseTangent(int index, Vector4f tangent) {
+        int componentOffset = index * 4;
+        tangent.set(
+                baseTangents[componentOffset],
+                baseTangents[componentOffset + 1],
+                baseTangents[componentOffset + 2],
+                baseTangents[componentOffset + 3]
+        );
+    }
+
     private void applyBdef(int skinningIndex, Map<Bone, Transform> absoluteTransforms, Vector3f position, Vector3f normal,
-                           Vector3f scratchPosition, Vector3f scratchNormal) {
+                           @Nullable Vector4f tangent, Vector3f scratchPosition, Vector3f scratchNormal,
+                           Vector3f scratchTangent) {
         position.zero();
         normal.zero();
+        if (tangent != null) {
+            tangent.zero();
+        }
         int weightOffset = boneWeightOffsets[skinningIndex];
         int weightCount = boneWeightCounts[skinningIndex];
         if (weightCount == 0) {
             setBasePosition(skinningIndex, position);
             setBaseNormal(skinningIndex, normal);
+            if (tangent != null) setBaseTangent(skinningIndex, tangent);
             return;
         }
         int componentOffset = skinningIndex * 3;
@@ -1107,6 +1177,11 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         float normalX = baseNormals[componentOffset];
         float normalY = baseNormals[componentOffset + 1];
         float normalZ = baseNormals[componentOffset + 2];
+        int tangentOffset = skinningIndex * 4;
+        float tangentX = tangent == null ? 0.0f : baseTangents[tangentOffset];
+        float tangentY = tangent == null ? 0.0f : baseTangents[tangentOffset + 1];
+        float tangentZ = tangent == null ? 0.0f : baseTangents[tangentOffset + 2];
+        float tangentW = tangent == null ? 0.0f : baseTangents[tangentOffset + 3];
         for (int i = 0; i < weightCount; i++) {
             int index = weightOffset + i;
             Bone bone = skinningBones[index];
@@ -1122,10 +1197,21 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             scratchNormal.set(normalX, normalY, normalZ);
             absTransform.normal().transform(scratchNormal);
             normal.add(scratchNormal.mul(weight));
+
+            if (tangent != null) {
+                scratchTangent.set(tangentX, tangentY, tangentZ);
+                absTransform.normal().transform(scratchTangent);
+                tangent.x += scratchTangent.x() * weight;
+                tangent.y += scratchTangent.y() * weight;
+                tangent.z += scratchTangent.z() * weight;
+            }
+        }
+        if (tangent != null) {
+            tangent.w = tangentW;
         }
     }
 
-    private void putSkinnedVertex(int index, Vector3f position, Vector3f normal) {
+    private void putSkinnedVertex(int index, Vector3f position, Vector3f normal, @Nullable Vector4f tangent) {
         int posOffset = getBufPos(index, VertexFormatElement.POSITION);
         buffer.putFloat(posOffset, position.x());
         buffer.putFloat(posOffset + 4, position.y());
@@ -1138,6 +1224,20 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         buffer.put(normalOffset, (byte) ((int) (normal.x() * 127) & 0xFF));
         buffer.put(normalOffset + 1, (byte) ((int) (normal.y() * 127) & 0xFF));
         buffer.put(normalOffset + 2, (byte) ((int) (normal.z() * 127) & 0xFF));
+
+        if (tangent != null) {
+            int tangentOffset = getBufPos(index, RenderState.TANGENT);
+            float tangentLength = (float) Math.sqrt(tangent.x() * tangent.x() + tangent.y() * tangent.y() + tangent.z() * tangent.z());
+            if (tangentLength > 0.0f && !Float.isNaN(tangentLength)) {
+                tangent.x /= tangentLength;
+                tangent.y /= tangentLength;
+                tangent.z /= tangentLength;
+            }
+            buffer.putFloat(tangentOffset, tangent.x());
+            buffer.putFloat(tangentOffset + 4, tangent.y());
+            buffer.putFloat(tangentOffset + 8, tangent.z());
+            buffer.putFloat(tangentOffset + 12, tangent.w());
+        }
     }
 
     private static class Bounds {
@@ -1695,6 +1795,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                 ModelProfiler.record("vertexBuffer.calculateTangents", tangentStart,
                         "meshes=" + model.getMeshes().length);
             }
+            vertexBuffer.captureBaseTangents();
             this.vertices.clear();
             this.modifying = true;
             return vertexBuffer;
