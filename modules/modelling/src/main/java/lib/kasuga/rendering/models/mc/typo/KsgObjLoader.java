@@ -24,6 +24,7 @@ import lib.kasuga.rendering.models.uml.typo.wavefont_obj.ObjModelLoader;
 import lib.kasuga.rendering.models.uml.typo.wavefont_obj.ObjTextureData;
 import lib.kasuga.structure.Pair;
 import lombok.NonNull;
+import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.resources.model.Material;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
@@ -74,7 +75,11 @@ public class KsgObjLoader extends ObjModelLoader<String, ResourceLocation, Strin
 
     @Override
     public lib.kasuga.rendering.models.uml.structure.material.@NonNull Material getMaterial(ObjContextData data, ObjModelLoader loader, String mtlName) {
-        return materials.get(mtlName);
+        lib.kasuga.rendering.models.uml.structure.material.Material material = materials.get(mtlName);
+        if (material != null) {
+            return material;
+        }
+        return createFallbackMaterial(mtlName);
     }
 
     @Override
@@ -109,14 +114,24 @@ public class KsgObjLoader extends ObjModelLoader<String, ResourceLocation, Strin
 
     @Override
     public void consumeTexture(ObjTextureData texture) {
+        if (texture == null) return;
         String map_kd = texture.getMap_Kd();
-        if (map_kd == null) return;
+        if (map_kd == null) {
+            createFallbackMaterial(texture.getName());
+            return;
+        }
         Pair<ResourceLocation, Path> pair = IdentifierHelper.getRLAndPath(map_kd);
-        if (pair == null) return;
+        if (pair == null) {
+            createFallbackMaterial(texture.getName());
+            return;
+        }
         ResourceLocation rl = pair.getFirst();
         Object identifier = pair.getSecond() == null ? rl : pair.getSecond();
-        KasugaTextureManager textureManager = (KasugaTextureManager)
-                ((HashMap<String, SourceManager<?>>) this.getSidedSources().get(Constants.TEXTURE_TYPE)).get("mc_layer_0");
+        KasugaTextureManager textureManager = getTextureManager();
+        if (textureManager == null) {
+            createFallbackMaterial(texture.getName());
+            return;
+        }
         textureManager.load(identifier);
         MCTextureData textureData = new MCTextureData(
                 identifier, textureManager
@@ -130,6 +145,48 @@ public class KsgObjLoader extends ObjModelLoader<String, ResourceLocation, Strin
                     sprb.textureId(texture.getName()).flipV(true).endSprite();
                 }).endMaterial();
         materials.put(texture.getName(), materialSetBuilder().getMaterials().getLast());
+    }
+
+    private lib.kasuga.rendering.models.uml.structure.material.Material createFallbackMaterial(String materialName) {
+        String name = materialName == null ? "__default__" : materialName;
+        lib.kasuga.rendering.models.uml.structure.material.Material existing = materials.get(name);
+        if (existing != null) {
+            if (materialName == null) {
+                materials.put(null, existing);
+            }
+            return existing;
+        }
+        String textureId = "__missing_obj_texture__/" + name;
+        ResourceLocation rl = MissingTextureAtlasSprite.getLocation();
+        KasugaTextureManager textureManager = getTextureManager();
+        if (textureManager == null) {
+            textureManager = Constants.TEXTURE_BASIC;
+        }
+        MCTextureData textureData = new MCTextureData(rl, textureManager);
+        Material material = new Material(RenderState.KSG_LAYER_0, rl);
+        MCTexture tex = new MCTexture(name, () -> material, 16, 16, textureData);
+        materialSetBuilder()
+                .registerTexture(textureId, tex)
+                .useTexture(textureId)
+                .addSpriteBuildingFunc((mtlb, sprb, mtl) -> sprb.textureId(textureId).endSprite())
+                .endMaterial();
+        lib.kasuga.rendering.models.uml.structure.material.Material created = materialSetBuilder().getMaterials().getLast();
+        materials.put(name, created);
+        if (materialName == null) {
+            materials.put(null, created);
+        }
+        return created;
+    }
+
+    @Nullable
+    private KasugaTextureManager getTextureManager() {
+        HashMap<String, SourceManager<?>> managers = this.getSidedSources().get(Constants.TEXTURE_TYPE);
+        if (managers == null) return Constants.TEXTURE_BASIC;
+        SourceManager<?> manager = managers.get("mc_layer_0");
+        if (manager instanceof KasugaTextureManager textureManager) {
+            return textureManager;
+        }
+        return Constants.TEXTURE_BASIC;
     }
 
     @Override
@@ -170,6 +227,13 @@ public class KsgObjLoader extends ObjModelLoader<String, ResourceLocation, Strin
     @Override
     public boolean isValidInput(Object input) {
         return input instanceof String;
+    }
+
+    @Override
+    public void clear() {
+        super.clear();
+        loadedModels.clear();
+        materials.clear();
     }
 
     @Override

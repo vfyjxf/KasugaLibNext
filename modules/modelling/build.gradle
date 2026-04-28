@@ -66,6 +66,8 @@ neoForge {
 
     runs {
         client {
+            systemProperty 'kasuga.profileModel', 'true'
+            systemProperty 'kasuga.profileModel.intervalMs', '1000'
             client()
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.

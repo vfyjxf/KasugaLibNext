@@ -2,6 +2,8 @@ package lib.kasuga.rendering.models.uml.backend;
 
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
+import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
+import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -34,11 +36,24 @@ public abstract class BackendContext<
 
     @SuppressWarnings("unchecked")
     public BackendRenderableType apply() {
-        modelInstance.getSkeletonInstance().tick();
-        long currentVersion = modelInstance.getSkeletonInstance().getVersion();
+        SkeletonInstance skeleton = modelInstance.getSkeletonInstance();
+        long tickStart = ModelProfiler.start();
+        skeleton.tick();
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("skeleton.tick", tickStart,
+                    "version=" + skeleton.getVersion() +
+                            ", full=" + skeleton.isLastFullUpdate() +
+                            ", dirtyBones=" + skeleton.getLastDirtyBones().size());
+        }
+        long currentVersion = skeleton.getVersion();
         if (cache != null && skeletonVersion == currentVersion) return cache;
         if (cache instanceof VersionedBackendRenderable versioned) {
+            long updateStart = ModelProfiler.start();
             versioned.updateForVersion(modelInstance, bridge);
+            if (ModelProfiler.enabled()) {
+                ModelProfiler.record("backend.updateForVersion", updateStart,
+                        "version=" + currentVersion);
+            }
             skeletonVersion = currentVersion;
             return cache;
         }
