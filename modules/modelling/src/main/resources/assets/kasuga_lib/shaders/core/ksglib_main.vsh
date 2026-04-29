@@ -10,14 +10,21 @@ in vec2 UV0;
 in ivec2 UV1;
 in ivec2 UV2;
 in vec4 Tangent;
+in ivec4 BoneIndices;
+in vec4 BoneWeights;
 
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;
 uniform int FogShape;
 uniform sampler2D Sampler1;
 uniform sampler2D Sampler2;
+uniform samplerBuffer ksg_BoneTransforms;
 uniform mat4 ksg_ModelPoseMat;
 uniform mat3 ksg_ModelNormalMat;
+uniform float ksg_BrightnessScale;
+uniform ivec2 ksg_PackedLight;
+uniform ivec2 ksg_PackedOverlay;
+uniform int ksg_GpuSkinningEnabled;
 
 uniform vec3 Light0_Direction;
 uniform vec3 Light1_Direction;
@@ -33,21 +40,75 @@ out mat3 TBN;
 out vec3 viewLight0_Direction;
 out vec3 viewLight1_Direction;
 
+mat4 ksg_readBoneTransform(int boneIndex) {
+    int base = boneIndex * 8;
+    return mat4(
+        texelFetch(ksg_BoneTransforms, base),
+        texelFetch(ksg_BoneTransforms, base + 1),
+        texelFetch(ksg_BoneTransforms, base + 2),
+        texelFetch(ksg_BoneTransforms, base + 3)
+    );
+}
+
+mat3 ksg_readBoneNormalTransform(int boneIndex) {
+    int base = boneIndex * 8 + 4;
+    return mat3(
+        texelFetch(ksg_BoneTransforms, base).xyz,
+        texelFetch(ksg_BoneTransforms, base + 1).xyz,
+        texelFetch(ksg_BoneTransforms, base + 2).xyz
+    );
+}
+
+void ksg_applyGpuSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
+    if (ksg_GpuSkinningEnabled == 0) {
+        return;
+    }
+
+    vec4 skinnedPosition = vec4(0.0);
+    vec3 skinnedNormal = vec3(0.0);
+    vec3 skinnedTangent = vec3(0.0);
+    float totalWeight = 0.0;
+    for (int i = 0; i < 4; i++) {
+        float weight = BoneWeights[i];
+        if (weight <= 0.0) {
+            continue;
+        }
+        int boneIndex = BoneIndices[i];
+        mat4 boneTransform = ksg_readBoneTransform(boneIndex);
+        mat3 boneNormal = ksg_readBoneNormalTransform(boneIndex);
+        skinnedPosition += (boneTransform * vec4(position, 1.0)) * weight;
+        skinnedNormal += (boneNormal * normal) * weight;
+        skinnedTangent += (boneNormal * tangent.xyz) * weight;
+        totalWeight += weight;
+    }
+
+    if (totalWeight > 0.0) {
+        position = skinnedPosition.xyz / totalWeight;
+        normal = normalize(skinnedNormal);
+        tangent = vec4(normalize(skinnedTangent), tangent.w);
+    }
+}
+
 void main() {
-    vec4 posWorld = (ksg_ModelPoseMat * vec4(Position, 1.0));
-    vertexColor = Color;
-    lightMapColor = texelFetch(Sampler2, UV2 / 16, 0);
-    overlayColor = texelFetch(Sampler1, UV1, 0);
+    vec3 skinnedPosition = Position;
+    vec3 skinnedNormal = Normal;
+    vec4 skinnedTangent = Tangent;
+    ksg_applyGpuSkinning(skinnedPosition, skinnedNormal, skinnedTangent);
+
+    vec4 posWorld = (ksg_ModelPoseMat * vec4(skinnedPosition, 1.0));
+    vertexColor = vec4(Color.rgb * ksg_BrightnessScale, Color.a);
+    lightMapColor = texelFetch(Sampler2, ksg_PackedLight / 16, 0);
+    overlayColor = texelFetch(Sampler1, ksg_PackedOverlay, 0);
 
     texCoord0 = UV0;
     vec4 viewPos4 = ModelViewMat * posWorld;
     viewPos = viewPos4.xyz;
     vertexDistance = fog_distance(viewPos, FogShape);
     mat3 normalMatrix = mat3(ModelViewMat) * ksg_ModelNormalMat;
-    viewNormal = normalize(normalMatrix * Normal);
+    viewNormal = normalize(normalMatrix * skinnedNormal);
 
-    vec3 T = normalize(normalMatrix * Tangent.xyz);
-    vec3 B = cross(viewNormal, T) * Tangent.w;
+    vec3 T = normalize(normalMatrix * skinnedTangent.xyz);
+    vec3 B = cross(viewNormal, T) * skinnedTangent.w;
     TBN = mat3(T, B, viewNormal);
 
     mat3 viewRot = mat3(ModelViewMat);

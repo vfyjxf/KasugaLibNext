@@ -2,6 +2,8 @@ package lib.kasuga.rendering.models.mc.backend.data_type;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.shaders.Uniform;
 import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lombok.Getter;
@@ -12,6 +14,9 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL31;
 
 import java.io.IOException;
 
@@ -19,6 +24,7 @@ public class KasugaShaderInstance extends ShaderInstance {
 
     private static final Matrix4f IDENTITY_M4F = new Matrix4f().identity();
     private static final Matrix3f IDENTITY_M3F = new Matrix3f().identity();
+    private static final int BONE_TRANSFORM_TEXTURE_UNIT = 11;
 
     @Getter
     private float emissiveStrength = 1.0f;
@@ -31,6 +37,12 @@ public class KasugaShaderInstance extends ShaderInstance {
 
     @Getter
     private float ambientLightEnhancement = 1.5f;
+
+    private float brightness = 1.0f;
+    private int packedLight = 0;
+    private int packedOverlay = 0;
+    private boolean gpuSkinningEnabled = false;
+    private int boneTransformTextureId = 0;
 
     @Setter
     private @Nullable PoseStack.Pose currentPose;
@@ -88,12 +100,27 @@ public class KasugaShaderInstance extends ShaderInstance {
         setAmbientLightEnhancement(1f);
     }
 
+    public void setLightData(float brightness, int packedLight, int packedOverlay) {
+        this.brightness = brightness;
+        this.packedLight = packedLight;
+        this.packedOverlay = packedOverlay;
+    }
+
+    public void setGpuSkinningState(boolean enabled, int boneTransformTextureId) {
+        this.gpuSkinningEnabled = enabled && boneTransformTextureId > 0;
+        this.boneTransformTextureId = boneTransformTextureId;
+    }
+
     protected void applyAdditionalData() {
         // TODO: 记得同步修改着色器的相关系数
         this.safeGetUniform("ksg_EmissiveStrength").set(this.emissiveStrength);
         this.safeGetUniform("ksg_ParallaxScale").set(this.parallaxScale);
         this.safeGetUniform("ksg_ParallaxSamples").set(this.parallaxSamplerTimes);
         this.safeGetUniform("ksg_AmbientLightEnhancement").set(this.ambientLightEnhancement);
+        this.safeGetUniform("ksg_BrightnessScale").set(this.brightness);
+        this.safeGetUniform("ksg_PackedLight").set(this.packedLight & 0xffff, (this.packedLight >>> 16) & 0xffff);
+        this.safeGetUniform("ksg_PackedOverlay").set(this.packedOverlay & 0xffff, (this.packedOverlay >>> 16) & 0xffff);
+        this.safeGetUniform("ksg_GpuSkinningEnabled").set(this.gpuSkinningEnabled ? 1 : 0);
         if (currentPose != null) {
             this.safeGetUniform("ksg_ModelPoseMat").set(this.currentPose.pose());
             this.safeGetUniform("ksg_ModelNormalMat").set(this.currentPose.normal());
@@ -109,5 +136,18 @@ public class KasugaShaderInstance extends ShaderInstance {
     public void apply() {
         applyAdditionalData();
         super.apply();
+        applyGpuSkinningTexture();
+    }
+
+    private void applyGpuSkinningTexture() {
+        int location = Uniform.glGetUniformLocation(getId(), "ksg_BoneTransforms");
+        if (location < 0) {
+            return;
+        }
+        int previousActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
+        RenderSystem.activeTexture(GL13.GL_TEXTURE0 + BONE_TRANSFORM_TEXTURE_UNIT);
+        GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, this.gpuSkinningEnabled ? this.boneTransformTextureId : 0);
+        Uniform.uploadInteger(location, BONE_TRANSFORM_TEXTURE_UNIT);
+        RenderSystem.activeTexture(previousActiveTexture);
     }
 }
