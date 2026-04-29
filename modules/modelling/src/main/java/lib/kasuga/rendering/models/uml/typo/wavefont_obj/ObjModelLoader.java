@@ -23,6 +23,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector2f;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,6 +45,15 @@ public abstract class ObjModelLoader<
     private final ArrayList<Mesh> meshes;
 
     @Getter
+    private final ArrayList<Vector3f> objVertexPositions;
+
+    @Getter
+    private final ArrayList<Vector2f> objVertexUvs;
+
+    @Getter
+    private final ArrayList<Vector3f> objVertexNormals;
+
+    @Getter
     private final ArrayList<Bone> bones;
 
     @Getter
@@ -56,6 +67,9 @@ public abstract class ObjModelLoader<
         mtllibURL = null;
         vertices = new ArrayList<>();
         meshes = new ArrayList<>();
+        objVertexPositions = new ArrayList<>();
+        objVertexUvs = new ArrayList<>();
+        objVertexNormals = new ArrayList<>();
         bones = new ArrayList<>();
         mtlLoader = new MtlLoader(this, mtlUseDefaultProcessors);
         if (useDefaultProcessors) useDefaultProcessors();
@@ -111,6 +125,31 @@ public abstract class ObjModelLoader<
 
     public abstract String getTextureContent(String mtlUrl);
 
+    public ObjContextData ensureContext(SerialContext<ObjContextData> context) {
+        if (context.isEmpty()) {
+            context.push(new ObjContextData("default", false));
+        }
+        return context.peek();
+    }
+
+    public int resolveVertexIndex(int objIndex) {
+        return resolveObjIndex(objIndex, objVertexPositions.size());
+    }
+
+    public int resolveUvIndex(int objIndex) {
+        return resolveObjIndex(objIndex, objVertexUvs.size());
+    }
+
+    public int resolveNormalIndex(int objIndex) {
+        return resolveObjIndex(objIndex, objVertexNormals.size());
+    }
+
+    private int resolveObjIndex(int objIndex, int size) {
+        if (objIndex > 0) return objIndex - 1;
+        if (objIndex < 0) return size + objIndex;
+        return -1;
+    }
+
     public void endHighestGroup(SerialContext<ObjContextData> context) {
         if (context.isEmpty()) return;
         Stack<ObjContextData> tempStack = new Stack<>();
@@ -139,6 +178,9 @@ public abstract class ObjModelLoader<
         this.currentInput = null;
         this.vertices.clear();
         this.meshes.clear();
+        this.objVertexPositions.clear();
+        this.objVertexUvs.clear();
+        this.objVertexNormals.clear();
         this.bones.clear();
     }
 

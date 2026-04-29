@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.uml.typo.wavefont_obj.processors;
 
 import lib.kasuga.rendering.models.uml.loaders.serial.SerialContext;
 import lib.kasuga.rendering.models.uml.typo.wavefont_obj.ObjContextData;
+import lib.kasuga.rendering.models.uml.typo.wavefont_obj.ObjModelLoader;
 import org.joml.Vector3f;
 
 public class ObjNormalProcessor extends ObjKeyProcessor {
@@ -12,13 +13,11 @@ public class ObjNormalProcessor extends ObjKeyProcessor {
 
     @Override
     public void process(String[] data, SerialContext<ObjContextData> context) {
-        ObjContextData contextData = context.peek();
-        contextData.vn(
-                new Vector3f(
-                        Float.parseFloat(data[1]),
-                        Float.parseFloat(data[2]),
-                        Float.parseFloat(data[3])
-                )
-        );
+        ObjModelLoader loader = (ObjModelLoader) context.getLoader();
+        loader.getObjVertexNormals().add(new Vector3f(
+                Float.parseFloat(data[1]),
+                Float.parseFloat(data[2]),
+                Float.parseFloat(data[3])
+        ));
     }
 }

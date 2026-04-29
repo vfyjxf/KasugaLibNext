@@ -34,7 +34,6 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.stb.STBImage;
-import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import javax.imageio.ImageIO;
@@ -47,7 +46,6 @@ import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.*;
 import java.util.List;
-import java.util.zip.ZipEntry;
 
 public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipResource, KsgPmxContext> {
 
@@ -139,7 +137,7 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
                 loadedTextures.add(Pair.of(s, texture));
                 return texture;
             }
-            ByteArrayInputStream bis = new ByteArrayInputStream(s.buffer().array());
+            ByteArrayInputStream bis = new ByteArrayInputStream(copyBytes(s.buffer()));
             BufferedImage image = ImageIO.read(bis);
             bis.close();
             if (image == null) {
@@ -147,10 +145,9 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
                     throw new RuntimeException("Unsupported image format: " + s.name());
                 }
                 ByteBuffer bb = null;
-
-                ByteBuffer copied = ByteBuffer.allocateDirect(s.buffer().capacity());
+                ByteBuffer copied = MemoryUtil.memAlloc(s.buffer().remaining());
                 copied.order(ByteOrder.nativeOrder());
-                copied.put(s.buffer());
+                copied.put(s.buffer().duplicate());
                 copied.flip();
 
                 IntBuffer w = MemoryUtil.memAllocInt(1);
@@ -248,7 +245,10 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     public ByteBuffer getAsByteBuffer(ZipHelper input) {
         Objects.requireNonNull(loadingFile);
         Objects.requireNonNull(loadingModel);
-        return loadingModel.buffer();
+        ByteBuffer buffer = loadingModel.buffer().duplicate();
+        buffer.order(loadingModel.buffer().order());
+        buffer.position(0);
+        return buffer;
     }
 
     @Override
@@ -280,7 +280,10 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     }
 
     public ResourceLocation getLocation(ResourceLocation fileLoc, ZipResource resource) {
-        String convertNameAsDir = fileLoc.getPath().replaceAll(".mmd.zip", "/");
+        String filePath = fileLoc.getPath();
+        String convertNameAsDir = filePath.endsWith(".mmd.zip")
+                ? filePath.substring(0, filePath.length() - ".mmd.zip".length()) + "/"
+                : filePath + "/";
         String resourceName = resource.name().toLowerCase(Locale.ROOT);
         ResourceLocation loc = ResourceLocation.tryBuild(
                 fileLoc.getNamespace(),
@@ -311,20 +314,38 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
         loadedTextures.clear();
         loadedTextureMap.clear();
         loadingFile = input;
-        List<ZipResource> models = input.searchNameForResource(name -> name.endsWith(".pmx"));
-        if (models.isEmpty()) return new HashMap<>();
-        Map<ResourceLocation, Model> result = new HashMap<>();
+        try {
+            List<ZipResource> models = input.searchNameForResource(name -> name.endsWith(".pmx"));
+            if (models.isEmpty()) return new HashMap<>();
+            Map<ResourceLocation, Model> result = new HashMap<>();
+            for (ZipResource model : models) {
+                loadingModel = model;
+                registerDefaultTextures();
+                ResourceLocation rl = getLocation(s, model);
+                result.putAll(super.load(rl, input));
+                this.loadedModelMap.computeIfAbsent(s, k -> new HashMap<>()).put(model.name(), rl);
+                loadedTextures.clear();
+            }
+            return result;
+        } finally {
+            loadingModel = null;
+            loadingFile = null;
+            loadedTextures.clear();
+            loadedTextureMap.clear();
+            materialSetBuilder().clear();
+        }
+    }
+
+    private void registerDefaultTextures() {
         materialSetBuilder().registerTexture(RenderState.DEFAULT_TRANSPARENCY, MISSING_TRANSPARENCY);
         materialSetBuilder().registerTexture(MissingTextureAtlasSprite.getLocation(), MISSING);
-        for (ZipResource model : models) {
-            loadingModel = model;
-            ResourceLocation rl = getLocation(s, model);
-            result.putAll(super.load(rl, input));
-            this.loadedModelMap.computeIfAbsent(s, k -> new HashMap<>()).put(model.name(), rl);
-            loadedTextures.clear();
-        }
-        loadingModel = null;
-        loadingFile = null;
-        return result;
+    }
+
+    private byte[] copyBytes(ByteBuffer source) {
+        ByteBuffer duplicate = source.duplicate();
+        duplicate.position(0);
+        byte[] bytes = new byte[duplicate.remaining()];
+        duplicate.get(bytes);
+        return bytes;
     }
 }

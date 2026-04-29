@@ -32,6 +32,9 @@ public class ObjContextData implements ContextData<ObjContextData> {
     private final ArrayList<ArrayList<ObjVertexBinding>> bindings;
 
     @Getter
+    private final ArrayList<String> bindingMaterials;
+
+    @Getter
     private String mtlName;
 
     @Getter
@@ -47,6 +50,7 @@ public class ObjContextData implements ContextData<ObjContextData> {
         vertexNormals = new ArrayList<>();
         vertexUvs = new ArrayList<>();
         this.bindings = new ArrayList<>();
+        this.bindingMaterials = new ArrayList<>();
         mtlName = null;
         smoothShading = false;
         this.isGroup = isGroup;
@@ -77,28 +81,34 @@ public class ObjContextData implements ContextData<ObjContextData> {
             throw new IllegalArgumentException("Face must have at least 2 vertices");
         }
         bindings.add(vertexBindings);
+        bindingMaterials.add(mtlName);
     }
 
     @Override
     public void build(SerialContext<ObjContextData> context) {
     }
 
-    public void buildVertexAndMesh(ObjModelLoader loader, Bone bone) {
+    public void buildVertexAndMesh(ObjModelLoader<?, ?, ?> loader, Bone bone) {
         String boneName = bone.getName();
-        ArrayList<Pair<ObjVertexBinding, Pair<Integer, Integer>>>[] verticesAndMeshes = new ArrayList[vertexPositions.size()];
+        ArrayList<Pair<ObjVertexBinding, Pair<Integer, Integer>>>[] verticesAndMeshes = new ArrayList[loader.getObjVertexPositions().size()];
         Mesh[] meshes = new Mesh[bindings.size()];
         for (int i = 0; i < bindings.size(); i++) {
             ArrayList<ObjVertexBinding> faces = bindings.get(i);
+            if (!hasValidVertexIndices(faces, verticesAndMeshes.length)) {
+                continue;
+            }
+            String materialName = bindingMaterials.get(i);
             meshes[i] = new Mesh(new Vertex[faces.size()], new Vector3f(), new Transform(),
-                    new Material[]{loader.getMaterial(this, loader, mtlName)},
+                    new Material[]{loader.getMaterial(this, loader, materialName)},
                     loader.getMeshData(this, loader));
             int j = 0;
             for (ObjVertexBinding binding : faces) {
                 int vIndex = binding.vertexIndex();
-                if (verticesAndMeshes[vIndex] == null) {
-                    verticesAndMeshes[vIndex] = new ArrayList<>();
-                }
                 ArrayList<Pair<ObjVertexBinding, Pair<Integer, Integer>>> m = verticesAndMeshes[vIndex];
+                if (m == null) {
+                    m = new ArrayList<>();
+                    verticesAndMeshes[vIndex] = m;
+                }
                 m.add(Pair.of(binding, Pair.of(i, j)));
                 j++;
             }
@@ -114,20 +124,33 @@ public class ObjContextData implements ContextData<ObjContextData> {
                 Pair<Integer, Integer> p = pair.getSecond();
                 Mesh mesh = meshes[p.getFirst()];
                 if (position == null) {
-                    position = vertexPositions.get(binding.vertexIndex());
+                    position = loader.getObjVertexPositions().get(binding.vertexIndex());
                     vertex = new Vertex(
                             position, loader.getVertexData(this, loader, boneName)
                     );
                 }
                 mesh.getVertices()[p.getSecond()] = vertex;
-                vertex.addUV(mesh, mesh.getMaterials()[0], vertexUvs.get(binding.textureIndex()));
-                vertex.getNormals().put(mesh, vertexNormals.get(binding.normalIndex()));
+                if (binding.textureIndex() >= 0 && binding.textureIndex() < loader.getObjVertexUvs().size()) {
+                    vertex.addUV(mesh, mesh.getMaterials()[0], loader.getObjVertexUvs().get(binding.textureIndex()));
+                }
+                if (binding.normalIndex() >= 0 && binding.normalIndex() < loader.getObjVertexNormals().size()) {
+                    vertex.getNormals().put(mesh, loader.getObjVertexNormals().get(binding.normalIndex()));
+                }
             }
             vertex.setBinding(new BoneBinding(new Pair[]{Pair.of(bone, 1.0f)}, BoneBindingFunc.BDEF, null));
 
             vertices.add(vertex);
         }
         loader.getVertices().addAll(vertices);
-        loader.getMeshes().addAll(Arrays.asList(meshes));
+        loader.getMeshes().addAll(Arrays.stream(meshes).filter(Objects::nonNull).toList());
+    }
+
+    private boolean hasValidVertexIndices(ArrayList<ObjVertexBinding> faces, int vertexCount) {
+        for (ObjVertexBinding binding : faces) {
+            if (binding.vertexIndex() < 0 || binding.vertexIndex() >= vertexCount) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -27,6 +27,8 @@ public class SkeletonInstance {
 
     private final HashMap<Bone, Transform> transforms;
     private final HashMap<Bone, Transform> absoluteTransforms;
+    private final Set<Bone> dirtyBones;
+    private Set<Bone> lastDirtyBones;
 
     private final Queue<Pair<Bone, Transform>> updateQueue = new LinkedList<>();
 
@@ -36,6 +38,8 @@ public class SkeletonInstance {
     private SkeletonInstanceData data;
 
     private boolean shouldUpdate;
+    private boolean fullUpdateRequested;
+    private boolean lastFullUpdate;
     private long version;
 
     public SkeletonInstance(Skeleton skeleton, @Nullable Transform transform, @Nullable SkeletonInstanceData data) {
@@ -44,30 +48,42 @@ public class SkeletonInstance {
         shouldUpdate = false;
         this.transforms = new HashMap<>();
         this.absoluteTransforms = new HashMap<>();
+        this.dirtyBones = new HashSet<>();
+        this.lastDirtyBones = Collections.emptySet();
         this.data = data;
+        this.fullUpdateRequested = true;
+        this.lastFullUpdate = true;
         this.version = 0;
         updateTransform();
     }
 
     public void updateTransform() {
+        Set<Bone> updatedBones = collectUpdatedBones();
         updateQueue.clear();
         Bone rootBone = skeleton.getRoot();
         Transform t = transform.copy().mul(skeleton.getTransform());
         absoluteTransforms.put(rootBone, t);
         updateQueue.add(Pair.of(rootBone, t));
         recursiveUpdate();
+        lastFullUpdate = fullUpdateRequested || updatedBones.isEmpty();
+        lastDirtyBones = lastFullUpdate ? Collections.emptySet() : updatedBones;
+        dirtyBones.clear();
+        fullUpdateRequested = false;
         version++;
     }
 
     public void setShouldUpdate(boolean shouldUpdate) {
         this.shouldUpdate = shouldUpdate;
+        if (shouldUpdate) {
+            requestFullUpdate();
+        }
     }
 
     public boolean transform(String boneName, Transform transform) {
         Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         transforms.put(bone, transform);
-        shouldUpdate = true;
+        markDirty(bone);
         return true;
     }
 
@@ -77,7 +93,7 @@ public class SkeletonInstance {
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.mul(transform);
         transforms.put(bone, current);
-        shouldUpdate = true;
+        markDirty(bone);
         return true;
     }
 
@@ -87,7 +103,7 @@ public class SkeletonInstance {
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.translate(offset);
         transforms.put(bone, current);
-        shouldUpdate = true;
+        markDirty(bone);
         return true;
     }
 
@@ -97,7 +113,7 @@ public class SkeletonInstance {
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.mul(rotation);
         transforms.put(bone, current);
-        shouldUpdate = true;
+        markDirty(bone);
         return true;
     }
 
@@ -107,7 +123,7 @@ public class SkeletonInstance {
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.scale(scale.x(), scale.y(), scale.z());
         transforms.put(bone, current);
-        shouldUpdate = true;
+        markDirty(bone);
         return true;
     }
 
@@ -115,45 +131,45 @@ public class SkeletonInstance {
         Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
         transforms.remove(bone);
-        shouldUpdate = true;
+        markDirty(bone);
         return true;
     }
 
     public boolean resetAll() {
         if (transforms.isEmpty()) return false;
         transforms.clear();
-        shouldUpdate = true;
+        requestFullUpdate();
         return true;
     }
 
     public void transformRoot(@NonNull Transform transform) {
         this.transform = transform;
-        shouldUpdate = true;
+        requestFullUpdate();
     }
 
     public void mulTransformRoot(@NonNull Transform transform) {
         this.transform.mul(transform);
-        shouldUpdate = true;
+        requestFullUpdate();
     }
 
     public void offsetRoot(@NonNull Vector3f offset) {
         this.transform.translate(offset);
-        shouldUpdate = true;
+        requestFullUpdate();
     }
 
     public void rotateRoot(@NonNull Quaternionf rotation) {
         this.transform.mul(rotation);
-        shouldUpdate = true;
+        requestFullUpdate();
     }
 
     public void scaleRoot(@NonNull Vector3f scale) {
         this.transform.scale(scale.x(), scale.y(), scale.z());
-        shouldUpdate = true;
+        requestFullUpdate();
     }
 
     public void resetRoot() {
         this.transform = new Transform();
-        shouldUpdate = true;
+        requestFullUpdate();
     }
 
     public void tick() {
@@ -161,6 +177,10 @@ public class SkeletonInstance {
             updateTransform();
             shouldUpdate = false;
         }
+    }
+
+    public boolean isBindPose() {
+        return transforms.isEmpty() && transform.isIdentity();
     }
 
     private void recursiveUpdate() {
@@ -178,6 +198,37 @@ public class SkeletonInstance {
                 absoluteTransforms.put(child, result);
                 updateQueue.add(Pair.of(child, result));
             }
+        }
+    }
+
+    private void markDirty(Bone bone) {
+        dirtyBones.add(bone);
+        shouldUpdate = true;
+    }
+
+    private void requestFullUpdate() {
+        shouldUpdate = true;
+        fullUpdateRequested = true;
+        dirtyBones.clear();
+    }
+
+    private Set<Bone> collectUpdatedBones() {
+        if (fullUpdateRequested || dirtyBones.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<Bone> updatedBones = new HashSet<>();
+        for (Bone bone : dirtyBones) {
+            collectSubtree(bone, updatedBones);
+        }
+        return Collections.unmodifiableSet(updatedBones);
+    }
+
+    private void collectSubtree(Bone bone, Set<Bone> result) {
+        if (bone == null || !result.add(bone) || bone.getChildren() == null) {
+            return;
+        }
+        for (Bone child : bone.getChildren()) {
+            collectSubtree(child, result);
         }
     }
 

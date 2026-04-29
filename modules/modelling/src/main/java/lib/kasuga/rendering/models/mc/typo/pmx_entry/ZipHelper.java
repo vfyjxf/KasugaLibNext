@@ -186,7 +186,9 @@ public class ZipHelper implements AutoCloseable {
     @Override
     public void close() throws Exception {
         entries.forEach((k, v) -> {
-            MemoryUtil.memFree(v);
+            if (v.isDirect()) {
+                MemoryUtil.memFree(v);
+            }
         });
         entries.clear();
         entryNameMap.clear();
