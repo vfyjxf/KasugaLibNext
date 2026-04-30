@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.mc.backend;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import lib.kasuga.rendering.models.mc.backend.data_type.MCRenderableContext;
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.SpriteHolder;
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCMeshData;
@@ -31,6 +32,9 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
 
     @Override
     public HashMap<Vertex, Vertex> transformVertices(Model model, SkeletonInstance skeleton, Vertex[] vertices) {
+        if (KsgVertexBuffer.isGpuSkinningEnabled() && !IrisCompat.isUsingShaderPack()) {
+            return new HashMap<>();
+        }
         if (skeleton.isBindPose()) {
             return new HashMap<>();
         }
@@ -135,6 +139,9 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
         }
         long finalizeStart = ModelProfiler.start();
         KsgVertexBuffer buffer = builder.build(model);
+        if (KsgVertexBuffer.isGpuSkinningEnabled() && !IrisCompat.isUsingShaderPack()) {
+            buffer.updateForVersion(instance, this);
+        }
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("mcbridge.finalizeVertexBuffer", finalizeStart,
                     "meshes=" + meshes.length + ", vertices=" + (meshes.length * 4));

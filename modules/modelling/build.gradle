@@ -69,6 +69,11 @@ neoForge {
             systemProperty 'kasuga.profileModel', 'true'
             systemProperty 'kasuga.profileModel.intervalMs', '1000'
             systemProperty 'kasuga.profileModel.animateTestBone', 'true'
+            systemProperty 'kasuga.profileModel.animateStress', 'true'
+            systemProperty 'kasuga.profileModel.animateSelection', 'small'
+            systemProperty 'kasuga.profileModel.animateBoneCount', '32'
+            systemProperty 'kasuga.profileModel.animateTranslation', '0.2'
+            systemProperty 'kasuga.modelGpuSkinning', 'true'
             client()
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.

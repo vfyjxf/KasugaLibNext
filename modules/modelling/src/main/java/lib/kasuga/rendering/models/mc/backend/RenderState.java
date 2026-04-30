@@ -32,6 +32,8 @@ public class RenderState {
     public static final ResourceLocation DEFAULT_TRANSPARENCY = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/default_transparency.png");
 
     public static final VertexFormatElement TANGENT;
+    public static final VertexFormatElement BONE_INDICES;
+    public static final VertexFormatElement BONE_WEIGHTS;
 
     public static final ResourceLocation KSG_LAYER_0 = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/layer_0.png");
     public static final ResourceLocation KSG_LAYER_1 = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/layer_1.png");
@@ -70,6 +72,18 @@ public class RenderState {
                 VertexFormatElement.Usage.GENERIC,
                 4
         );
+        BONE_INDICES = VertexFormatElement.register(
+                VertexFormatElement.findNextId(), 0,
+                VertexFormatElement.Type.INT,
+                VertexFormatElement.Usage.GENERIC,
+                4
+        );
+        BONE_WEIGHTS = VertexFormatElement.register(
+                VertexFormatElement.findNextId(), 0,
+                VertexFormatElement.Type.FLOAT,
+                VertexFormatElement.Usage.GENERIC,
+                4
+        );
 
         UML_VERTEX_FORMAT = VertexFormat.builder()
                 .add("Position", VertexFormatElement.POSITION)
@@ -79,6 +93,8 @@ public class RenderState {
                 .add("UV2", VertexFormatElement.UV2)
                 .add("Normal", VertexFormatElement.NORMAL)
                 .add("Tangent", TANGENT)
+                .add("BoneIndices", BONE_INDICES)
+                .add("BoneWeights", BONE_WEIGHTS)
                 .padding(13)
                 .build();
 
