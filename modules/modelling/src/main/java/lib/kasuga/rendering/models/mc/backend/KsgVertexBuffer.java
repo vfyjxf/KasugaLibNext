@@ -22,6 +22,9 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.util.Brightness;
 import net.minecraft.util.FastColor;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.RenderType;
@@ -203,6 +206,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     }
 
     public static boolean isGpuSkinningEnabled() {
+        if (IrisCompat.isUsingShaderPack()) return false;
         String env = System.getenv("KASUGA_MODEL_GPU_SKINNING");
         if (env != null && !env.isBlank()) {
             return Boolean.parseBoolean(env);
@@ -411,7 +415,6 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
 
             bufferBuilder.addVertex(x, y, z, colorFinal, u, v, packedOverlay, packedLight, nx, ny, nz);
         }
-
         return bbb;
     }
 

@@ -1,7 +1,9 @@
 package lib.kasuga.rendering.models.mc.proxies;
 
+import lib.kasuga.rendering.models.uml.dynamic.state_machine.DataProvider;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -22,5 +24,10 @@ public class ItemProxy<ProxiedType extends Item, ProxiedInstanceType extends Ite
     public boolean isValidInstance(Object instance) {
         if (!(instance instanceof ItemStack stack)) return false;
         return stack.is(item);
+    }
+
+    @Override
+    public @Nullable DataProvider getDataProvider(ProxiedInstanceType instance, Object... externalData) {
+        return null;
     }
 }

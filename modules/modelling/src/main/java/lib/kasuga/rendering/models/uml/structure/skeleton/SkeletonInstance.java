@@ -61,9 +61,9 @@ public class SkeletonInstance {
         Set<Bone> updatedBones = collectUpdatedBones();
         updateQueue.clear();
         Bone rootBone = skeleton.getRoot();
-        Transform t = transform.copy().mul(skeleton.getTransform());
-        absoluteTransforms.put(rootBone, t);
-        updateQueue.add(Pair.of(rootBone, t));
+        Transform transform1 = transforms.getOrDefault(rootBone, new Transform());
+        absoluteTransforms.put(rootBone, transform1);
+        updateQueue.add(Pair.of(rootBone, transform1));
         recursiveUpdate();
         lastFullUpdate = fullUpdateRequested || updatedBones.isEmpty();
         lastDirtyBones = lastFullUpdate ? Collections.emptySet() : updatedBones;
@@ -87,9 +87,25 @@ public class SkeletonInstance {
         return true;
     }
 
+    public boolean transform(Bone bone, Transform transform) {
+        if (!skeleton.getBoneMap().containsValue(bone)) return false;
+        transforms.put(bone, transform);
+        markDirty(bone);
+        return true;
+    }
+
     public boolean mulTransform(String boneName, Transform transform) {
         Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
+        Transform current = transforms.getOrDefault(bone, new Transform());
+        current.mul(transform);
+        transforms.put(bone, current);
+        markDirty(bone);
+        return true;
+    }
+
+    public boolean mulTransform(Bone bone, Transform transform) {
+        if (!skeleton.getBoneMap().containsValue(bone)) return false;
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.mul(transform);
         transforms.put(bone, current);
@@ -107,9 +123,27 @@ public class SkeletonInstance {
         return true;
     }
 
+    public boolean offset(Bone bone, Vector3f offset) {
+        if (!skeleton.getBoneMap().containsValue(bone)) return false;
+        Transform current = transforms.getOrDefault(bone, new Transform());
+        current.translate(offset);
+        transforms.put(bone, current);
+        markDirty(bone);
+        return true;
+    }
+
     public boolean rotate(String boneName, Quaternionf rotation) {
         Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
+        Transform current = transforms.getOrDefault(bone, new Transform());
+        current.mul(rotation);
+        transforms.put(bone, current);
+        markDirty(bone);
+        return true;
+    }
+
+    public boolean rotate(Bone bone, Quaternionf rotation) {
+        if (!skeleton.getBoneMap().containsValue(bone)) return false;
         Transform current = transforms.getOrDefault(bone, new Transform());
         current.mul(rotation);
         transforms.put(bone, current);
@@ -127,9 +161,25 @@ public class SkeletonInstance {
         return true;
     }
 
+    public boolean scale(Bone bone, Vector3f scale) {
+        if (!skeleton.getBoneMap().containsValue(bone)) return false;
+        Transform current = transforms.getOrDefault(bone, new Transform());
+        current.scale(scale.x(), scale.y(), scale.z());
+        transforms.put(bone, current);
+        markDirty(bone);
+        return true;
+    }
+
     public boolean reset(String boneName) {
         Bone bone = skeleton.getBoneMap().get(boneName);
         if (bone == null) return false;
+        transforms.remove(bone);
+        markDirty(bone);
+        return true;
+    }
+
+    public boolean reset(Bone bone) {
+        if (!skeleton.getBoneMap().containsValue(bone)) return false;
         transforms.remove(bone);
         markDirty(bone);
         return true;

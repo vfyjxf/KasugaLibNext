@@ -30,8 +30,12 @@ import lib.kasuga.rendering.models.mc.source.texture.JarTextureSource;
 import lib.kasuga.rendering.models.mc.typo.KsgPmxLoader;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipHelper;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipResource;
+import lib.kasuga.rendering.models.mc.util.RotHelper;
+import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.dynamic.ModelPipeLine;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
+import lib.kasuga.rendering.models.uml.math.QuaternionHelper;
+import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -60,6 +64,8 @@ public class Constants {
     public static SourceType TEXTURE_TYPE, MODEL_TYPE;
     public static MCBackend MC_BACKEND;
     public static KsgPmxLoader PMX_LOADER;
+
+    public static ModelInstance currentInstance;
 
     @SubscribeEvent
     public static void onClientSetup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {}
@@ -313,8 +319,13 @@ public class Constants {
         );
         if (rl == null) return;
         ResourceLocation instanceLoc = ResourceLocation.tryBuild("kasuga_lib", instanceName);
-        if (MMD_PIPELINE.hasInstance(rl, instanceLoc)) return;
-        MMD_PIPELINE.createInstance(rl, instanceLoc, null, null, null);
+        if (MMD_PIPELINE.hasInstance(rl, instanceLoc)) {
+//            currentInstance.getSkeletonInstance().rotateRoot(QuaternionHelper.fromXYZAngle(0, 1f, 0, true));
+            Bone rootBone = currentInstance.getSkeletonInstance().getSkeleton().getRoot();
+            currentInstance.getSkeletonInstance().rotate(rootBone, QuaternionHelper.fromXYZAngle(0, 1f, 0, true));
+            return;
+        }
+        currentInstance = MMD_PIPELINE.createInstance(rl, instanceLoc, null, null, null);
         MMD_PIPELINE.addToRenderer(rl, instanceLoc, "mc_bridge", "mc_backend");
     }
 
