@@ -12,12 +12,17 @@ import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
+import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.ColorizedMeshData;
+import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.SDEFBoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Sprite;
 import lib.kasuga.rendering.models.uml.structure.material.SpriteSet;
+import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
+import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
 import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
+import lib.kasuga.structure.Pair;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
@@ -129,6 +134,23 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
                     builder.setUv(i, uvPos);
                     i++;
                 }
+                int type = bindingType(vertex.getBinding().getFunc());
+                if (type != 0) {
+                    System.out.println("Vertex uses bone binding type " + type);
+                }
+                builder.setBoneBindingType(type);
+                Pair<Bone, Float>[] weights = vertex.getBinding().getWeights();
+                for (int k = 0; k < weights.length; k++) {
+                    if (k >= 4) break;
+                    Pair<Bone, Float> pair = weights[k];
+                    builder.setBoneAndWeight(k, pair.getFirst().getIndex(), pair.getSecond());
+                }
+                BoneBindingData bbd = vertex.getBinding().getData();
+                if (type == 1 && bbd instanceof SDEFBoneBindingData sdefData) {
+                    if (sdefData.getSDEFData() != null) {
+                        builder.setSdefData(sdefData.getSDEFData());
+                    }
+                }
                 builder.pack(vertex, mesh, meshColor);
             }
             builder.endMesh(mesh);
@@ -202,5 +224,11 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
             case WEST -> Direction.WEST;
             case EAST -> Direction.EAST;
         };
+    }
+
+    public static int bindingType(BoneBindingFunc func) {
+        if (func == BoneBindingFunc.SDEF) return 1;
+        if (func == BoneBindingFunc.QDEF) return 2;
+        return 0;  // BDEF
     }
 }

@@ -27,6 +27,10 @@ public class Bone {
     @Setter
     private Bone[] children;
 
+    @Getter
+    @Setter
+    private int index;
+
     public Bone(String name, @NonNull Transform transform, @Nullable BoneData boneData) {
         this.name = name;
         this.boneData = boneData;

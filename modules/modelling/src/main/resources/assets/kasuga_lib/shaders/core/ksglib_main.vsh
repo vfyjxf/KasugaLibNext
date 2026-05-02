@@ -10,8 +10,12 @@ in vec2 UV0;
 in ivec2 UV1;
 in ivec2 UV2;
 in vec4 Tangent;
+in int BoneBindingType;
 in ivec4 BoneIndices;
 in vec4 BoneWeights;
+in vec3 sdefR0;
+in vec3 sdefR1;
+in vec3 sdefC;
 
 uniform mat4 ModelViewMat;
 uniform mat4 ProjMat;

@@ -34,6 +34,9 @@ public class RenderState {
     public static final VertexFormatElement TANGENT;
     public static final VertexFormatElement BONE_INDICES;
     public static final VertexFormatElement BONE_WEIGHTS;
+    public static final VertexFormatElement BONE_BINDING_TYPE;
+
+    public static final VertexFormatElement SDEF_R0, SDEF_R1, SDEF_C;
 
     public static final ResourceLocation KSG_LAYER_0 = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/layer_0.png");
     public static final ResourceLocation KSG_LAYER_1 = ResourceLocation.tryBuild(KasugaLib.MODID, "textures/atlas/layer_1.png");
@@ -84,6 +87,32 @@ public class RenderState {
                 VertexFormatElement.Usage.GENERIC,
                 4
         );
+        BONE_BINDING_TYPE = VertexFormatElement.register(
+                VertexFormatElement.findNextId(), 0,
+                VertexFormatElement.Type.INT,
+                VertexFormatElement.Usage.GENERIC,
+                1
+        );
+        SDEF_R0 = VertexFormatElement.register(
+                VertexFormatElement.findNextId(), 0,
+                VertexFormatElement.Type.FLOAT,
+                VertexFormatElement.Usage.GENERIC,
+                3
+        );
+
+        SDEF_R1 = VertexFormatElement.register(
+                VertexFormatElement.findNextId(), 0,
+                VertexFormatElement.Type.FLOAT,
+                VertexFormatElement.Usage.GENERIC,
+                3
+        );
+
+        SDEF_C = VertexFormatElement.register(
+                VertexFormatElement.findNextId(), 0,
+                VertexFormatElement.Type.FLOAT,
+                VertexFormatElement.Usage.GENERIC,
+                3
+        );
 
         UML_VERTEX_FORMAT = VertexFormat.builder()
                 .add("Position", VertexFormatElement.POSITION)
@@ -93,9 +122,12 @@ public class RenderState {
                 .add("UV2", VertexFormatElement.UV2)
                 .add("Normal", VertexFormatElement.NORMAL)
                 .add("Tangent", TANGENT)
+                .add("BoneBindingType", BONE_BINDING_TYPE)
                 .add("BoneIndices", BONE_INDICES)
                 .add("BoneWeights", BONE_WEIGHTS)
-                .padding(13)
+                .add("sdefR0", SDEF_R0)
+                .add("sdefR1", SDEF_R1)
+                .add("sdefC", SDEF_C)
                 .build();
 
         UML_TEXTURE_STATE = new KasugaTextureStateShard(() -> Constants.TEXTURE_BASIC);

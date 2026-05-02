@@ -14,6 +14,7 @@ import lib.kasuga.rendering.models.uml.math.BoneContext;
 import lib.kasuga.rendering.models.uml.math.TangentHelper;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
+import lib.kasuga.rendering.models.uml.math.binding.SDEFData;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
@@ -22,6 +23,7 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
+import lombok.NonNull;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.Brightness;
@@ -546,15 +548,24 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         int dstNormalOffset = offsets.get(VertexFormatElement.NORMAL);
         int dstUv1LightOffset = offsets.get(VertexFormatElement.UV1);
         int dstUv2LightOffset = offsets.get(VertexFormatElement.UV2);
-        int dstBoneIndicesOffset = offsets.get(RenderState.BONE_INDICES);
-        int dstBoneWeightsOffset = offsets.get(RenderState.BONE_WEIGHTS);
+
         int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
         int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
         int srcTangentOffset = bufOffsets.get(RenderState.TANGENT);
         int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+
+        int srcBoneBindingTypeOffset = bufOffsets.get(RenderState.BONE_BINDING_TYPE);
+        int dstBoneBindingTypeOffset = offsets.get(RenderState.BONE_BINDING_TYPE);
+
         int srcBoneIndicesOffset = bufOffsets.get(RenderState.BONE_INDICES);
         int srcBoneWeightsOffset = bufOffsets.get(RenderState.BONE_WEIGHTS);
+        int dstBoneIndicesOffset = offsets.get(RenderState.BONE_INDICES);
+        int dstBoneWeightsOffset = offsets.get(RenderState.BONE_WEIGHTS);
+
+        int srcSDEFDataOffset = bufOffsets.get(RenderState.SDEF_R0);
+        int dstSDEFDataOffset = offsets.get(RenderState.SDEF_R0);
+
         int srcUv1Offset = uv1_element == null ? -1 : bufOffsets.get(uv1_element);
         int srcUv2Offset = uv2_element == null ? -1 : bufOffsets.get(uv2_element);
         int dstUv1Offset = uv1_element == null ? -1 : offsets.get(uv1_element);
@@ -604,8 +615,11 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             if (uv2_element != null) {
                 MemoryUtil.memCopy(sourcePointer + srcUv2Offset, vertexPointer + dstUv2Offset, 8L);
             }
+
+            MemoryUtil.memCopy(sourcePointer + srcBoneBindingTypeOffset, vertexPointer + dstBoneBindingTypeOffset, 4L);
             MemoryUtil.memCopy(sourcePointer + srcBoneIndicesOffset, vertexPointer + dstBoneIndicesOffset, 16L);
             MemoryUtil.memCopy(sourcePointer + srcBoneWeightsOffset, vertexPointer + dstBoneWeightsOffset, 16L);
+            MemoryUtil.memCopy(sourcePointer + srcSDEFDataOffset, vertexPointer + dstSDEFDataOffset, 36L);
         }
     }
 
@@ -1187,19 +1201,16 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         ensureGpuBoneTransformUploadCache(gpuSkinningBones.length * 8 * 4);
         gpuBoneTransformUploadCache.clear();
         Map<Bone, Transform> absoluteTransforms = skeleton.getAbsoluteTransforms();
-        Matrix4f transformMatrix = new Matrix4f();
-        Matrix3f normalMatrix = new Matrix3f();
+        Matrix4f transformMatrix = new Matrix4f().identity();
+        Matrix3f normalMatrix = new Matrix3f().identity();
         for (Bone bone : gpuSkinningBones) {
             Transform absolute = absoluteTransforms.get(bone);
             Transform bindInverse = gpuSkinningBindInverses.get(bone);
-            if (absolute == null) {
-                transformMatrix.identity();
-                normalMatrix.identity();
-            } else {
-                transformMatrix.set(absolute.transform());
+            if (absolute != null) {
                 if (bindInverse != null) {
-                    transformMatrix.mul(bindInverse.transform());
+                    transformMatrix.set(bindInverse.transform());
                 }
+                transformMatrix.mul(absolute.transform());
                 normalMatrix.set(absolute.normal());
             }
             putMatrix4Columns(gpuBoneTransformUploadCache, transformMatrix);
@@ -1511,6 +1522,12 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         private final int uv1Offset;
         private final int uv2Offset;
         private final int tangentOffset;
+        private final int boneIndexOffset;
+        private final int boneWeightOffset;
+        private final int boneBindingTypeOffset;
+        private final int sdefR0Offset;
+        private final int sdefR1Offset;
+        private final int sdefCOffset;
 
         private int vertexIndex = 0;
         private int indexVertexInMesh;
@@ -1521,6 +1538,10 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         private Vector2f uv1;
         private Vector2f uv2;
         private Vector4f tangent;
+        private int boneIndex1, boneIndex2, boneIndex3, boneIndex4;
+        private float boneWeight1, boneWeight2, boneWeight3, boneWeight4;
+        private Vector3f sdefR0, sdefR1, sdefC;
+        private int boneBindingType;
         private boolean modifying;
         private Pair<Mesh, Integer[]> modifyingVertexIndices;
         private int buildingIndex;
@@ -1538,6 +1559,13 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             this.uv0Offset = getOffsetFor(VertexFormatElement.UV0);
             this.uv1Offset = uv1Element == null ? -1 : getOffsetFor(uv1Element);
             this.uv2Offset = uv2Element == null ? -1 : getOffsetFor(uv2Element);
+            this.boneIndexOffset = getOffsetFor(RenderState.BONE_INDICES);
+            this.boneWeightOffset = getOffsetFor(RenderState.BONE_WEIGHTS);
+            this.boneBindingTypeOffset = getOffsetFor(RenderState.BONE_BINDING_TYPE);
+            this.sdefR0Offset = getOffsetFor(RenderState.SDEF_R0);
+            this.sdefR1Offset = getOffsetFor(RenderState.SDEF_R1);
+            this.sdefCOffset = getOffsetFor(RenderState.SDEF_C);
+
             this.tangentOffset = getOffsetFor(RenderState.TANGENT);
             this.vertexBuffer = new KsgVertexBuffer(
                     4 * model.getMeshes().length,
@@ -1549,6 +1577,10 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             uv1 = new Vector2f();
             uv2 = new Vector2f();
             tangent = new Vector4f();
+            sdefR0 = new Vector3f();
+            sdefR1 = new Vector3f();
+            sdefC = new Vector3f();
+
             reset();
             indexVertexInMesh = 0;
             boneVertexMap = new HashMap<>();
@@ -1588,6 +1620,12 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             uv1.set(0f, 0f);
             uv2.set(0f, 0f);
             tangent.set(0f, 0f, 0f, 0f);
+            boneIndex1 = boneIndex2 = boneIndex3 = boneIndex4 = 0;
+            boneWeight1 = boneWeight2 = boneWeight3 = boneWeight4 = 0;
+            boneBindingType = 0;
+            sdefR0.set(0f, 0f, 0f);
+            sdefR1.set(0f, 0f, 0f);
+            sdefC.set(0f, 0f, 0f);
         }
 
         public int getOffsetFor(VertexFormatElement element) {
@@ -1693,6 +1731,41 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             return this;
         }
 
+        public @NotNull Builder setBoneBindingType(int type) {
+            this.boneBindingType = type;
+            return this;
+        }
+
+        public @NonNull Builder setBoneAndWeight(int index, int boneIndex, float weight) {
+            switch (index) {
+                case 0 -> {
+                    this.boneIndex1 = boneIndex;
+                    this.boneWeight1 = weight;
+                }
+                case 1 -> {
+                    this.boneIndex2 = boneIndex;
+                    this.boneWeight2 = weight;
+                }
+                case 2 -> {
+                    this.boneIndex3 = boneIndex;
+                    this.boneWeight3 = weight;
+                }
+                case 3 -> {
+                    this.boneIndex4 = boneIndex;
+                    this.boneWeight4 = weight;
+                }
+                default -> throw new IllegalArgumentException("Invalid bone index: " + index);
+            }
+            return this;
+        }
+
+        public @NonNull Builder setSdefData(SDEFData data) {
+            this.sdefR0.set(data.r0());
+            this.sdefR1.set(data.r1());
+            this.sdefC.set(data.c());
+            return this;
+        }
+
         public @NotNull Builder setUv1(Vector2f uv) {
             return setUv(1, uv);
         }
@@ -1782,6 +1855,30 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                     byteBuffer.putFloat(tangentOffset + 4, tangent.y());
                     byteBuffer.putFloat(tangentOffset + 8, tangent.z());
                     byteBuffer.putFloat(tangentOffset + 12, tangent.w());
+                }
+
+                if (boneBindingTypeOffset > 0 && boneIndexOffset > 0 && boneWeightOffset > 0) {
+                    byteBuffer.putInt(boneBindingTypeOffset, boneBindingType);
+                    byteBuffer.putInt(boneIndexOffset, boneIndex1);
+                    byteBuffer.putInt(boneIndexOffset + 4, boneIndex2);
+                    byteBuffer.putInt(boneIndexOffset + 8, boneIndex3);
+                    byteBuffer.putInt(boneIndexOffset + 12, boneIndex4);
+                    byteBuffer.putFloat(boneWeightOffset, boneWeight1);
+                    byteBuffer.putFloat(boneWeightOffset + 4, boneWeight2);
+                    byteBuffer.putFloat(boneWeightOffset + 8, boneWeight3);
+                    byteBuffer.putFloat(boneWeightOffset + 12, boneWeight4);
+                }
+
+                if (sdefR0Offset > 0 && sdefR1Offset > 0 && sdefCOffset > 0) {
+                    byteBuffer.putFloat(sdefR0Offset, sdefR0.x());
+                    byteBuffer.putFloat(sdefR0Offset + 4, sdefR0.y());
+                    byteBuffer.putFloat(sdefR0Offset + 8, sdefR0.z());
+                    byteBuffer.putFloat(sdefR1Offset, sdefR1.x());
+                    byteBuffer.putFloat(sdefR1Offset + 4, sdefR1.y());
+                    byteBuffer.putFloat(sdefR1Offset + 8, sdefR1.z());
+                    byteBuffer.putFloat(sdefCOffset, sdefC.x());
+                    byteBuffer.putFloat(sdefCOffset + 4, sdefC.y());
+                    byteBuffer.putFloat(sdefCOffset + 8, sdefC.z());
                 }
 
                 vertexBuffer.invalidateUploadCache();

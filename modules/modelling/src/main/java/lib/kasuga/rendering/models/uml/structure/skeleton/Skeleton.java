@@ -41,7 +41,10 @@ public class Skeleton {
         this.anchors = anchors;
         this.boneMap = new HashMap<>();
         this.boneTransforms = new HashMap<>();
+        int i = 0;
         for (Bone bone : bones) {
+            bone.setIndex(i);
+            i++;
             if (bone.getName().isEmpty()) continue;
             boneMap.put(bone.getName(), bone);
         }
