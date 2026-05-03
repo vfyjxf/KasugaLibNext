@@ -1206,11 +1206,11 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         for (Bone bone : gpuSkinningBones) {
             Transform absolute = absoluteTransforms.get(bone);
             Transform bindInverse = gpuSkinningBindInverses.get(bone);
-            if (absolute != null) {
-                if (bindInverse != null) {
-                    transformMatrix.set(bindInverse.transform());
-                }
-                transformMatrix.mul(absolute.transform());
+            transformMatrix.identity();
+            normalMatrix.identity();
+            if (absolute != null && bindInverse != null) {
+                transformMatrix.set(absolute.transform());
+                transformMatrix.mul(bindInverse.transform());
                 normalMatrix.set(absolute.normal());
             }
             putMatrix4Columns(gpuBoneTransformUploadCache, transformMatrix);
