@@ -10,8 +10,8 @@ in vec2 UV0;
 in ivec2 UV1;
 in ivec2 UV2;
 in vec4 Tangent;
-in int BoneBindingType;
-in ivec4 BoneIndices;
+in float BoneBindingType;
+in vec4 BoneIndices;
 in vec4 BoneWeights;
 in vec3 sdefR0;
 in vec3 sdefR1;
@@ -77,7 +77,7 @@ void ksg_applyGpuSkinning(inout vec3 position, inout vec3 normal, inout vec4 tan
         if (weight <= 0.0) {
             continue;
         }
-        int boneIndex = BoneIndices[i];
+        int boneIndex = int(BoneIndices[i] + 0.5);
         mat4 boneTransform = ksg_readBoneTransform(boneIndex);
         mat3 boneNormal = ksg_readBoneNormalTransform(boneIndex);
         skinnedPosition += (boneTransform * vec4(position, 1.0)) * weight;
