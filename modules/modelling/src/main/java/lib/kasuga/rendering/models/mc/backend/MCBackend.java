@@ -27,8 +27,17 @@ import org.joml.Vector3f;
 
 import java.util.Objects;
 import java.util.Vector;
+import java.util.concurrent.ExecutorService;
 
-public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> {
+import static java.util.concurrent.Executors.newFixedThreadPool;
+
+public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> implements AutoCloseable {
+
+    public final ExecutorService executor;
+
+    public MCBackend() {
+        executor = newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    }
 
     @Override
     public void render(BackendContext<MCBridge, KsgVertexBuffer, MCBackendContext, BackendTransform> renderable, MCBackendContext context) {
@@ -86,6 +95,11 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
         Vector3f position = transform == null ? null : transform.getPosition();
         AABB bounds = buffer.getBounds(position);
         return context.getFrustum().isVisible(bounds);
+    }
+
+    @Override
+    public void close() throws Exception {
+        executor.shutdown();
     }
 
     public record LightData(int blockLight, int skyLight, int packedLight, float brightness) {

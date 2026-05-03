@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.*;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.platform.GlStateManager;
 import lib.kasuga.mixins.client.AccessorBufferBuilder;
+import lib.kasuga.mixins.client.AccessorByteBufferBuilder;
 import lib.kasuga.mixins.client.AccessorVertexBuffer;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
@@ -46,9 +47,13 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
 public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderable {
 
+    public static int MULTI_THREADED_SKINNING_THRESHOLD = 10000;
+    private final ExecutorService executor;
     private final ByteBuffer buffer;
     private boolean building = false;
     private final int vertexSize, numVertices;
@@ -77,7 +82,6 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private Map<Bone, int[]> skinningIndicesByBone = Map.of();
     private BitSet dirtySkinningIndices = new BitSet();
     private Bone[] gpuSkinningBones = new Bone[0];
-//    private Map<Bone, Integer> gpuSkinningBoneIndex = Map.of();
     private Map<Bone, Transform> gpuSkinningBindInverses = Map.of();
     private boolean gpuSkinningDataReady = false;
     private int gpuBoneTransformBufferId = 0;
@@ -114,6 +118,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private boolean irisGpuBufferReadAlpha = true;
     private float irisGpuBufferBrightness = Float.NaN;
     private final BitSet irisGpuDirtyVertices = new BitSet();
+    private ByteBufferBuilder[] multiThreadedUploadCaches;
+    private CompletableFuture<Void>[] irisSkinningFutures;
 
     @Getter
     private boolean closed = false;
@@ -137,7 +143,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                     boolean readAlpha);
     }
 
-    public KsgVertexBuffer(int numVertices, int vertexSize, VertexFormat format, Builder modifier) {
+    public KsgVertexBuffer(int numVertices, int vertexSize, VertexFormat format, Builder modifier, ExecutorService executor) {
         this.buffer = ByteBuffer.allocateDirect(numVertices * vertexSize);
         buffer.order(ByteOrder.nativeOrder());
         this.building = true;
@@ -159,6 +165,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         this.modifier = modifier;
         uv1_element = null; uv2_element = null;
         findUv1AndUv2(format);
+        this.executor = executor;
+        this.irisSkinningFutures = null;
     }
 
     @Override
@@ -195,6 +203,12 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         if (gpuBoneTransformUploadCache != null) {
             MemoryUtil.memFree(gpuBoneTransformUploadCache);
             gpuBoneTransformUploadCache = null;
+        }
+        if (multiThreadedUploadCaches != null) {
+            for (ByteBufferBuilder bbb : multiThreadedUploadCaches) {
+                MemoryUtil.nmemFree(((AccessorByteBufferBuilder) bbb).getPointer());
+            }
+            multiThreadedUploadCaches = null;
         }
         closed = true;
     }
@@ -246,7 +260,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         int avs = accessor.getVertexSize();
         if (!isIrisStaticCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
             ensureIrisStaticCache(avs);
-            irisStaticCache = fillIrisGpuCache(builder, brightness, packedLight, packedOverlay, readAlpha).build().byteBuffer();
+            irisStaticCache = fillIrisGpuCache(null, builder, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices).build().byteBuffer();
             irisStaticCacheVertexSize = avs;
             irisStaticCacheBrightness = brightness;
             irisStaticCachePackedLight = packedLight;
@@ -364,7 +378,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
     }
 
-    private ByteBufferBuilder fillIrisGpuCache(BufferBuilder builder, float brighness, int packedLight, int packedOverlay, boolean readAlpha) {
+    private ByteBufferBuilder fillIrisGpuCache(@Nullable ByteBufferBuilder byteBufferBuilder,
+                                               BufferBuilder builder, float brighness, int packedLight, int packedOverlay, boolean readAlpha, int startIndex, int numVertices) {
         int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
         int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
@@ -374,11 +389,17 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
         int vertexSize = accessor.getVertexFormat().getVertexSize();
 
-        ByteBufferBuilder bbb = new ByteBufferBuilder(numVertices * vertexSize);
+        ByteBufferBuilder bbb;
+        if (byteBufferBuilder == null) {
+            bbb = new ByteBufferBuilder(numVertices * vertexSize);
+        } else {
+            bbb = byteBufferBuilder;
+            ((AccessorByteBufferBuilder) bbb).setWriteOffset(0);
+        }
         BufferBuilder bufferBuilder = new BufferBuilder(bbb, VertexFormat.Mode.QUADS, DefaultVertexFormat.NEW_ENTITY);
 
         int bufOffset;
-        for (int i = 0; i < numVertices; i++) {
+        for (int i = startIndex; i < startIndex + numVertices; i++) {
             int vertexOffset = i * this.vertexSize;
 
             bufOffset = vertexOffset + srcColorOffset;
@@ -856,7 +877,39 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         long uploadStart = ModelProfiler.start();
         ByteBufferBuilder byteBufferBuilder = null;
         try {
-            byteBufferBuilder = fillIrisGpuCache(builder, brightness, packedLight, packedOverlay, readAlpha);
+            if (numVertices < MULTI_THREADED_SKINNING_THRESHOLD) {
+                byteBufferBuilder = fillIrisGpuCache(null, builder, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices);
+            } else {
+                int taskCount = Math.ceilDiv(numVertices, MULTI_THREADED_SKINNING_THRESHOLD);
+                if (multiThreadedUploadCaches == null) {
+                    multiThreadedUploadCaches = new ByteBufferBuilder[taskCount];
+                    for (int i = 0; i < taskCount; i++) {
+                        multiThreadedUploadCaches[i] = new ByteBufferBuilder(MULTI_THREADED_SKINNING_THRESHOLD * vertexSize);
+                    }
+                }
+                if (irisSkinningFutures == null) {
+                    irisSkinningFutures = new CompletableFuture[taskCount];
+                }
+                for (int i = 0; i < taskCount; i++) {
+                    final int index = i;
+                    final int taskStart = i * MULTI_THREADED_SKINNING_THRESHOLD;
+                    final int taskEnd = Math.min(taskStart + MULTI_THREADED_SKINNING_THRESHOLD, numVertices);
+                    irisSkinningFutures[i] = (CompletableFuture.runAsync(() -> {
+                        fillIrisGpuCache(multiThreadedUploadCaches[index], builder, brightness, packedLight, packedOverlay, readAlpha, taskStart, taskEnd - taskStart);
+                    }, executor));
+                }
+                byteBufferBuilder = new ByteBufferBuilder(numVertices * vertexSize);
+                long pointer = ((AccessorByteBufferBuilder) byteBufferBuilder).getPointer();
+                CompletableFuture.allOf(irisSkinningFutures).join();
+
+                for (ByteBufferBuilder bbb : multiThreadedUploadCaches) {
+                    long innerPointer = ((AccessorByteBufferBuilder) bbb).getPointer();
+                    int capacity = ((AccessorByteBufferBuilder) bbb).getCapacity();
+                    MemoryUtil.memCopy(innerPointer, pointer, capacity);
+                    pointer += capacity;
+                }
+                ((AccessorByteBufferBuilder) byteBufferBuilder).setWriteOffset(numVertices * vertexSize);
+            }
             ByteBufferBuilder.Result result = Objects.requireNonNull(byteBufferBuilder.build());
             MeshData meshData = new MeshData(result, new MeshData.DrawState(
                     DefaultVertexFormat.NEW_ENTITY,
@@ -1108,7 +1161,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         int start = dirtyIndices.nextSetBit(0);
         while (start >= 0) {
             int end = dirtyIndices.nextClearBit(start);
-            updateSkinningRange(modelInstance, bridge, skeleton, start, end, bounds, !recalculateTangents);
+            updateSkinningRange(modelInstance, bridge, skeleton, start, end, bounds, !recalculateTangents, false);
             dirtyMeshes.addAll(Arrays.asList(skinningMeshes).subList(start, end));
             start = dirtyIndices.nextSetBit(end);
         }
@@ -1240,7 +1293,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         resetBounds();
         Bounds bounds = new Bounds();
         boolean recalculateTangents = recalculateDynamicTangents();
-        updateSkinningRange(modelInstance, bridge, skeleton, 0, vertexCount, bounds, !recalculateTangents);
+        updateSkinningRange(modelInstance, bridge, skeleton, 0, vertexCount, bounds, !recalculateTangents, false);
         includeBounds(bounds);
         if (recalculateTangents) {
             for (Mesh mesh : tangentMeshes) {
@@ -1279,7 +1332,24 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     }
 
     private void updateSkinningRange(ModelInstance modelInstance, Bridge<?> bridge, SkeletonInstance skeleton,
-                                     int startInclusive, int endExclusive, Bounds bounds, boolean updateTangents) {
+                                     int startInclusive, int endExclusive, Bounds bounds, boolean updateTangents, boolean isRecursive) {
+        int len = endExclusive - startInclusive;
+        int lenEachThread = MULTI_THREADED_SKINNING_THRESHOLD;
+        if (!isRecursive && len > lenEachThread) {
+            // 这里拆分任务到多个子线程
+            int taskCount = (int) Math.ceil((float) len / (float) lenEachThread);
+            CompletableFuture<Void>[] futures = new CompletableFuture[taskCount];
+            for (int task = 0; task < taskCount; task++) {
+                int taskStart = startInclusive + task * lenEachThread;
+                int taskEnd = Math.min(taskStart + lenEachThread, endExclusive);
+                futures[task] = (CompletableFuture.runAsync(() ->
+                        updateSkinningRange(modelInstance, bridge, skeleton,
+                        taskStart, taskEnd, bounds, updateTangents, true), executor));
+            }
+            // 等待所有子线程完成
+            CompletableFuture.allOf(futures).join();
+            return;
+        }
         List<BoneContext> contexts = new ArrayList<>();
         Map<Bone, Transform> absoluteTransforms = skeleton.getAbsoluteTransforms();
         Vector3f position = new Vector3f();
@@ -1448,6 +1518,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
 
     public static class Builder implements VertexConsumer {
 
+        private final ExecutorService executor;
         private final KsgVertexBuffer vertexBuffer;
         private final VertexFormat format;
         private final int vertexDataSize;
@@ -1489,8 +1560,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         private Pair<Mesh, Integer[]> modifyingVertexIndices;
         private int buildingIndex;
 
-        public Builder(Model model,
-                       VertexFormat format) {
+        public Builder(Model model, VertexFormat format, ExecutorService executor) {
+            this.executor = executor;
             this.format = format;
             this.vertexDataSize = format.getVertexSize() - shouldIgnoredBytes(format) + 4;
             this.uv1Element = findUvElement(format, 1);
@@ -1512,7 +1583,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             this.tangentOffset = getOffsetFor(RenderState.TANGENT);
             this.vertexBuffer = new KsgVertexBuffer(
                     4 * model.getMeshes().length,
-                    vertexDataSize, format, this
+                    vertexDataSize, format, this, executor
             );
             position = new Vector3f();
             normal = new Vector3f();

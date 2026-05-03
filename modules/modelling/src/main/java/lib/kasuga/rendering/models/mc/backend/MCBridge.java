@@ -1,6 +1,7 @@
 package lib.kasuga.rendering.models.mc.backend;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.mc.backend.data_type.MCRenderableContext;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.SpriteHolder;
@@ -57,7 +58,11 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
         HashMap<Vertex, Vertex> vertexHashMap = (HashMap<Vertex, Vertex>) vertexMap;
         Model model = instance.getModel();
         long buildStart = ModelProfiler.start();
-        KsgVertexBuffer.Builder builder = new KsgVertexBuffer.Builder(model, RenderState.UML_VERTEX_FORMAT);
+        KsgVertexBuffer.Builder builder = new KsgVertexBuffer.Builder(
+                model,
+                RenderState.UML_VERTEX_FORMAT,
+                Constants.MC_BACKEND.executor
+        );
 
         long packStart = ModelProfiler.start();
         for (Mesh mesh : meshes) {
