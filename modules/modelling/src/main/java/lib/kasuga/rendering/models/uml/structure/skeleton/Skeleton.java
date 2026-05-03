@@ -75,4 +75,18 @@ public class Skeleton {
             }
         }
     }
+
+    public Transform getBindingAbsolute(Bone bone) {
+        if (!boneTransforms.containsKey(bone)) {
+            throw new IllegalArgumentException("Bone not found in skeleton: " + bone.getName());
+        }
+        return boneTransforms.get(bone).getFirst();
+    }
+
+    public Transform getBindingInverse(Bone bone) {
+        if (!boneTransforms.containsKey(bone)) {
+            throw new IllegalArgumentException("Bone not found in skeleton: " + bone.getName());
+        }
+        return boneTransforms.get(bone).getSecond();
+    }
 }

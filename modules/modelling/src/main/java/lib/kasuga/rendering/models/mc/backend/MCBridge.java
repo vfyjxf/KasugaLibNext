@@ -141,7 +141,7 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
                 builder.setBoneBindingType(type);
                 Pair<Bone, Float>[] weights = vertex.getBinding().getWeights();
                 for (int k = 0; k < weights.length; k++) {
-                    if (k >= 4) break;
+                    if (k > 3) break;
                     Pair<Bone, Float> pair = weights[k];
                     builder.setBoneAndWeight(k, pair.getFirst().getIndex(), pair.getSecond());
                 }
