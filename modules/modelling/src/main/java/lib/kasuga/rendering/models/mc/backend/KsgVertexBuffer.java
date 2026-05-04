@@ -520,7 +520,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         int avs = accessor.getVertexSize();
         if (!isIrisStaticCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
             ensureIrisStaticCache(avs);
-            irisStaticCache = fillIrisGpuCache(null, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices).build().byteBuffer();
+            irisStaticCache = fillIrisGpuCache(null, builder, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices).build().byteBuffer();
             irisStaticCacheVertexSize = avs;
             irisStaticCacheBrightness = brightness;
             irisStaticCachePackedLight = packedLight;
@@ -643,6 +643,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     }
 
     private ByteBufferBuilder fillIrisGpuCache(@Nullable ByteBufferBuilder byteBufferBuilder,
+                                               BufferBuilder builder,
                                                float brightness, int packedLight, int packedOverlay, boolean readAlpha, int startIndex, int numVertices) {
         int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
@@ -652,7 +653,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
 
         ByteBufferBuilder bbb;
         if (byteBufferBuilder == null) {
-            bbb = new ByteBufferBuilder(numVertices * DefaultVertexFormat.NEW_ENTITY.getVertexSize());
+            int vertexSize = ((AccessorBufferBuilder) builder).getVertexFormat().getVertexSize();
+            bbb = new ByteBufferBuilder(numVertices * vertexSize);
         } else {
             bbb = byteBufferBuilder;
             ((AccessorByteBufferBuilder) bbb).setWriteOffset(0);
@@ -960,9 +962,9 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                                         int packedOverlay,
                                         boolean readAlpha) {
         checkClosed();
-        int gpuVertexSize = DefaultVertexFormat.NEW_ENTITY.getVertexSize();
+        int gpuVertexSize = ((AccessorBufferBuilder) builder).getVertexFormat().getVertexSize();
         if (isIrisGpuSkinningEnabled() && gpuSkinningDataReady) {
-            drawIrisGpuSkinned(renderType, pose, modelViewMatrix, projectionMatrix,
+            drawIrisGpuSkinned(builder, renderType, pose, modelViewMatrix, projectionMatrix,
                     gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
             return;
         }
@@ -970,10 +972,10 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         String cacheState = "hit";
         int dirtyVertices = irisGpuDirtyVertices.cardinality();
         if (!layoutValid || dirtyVertices * 4 >= numVertices * 3) {
-            uploadIrisGpuBuffer(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            uploadIrisGpuBuffer(builder, gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
             cacheState = "miss";
         } else if (dirtyVertices > 0) {
-            uploadIrisGpuRanges(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            uploadIrisGpuRanges(builder, gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
             cacheState = "range";
         }
         long drawStart = ModelProfiler.start();
@@ -1153,10 +1155,14 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         staticRangeUploadCache.order(ByteOrder.nativeOrder());
     }
 
-    private void uploadIrisGpuRanges(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+    private void uploadIrisGpuRanges(BufferBuilder builder, int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        if (vertexSize != DefaultVertexFormat.NEW_ENTITY.getVertexSize()) {
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            return;
+        }
         int dirtyVertices = irisGpuDirtyVertices.cardinality();
         if (dirtyVertices * 4 >= numVertices * 3) {
-            uploadIrisGpuBuffer(vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
             return;
         }
         long uploadStart = ModelProfiler.start();
@@ -1252,7 +1258,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
     }
 
-    private void drawIrisGpuSkinned(RenderType renderType,
+    private void drawIrisGpuSkinned(BufferBuilder builder,
+                                    RenderType renderType,
                                     PoseStack.Pose pose,
                                     org.joml.Matrix4f modelViewMatrix,
                                     org.joml.Matrix4f projectionMatrix,
@@ -1264,10 +1271,10 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         boolean layoutValid = isIrisGpuBufferLayoutValid(vertexSize, readAlpha);
         String cacheState = "gpu";
         if (!layoutValid) {
-            uploadIrisGpuBuffer(vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
             cacheState = "gpu+miss";
         } else if (!isIrisGpuBufferLightingValid(brightness, packedLight, packedOverlay)) {
-            uploadIrisGpuBuffer(vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
             cacheState = "gpu+light";
         }
         long skinningStart = ModelProfiler.start();
@@ -1493,12 +1500,12 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         return shader;
     }
 
-    private void uploadIrisGpuBuffer(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+    private void uploadIrisGpuBuffer(BufferBuilder builder, int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
         long uploadStart = ModelProfiler.start();
         ByteBufferBuilder byteBufferBuilder = null;
         try {
             if (numVertices < MULTI_THREADED_SKINNING_THRESHOLD) {
-                byteBufferBuilder = fillIrisGpuCache(null, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices);
+                byteBufferBuilder = fillIrisGpuCache(null, builder, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices);
             } else {
                 int taskCount = Math.ceilDiv(numVertices, MULTI_THREADED_SKINNING_THRESHOLD);
                 if (multiThreadedUploadCaches == null || multiThreadedUploadCaches.length != taskCount) {
@@ -1520,7 +1527,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                     final int taskStart = i * MULTI_THREADED_SKINNING_THRESHOLD;
                     final int taskEnd = Math.min(taskStart + MULTI_THREADED_SKINNING_THRESHOLD, numVertices);
                     irisSkinningFutures[i] = (CompletableFuture.runAsync(() -> {
-                        fillIrisGpuCache(multiThreadedUploadCaches[index], brightness, packedLight, packedOverlay, readAlpha, taskStart, taskEnd - taskStart);
+                        fillIrisGpuCache(multiThreadedUploadCaches[index], builder, brightness, packedLight, packedOverlay, readAlpha, taskStart, taskEnd - taskStart);
                     }, executor));
                 }
                 byteBufferBuilder = new ByteBufferBuilder(numVertices * vertexSize);
