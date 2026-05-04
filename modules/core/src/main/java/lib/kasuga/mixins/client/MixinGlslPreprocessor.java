@@ -50,6 +50,8 @@ public class MixinGlslPreprocessor {
                 }
                 try (var writer = new FileWriter(file)) {
                     writer.write(result);
+                } catch (Exception e) {
+                    // Ignore currently.
                 }
             }
             return result;
