@@ -39,8 +39,12 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.AlertScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import net.minecraft.world.phys.Vec3;
@@ -295,6 +299,7 @@ public class Constants {
 
     private static void testModel() {
         testMMD();
+        testUI();
 //        testObj();
 //        testBe();
 //        testJe();
@@ -310,6 +315,13 @@ public class Constants {
         String name4 = "tda bunny miku 2.0.pmx";
         testMMD(fileName1, name, "test_mmd");
 //        testMMD(fileName3, name4, "test_mmd_4");
+    }
+
+    public static void testUI() {
+        Screen screen = new AlertScreen(() -> {}, Component.literal("Test"), Component.literal("This is a test"));
+        screen.init(Minecraft.getInstance(), Minecraft.getInstance().getWindow().getGuiScaledWidth(), Minecraft.getInstance().getWindow().getGuiScaledHeight());
+        GuiGraphics guiGraphics = UIBackend.constructGuiGraphics();
+        UIBackend.renderRenderable(guiGraphics, 0, screen);
     }
 
     public static void testMMD(String fileName, String modelName, String instanceName) {
