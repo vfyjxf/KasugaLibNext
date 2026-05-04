@@ -38,7 +38,7 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
 
     @Override
     public HashMap<Vertex, Vertex> transformVertices(Model model, SkeletonInstance skeleton, Vertex[] vertices) {
-        if (KsgVertexBuffer.isGpuSkinningEnabled() && !IrisCompat.isUsingShaderPack()) {
+        if (KsgVertexBuffer.isGpuSkinningEnabled() || KsgVertexBuffer.isIrisGpuSkinningEnabled()) {
             return new HashMap<>();
         }
         if (skeleton.isBindPose()) {
@@ -166,7 +166,7 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
         }
         long finalizeStart = ModelProfiler.start();
         KsgVertexBuffer buffer = builder.build(model);
-        if (KsgVertexBuffer.isGpuSkinningEnabled() && !IrisCompat.isUsingShaderPack()) {
+        if (KsgVertexBuffer.isGpuSkinningEnabled() || KsgVertexBuffer.isIrisGpuSkinningEnabled()) {
             buffer.updateForVersion(instance, this);
         }
         if (ModelProfiler.enabled()) {

@@ -25,6 +25,7 @@ import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import lombok.NonNull;
+import net.minecraft.client.Minecraft;
 import net.minecraft.util.FastColor;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.RenderType;
@@ -37,7 +38,9 @@ import org.joml.Vector4f;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL31;
 import org.lwjgl.system.MemoryStack;
@@ -82,6 +85,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private Map<Bone, int[]> skinningIndicesByBone = Map.of();
     private BitSet dirtySkinningIndices = new BitSet();
     private Bone[] gpuSkinningBones = new Bone[0];
+    private Map<Bone, Integer> gpuSkinningBoneIndex = Map.of();
     private Map<Bone, Transform> gpuSkinningBindInverses = Map.of();
     private boolean gpuSkinningDataReady = false;
     private int gpuBoneTransformBufferId = 0;
@@ -120,6 +124,13 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private final BitSet irisGpuDirtyVertices = new BitSet();
     private ByteBufferBuilder[] multiThreadedUploadCaches;
     private CompletableFuture<Void>[] irisSkinningFutures;
+    private ByteBuffer irisRangeUploadCache;
+    private int irisGpuSkinningProgramId = 0;
+    private int irisGpuSkinningSourceBufferId = 0;
+    private int irisGpuSkinningSourceVaoId = 0;
+    private int irisGpuSkinningOutputBufferId = 0;
+    private boolean irisGpuSkinningSourceValid = false;
+    private boolean irisGpuSkinningLoggedMissingPositionAttribute = false;
 
     @Getter
     private boolean closed = false;
@@ -134,6 +145,227 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     private static final int NEW_ENTITY_UV2_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.UV2);
     private static final int NEW_ENTITY_NORMAL_OFFSET = getFormatOffset(DefaultVertexFormat.NEW_ENTITY, VertexFormatElement.NORMAL);
     private static final int RANGE_UPLOAD_MAX_MERGE_GAP_VERTICES = 64;
+    private static final int IRIS_GPU_SKINNING_OUTPUT_STRIDE = 12;
+    private static final int IRIS_GPU_SKINNING_TEXTURE_UNIT = GL13.GL_TEXTURE7;
+    private static final String IRIS_GPU_SKINNING_VERTEX_SHADER = """
+            #version 150
+
+            in vec3 Position;
+            in vec3 Normal;
+            in vec4 Tangent;
+            in float BoneBindingType;
+            in vec4 BoneIndices;
+            in vec4 BoneWeights;
+            in vec3 sdefR0;
+            in vec3 sdefR1;
+            in vec3 sdefC;
+
+            uniform samplerBuffer ksg_BoneTransforms;
+
+            out vec3 tf_Position;
+
+            mat4 ksg_readBoneTransform(int boneIndex, int offset) {
+                int base = boneIndex * 9 + offset;
+                vec4 col0 = texelFetch(ksg_BoneTransforms, base);
+                vec4 col1 = texelFetch(ksg_BoneTransforms, base + 1);
+                vec4 col2 = texelFetch(ksg_BoneTransforms, base + 2);
+                return mat4(
+                    vec4(col0.xyz, 0.0),
+                    vec4(col1.xyz, 0.0),
+                    vec4(col2.xyz, 0.0),
+                    vec4(col0.w, col1.w, col2.w, 1.0)
+                );
+            }
+
+            mat4 ksg_readBoneAbsTransform(int boneIndex) {
+                return ksg_readBoneTransform(boneIndex, 0);
+            }
+
+            mat4 ksg_readBoneInverseTransform(int boneIndex) {
+                return ksg_readBoneTransform(boneIndex, 3);
+            }
+
+            mat3 ksg_readBoneNormalTransform(int boneIndex) {
+                int base = boneIndex * 9 + 6;
+                return mat3(
+                    texelFetch(ksg_BoneTransforms, base).xyz,
+                    texelFetch(ksg_BoneTransforms, base + 1).xyz,
+                    texelFetch(ksg_BoneTransforms, base + 2).xyz
+                );
+            }
+
+            vec4 quat_mul(vec4 q1, vec4 q2) {
+                return vec4(
+                    q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y,
+                    q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x,
+                    q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w,
+                    q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z
+                );
+            }
+
+            vec4 quat_conj(vec4 q) {
+                return vec4(-q.x, -q.y, -q.z, q.w);
+            }
+
+            vec4 quat_from_mat3(mat3 m) {
+                float trace = m[0][0] + m[1][1] + m[2][2];
+                vec4 q = vec4(0.0);
+                if (trace > 0.0) {
+                    float s = sqrt(trace + 1.0) * 2.0;
+                    q.w = 0.25 * s;
+                    q.x = (m[1][2] - m[2][1]) / s;
+                    q.y = (m[2][0] - m[0][2]) / s;
+                    q.z = (m[0][1] - m[1][0]) / s;
+                } else if ((m[0][0] > m[1][1]) && (m[0][0] > m[2][2])) {
+                    float s = sqrt(1.0 + m[0][0] - m[1][1] - m[2][2]) * 2.0;
+                    q.w = (m[1][2] - m[2][1]) / s;
+                    q.x = 0.25 * s;
+                    q.y = (m[1][0] + m[0][1]) / s;
+                    q.z = (m[2][0] + m[0][2]) / s;
+                } else if (m[1][1] > m[2][2]) {
+                    float s = sqrt(1.0 + m[1][1] - m[0][0] - m[2][2]) * 2.0;
+                    q.w = (m[2][0] - m[0][2]) / s;
+                    q.x = (m[1][0] + m[0][1]) / s;
+                    q.y = 0.25 * s;
+                    q.z = (m[2][1] + m[1][2]) / s;
+                } else {
+                    float s = sqrt(1.0 + m[2][2] - m[0][0] - m[1][1]) * 2.0;
+                    q.w = (m[0][1] - m[1][0]) / s;
+                    q.x = (m[2][0] + m[0][2]) / s;
+                    q.y = (m[2][1] + m[1][2]) / s;
+                    q.z = 0.25 * s;
+                }
+                return q;
+            }
+
+            vec3 quat_rotate(vec4 q, vec3 v) {
+                vec4 vQuat = vec4(v, 0.0);
+                vec4 qConj = vec4(-q.x, -q.y, -q.z, q.w);
+                return quat_mul(quat_mul(q, vQuat), qConj).xyz;
+            }
+
+            void ksg_applyBdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
+                vec4 skinnedPosition = vec4(0.0);
+                vec3 skinnedNormal = vec3(0.0);
+                vec3 skinnedTangent = vec3(0.0);
+                float totalWeight = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    float weight = BoneWeights[i];
+                    if (weight <= 0.0) {
+                        continue;
+                    }
+                    int boneIndex = int(BoneIndices[i] + 0.5);
+                    mat4 invTransform = ksg_readBoneInverseTransform(boneIndex);
+                    mat4 absTransform = ksg_readBoneAbsTransform(boneIndex);
+                    mat3 boneNormal = ksg_readBoneNormalTransform(boneIndex);
+                    vec4 localPos = invTransform * vec4(position, 1.0);
+                    skinnedPosition += (absTransform * localPos) * weight;
+                    skinnedNormal += (boneNormal * normal) * weight;
+                    skinnedTangent += (boneNormal * tangent.xyz) * weight;
+                    totalWeight += weight;
+                }
+                if (totalWeight > 0.0) {
+                    position = skinnedPosition.xyz / totalWeight;
+                    normal = normalize(skinnedNormal);
+                    tangent = vec4(normalize(skinnedTangent), tangent.w);
+                }
+            }
+
+            void ksg_applyQdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
+                vec4 blend_qr = vec4(0.0);
+                vec4 blend_qd = vec4(0.0);
+                vec3 blendedLocalPosition = vec3(0.0);
+                float totalWeight = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    float weight = BoneWeights[i];
+                    if (weight <= 0.0) continue;
+                    int boneIndex = int(BoneIndices[i] + 0.5);
+                    mat4 invTransform = ksg_readBoneInverseTransform(boneIndex);
+                    mat4 absTransform = ksg_readBoneAbsTransform(boneIndex);
+                    vec3 localPosition = (invTransform * vec4(position, 1.0)).xyz;
+                    vec4 qr = quat_from_mat3(mat3(absTransform));
+                    vec3 t = absTransform[3].xyz;
+                    vec4 qd = 0.5 * quat_mul(vec4(t, 0.0), qr);
+                    if (dot(blend_qr, qr) < 0.0) {
+                        weight = -weight;
+                    }
+                    blend_qr += qr * weight;
+                    blend_qd += qd * weight;
+                    blendedLocalPosition += localPosition * weight;
+                    totalWeight += weight;
+                }
+                if (totalWeight <= 0.0) {
+                    return;
+                }
+                blend_qr = normalize(blend_qr);
+                blend_qd -= dot(blend_qr, blend_qd) * blend_qr;
+                vec3 rotatedPos = quat_rotate(blend_qr, blendedLocalPosition / totalWeight);
+                vec4 trans4 = 2.0 * quat_mul(blend_qd, quat_conj(blend_qr));
+                position = rotatedPos + trans4.xyz;
+                normal = normalize(quat_rotate(blend_qr, normal));
+                tangent.xyz = normalize(quat_rotate(blend_qr, tangent.xyz));
+            }
+
+            void ksg_applySdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
+                vec4 skinnedPos = vec4(0.0);
+                vec3 skinnedNormal = vec3(0.0);
+                vec3 skinnedTangent = vec3(0.0);
+                float totalWeight = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    float weight = BoneWeights[i];
+                    if (weight <= 0.0) continue;
+                    int boneIndex = int(BoneIndices[i] + 0.5);
+                    mat4 invBind = ksg_readBoneInverseTransform(boneIndex);
+                    mat4 anim = ksg_readBoneAbsTransform(boneIndex);
+                    mat3 boneNormal = ksg_readBoneNormalTransform(boneIndex);
+                    mat3 invRotBind = mat3(invBind);
+                    vec3 localPos = (invBind * vec4(position, 1.0)).xyz;
+                    vec3 localC = (invBind * vec4(sdefC, 1.0)).xyz;
+                    vec3 localR0 = invRotBind * sdefR0;
+                    vec3 localR1 = invRotBind * sdefR1;
+                    vec3 localR2 = cross(localR0, localR1);
+                    vec3 delta = localPos - localC;
+                    float d0 = dot(delta, localR0);
+                    float d1 = dot(delta, localR1);
+                    float d2 = dot(delta, localR2);
+                    vec3 Cw = (anim * vec4(localC, 1.0)).xyz;
+                    vec3 R0w = (anim * vec4(localR0, 0.0)).xyz;
+                    vec3 R1w = (anim * vec4(localR1, 0.0)).xyz;
+                    vec3 R2w = (anim * vec4(localR2, 0.0)).xyz;
+                    vec3 deformedPos = Cw + d0 * R0w + d1 * R1w + d2 * R2w;
+                    skinnedPos += vec4(deformedPos, 1.0) * weight;
+                    skinnedNormal += (boneNormal * normal) * weight;
+                    skinnedTangent += (boneNormal * tangent.xyz) * weight;
+                    totalWeight += weight;
+                }
+                if (totalWeight > 0.0) {
+                    position = skinnedPos.xyz / totalWeight;
+                    normal = normalize(skinnedNormal);
+                    tangent = vec4(normalize(skinnedTangent), tangent.w);
+                }
+            }
+
+            void ksg_applyGpuSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
+                int type = int(BoneBindingType + 0.5);
+                if (type == 2) {
+                    ksg_applyQdefSkinning(position, normal, tangent);
+                    return;
+                } else if (type == 1) {
+                    ksg_applySdefSkinning(position, normal, tangent);
+                    return;
+                }
+                ksg_applyBdefSkinning(position, normal, tangent);
+            }
+
+            void main() {
+                vec3 skinnedPosition = Position;
+                vec3 skinnedNormal = Normal;
+                vec4 skinnedTangent = Tangent;
+                ksg_applyGpuSkinning(skinnedPosition, skinnedNormal, skinnedTangent);
+                tf_Position = skinnedPosition;
+                gl_Position = vec4(0.0);
+            }
+            """;
 
     public interface ElementUploader {
         void upload(BufferBuilder builder, long pointer, int vertexIndex,
@@ -192,6 +424,26 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             irisGpuBuffer.close();
             irisGpuBuffer = null;
         }
+        if (irisRangeUploadCache != null) {
+            MemoryUtil.memFree(irisRangeUploadCache);
+            irisRangeUploadCache = null;
+        }
+        if (irisGpuSkinningProgramId != 0) {
+            GL20.glDeleteProgram(irisGpuSkinningProgramId);
+            irisGpuSkinningProgramId = 0;
+        }
+        if (irisGpuSkinningSourceBufferId != 0) {
+            GL15.glDeleteBuffers(irisGpuSkinningSourceBufferId);
+            irisGpuSkinningSourceBufferId = 0;
+        }
+        if (irisGpuSkinningSourceVaoId != 0) {
+            GL30.glDeleteVertexArrays(irisGpuSkinningSourceVaoId);
+            irisGpuSkinningSourceVaoId = 0;
+        }
+        if (irisGpuSkinningOutputBufferId != 0) {
+            GL15.glDeleteBuffers(irisGpuSkinningOutputBufferId);
+            irisGpuSkinningOutputBufferId = 0;
+        }
         if (gpuBoneTransformBufferId != 0) {
             GL15.glDeleteBuffers(gpuBoneTransformBufferId);
             gpuBoneTransformBufferId = 0;
@@ -219,6 +471,14 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
 
     public static boolean isGpuSkinningEnabled() {
         if (IrisCompat.isUsingShaderPack()) return false;
+        return isGpuSkinningRequested();
+    }
+
+    public static boolean isIrisGpuSkinningEnabled() {
+        return IrisCompat.isUsingShaderPack() && isGpuSkinningRequested();
+    }
+
+    private static boolean isGpuSkinningRequested() {
         String env = System.getenv("KASUGA_MODEL_GPU_SKINNING");
         if (env != null && !env.isBlank()) {
             return Boolean.parseBoolean(env);
@@ -342,6 +602,10 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         irisGpuDirtyVertices.clear();
     }
 
+    private void invalidateIrisGpuSkinningSource() {
+        irisGpuSkinningSourceValid = false;
+    }
+
     @Deprecated
     private void fillIrisStaticCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
@@ -379,18 +643,17 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     }
 
     private ByteBufferBuilder fillIrisGpuCache(@Nullable ByteBufferBuilder byteBufferBuilder,
-                                               BufferBuilder builder, float brighness, int packedLight, int packedOverlay, boolean readAlpha, int startIndex, int numVertices) {
+                                               BufferBuilder builder,
+                                               float brightness, int packedLight, int packedOverlay, boolean readAlpha, int startIndex, int numVertices) {
         int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
         int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
         int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
         int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
-        float colorScale = brighness / 255f;
-
-        AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
-        int vertexSize = accessor.getVertexFormat().getVertexSize();
+        float colorScale = brightness / 255f;
 
         ByteBufferBuilder bbb;
         if (byteBufferBuilder == null) {
+            int vertexSize = ((AccessorBufferBuilder) builder).getVertexFormat().getVertexSize();
             bbb = new ByteBufferBuilder(numVertices * vertexSize);
         } else {
             bbb = byteBufferBuilder;
@@ -545,6 +808,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         invalidateCpuUploadCaches();
         invalidateStaticGpuBuffer();
         invalidateIrisGpuBuffer();
+        invalidateIrisGpuSkinningSource();
     }
 
     private void invalidateCpuUploadCaches() {
@@ -699,9 +963,20 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                                         boolean readAlpha) {
         checkClosed();
         int gpuVertexSize = ((AccessorBufferBuilder) builder).getVertexFormat().getVertexSize();
-        boolean cacheValid = isIrisGpuBufferValid(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
-        if (!cacheValid) {
+        if (isIrisGpuSkinningEnabled() && gpuSkinningDataReady) {
+            drawIrisGpuSkinned(builder, renderType, pose, modelViewMatrix, projectionMatrix,
+                    gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            return;
+        }
+        boolean layoutValid = isIrisGpuBufferValid(gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+        String cacheState = "hit";
+        int dirtyVertices = irisGpuDirtyVertices.cardinality();
+        if (!layoutValid || dirtyVertices * 4 >= numVertices * 3) {
             uploadIrisGpuBuffer(builder, gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            cacheState = "miss";
+        } else if (dirtyVertices > 0) {
+            uploadIrisGpuRanges(builder, gpuVertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            cacheState = "range";
         }
         long drawStart = ModelProfiler.start();
         renderType.setupRenderState();
@@ -717,7 +992,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("render.drawStatic.iris", drawStart,
-                    "cache=" + (cacheValid ? "hit" : "miss") + ", vertices=" + numVertices);
+                    "cache=" + cacheState + ", vertices=" + numVertices);
         }
     }
 
@@ -744,6 +1019,13 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                 irisGpuBufferPackedOverlay == packedOverlay &&
                 irisGpuBufferReadAlpha == readAlpha &&
                 Float.compare(irisGpuBufferBrightness, brightness) == 0;
+    }
+
+    private boolean isIrisGpuBufferLayoutValid(int vertexSize, boolean readAlpha) {
+        return irisGpuBufferValid &&
+                irisGpuBuffer != null &&
+                irisGpuBufferVertexSize == vertexSize &&
+                irisGpuBufferReadAlpha == readAlpha;
     }
 
     private void uploadStaticGpuBuffer(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
@@ -873,6 +1155,351 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         staticRangeUploadCache.order(ByteOrder.nativeOrder());
     }
 
+    private void uploadIrisGpuRanges(BufferBuilder builder, int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+        if (vertexSize != DefaultVertexFormat.NEW_ENTITY.getVertexSize()) {
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            return;
+        }
+        int dirtyVertices = irisGpuDirtyVertices.cardinality();
+        if (dirtyVertices * 4 >= numVertices * 3) {
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            return;
+        }
+        long uploadStart = ModelProfiler.start();
+        RenderSystem.assertOnRenderThread();
+        BufferUploader.reset();
+        int previousBinding = GL15.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+        int ranges = 0;
+        int uploadedBytes = 0;
+        try {
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, ((AccessorVertexBuffer) irisGpuBuffer).getVertexBufferId());
+            int start = irisGpuDirtyVertices.nextSetBit(0);
+            while (start >= 0) {
+                int end = irisGpuDirtyVertices.nextClearBit(start);
+                int next = irisGpuDirtyVertices.nextSetBit(end);
+                while (next >= 0 && next - end <= RANGE_UPLOAD_MAX_MERGE_GAP_VERTICES) {
+                    end = irisGpuDirtyVertices.nextClearBit(next);
+                    next = irisGpuDirtyVertices.nextSetBit(end);
+                }
+                end = Math.min(end, numVertices);
+                int byteCount = (end - start) * vertexSize;
+                ensureIrisRangeUploadCache(byteCount);
+                irisRangeUploadCache.clear();
+                fillIrisGpuCacheRange(MemoryUtil.memAddress(irisRangeUploadCache), vertexSize,
+                        brightness, packedLight, packedOverlay, readAlpha, start, end);
+                irisRangeUploadCache.limit(byteCount);
+                GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, (long) start * vertexSize, irisRangeUploadCache);
+                uploadedBytes += byteCount;
+                ranges++;
+                start = next;
+            }
+        } finally {
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, previousBinding);
+        }
+        irisGpuDirtyVertices.clear();
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("gpu.uploadStatic.iris.range", uploadStart,
+                    "bytes=" + uploadedBytes +
+                            ", vertices=" + dirtyVertices +
+                            ", ranges=" + ranges);
+        }
+    }
+
+    private void ensureIrisRangeUploadCache(int byteCount) {
+        if (irisRangeUploadCache != null && irisRangeUploadCache.capacity() >= byteCount) {
+            return;
+        }
+        if (irisRangeUploadCache != null) {
+            MemoryUtil.memFree(irisRangeUploadCache);
+        }
+        irisRangeUploadCache = MemoryUtil.memAlloc(byteCount);
+        irisRangeUploadCache.order(ByteOrder.nativeOrder());
+    }
+
+    private void fillIrisGpuCacheRange(long pointer, int vertexSize, float brightness, int packedLight, int packedOverlay,
+                                       boolean readAlpha, int startInclusive, int endExclusive) {
+        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
+        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
+        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+        long bufferPointer = MemoryUtil.memAddress(buffer);
+        float colorScale = brightness / 255f;
+        for (int i = startInclusive; i < endExclusive; i++) {
+            long vertexPointer = pointer + (long) (i - startInclusive) * vertexSize;
+            int vertexOffset = i * this.vertexSize;
+            long sourcePointer = bufferPointer + vertexOffset;
+            MemoryUtil.memCopy(sourcePointer + srcPositionOffset, vertexPointer + NEW_ENTITY_POSITION_OFFSET, 12L);
+
+            int bufOffset = vertexOffset + srcColorOffset;
+            int a = buffer.get(bufOffset) & 0xff;
+            int b = buffer.get(bufOffset + 1) & 0xff;
+            int g = buffer.get(bufOffset + 2) & 0xff;
+            int r = buffer.get(bufOffset + 3) & 0xff;
+            int ma = buffer.get(bufOffset + 4) & 0xff;
+            int mb = buffer.get(bufOffset + 5) & 0xff;
+            int mg = buffer.get(bufOffset + 6) & 0xff;
+            int mr = buffer.get(bufOffset + 7) & 0xff;
+
+            int af = readAlpha ? (a * ma) / 255 : ma;
+            int bf = (int) (b * mb * colorScale);
+            int gf = (int) (g * mg * colorScale);
+            int rf = (int) (r * mr * colorScale);
+            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
+            MemoryUtil.memPutInt(vertexPointer + NEW_ENTITY_COLOR_OFFSET, IS_LITTLE_ENDIAN ?
+                    colorFinal :
+                    Integer.reverseBytes(colorFinal)
+            );
+
+            MemoryUtil.memCopy(sourcePointer + srcUv0Offset, vertexPointer + NEW_ENTITY_UV0_OFFSET, 8L);
+            putPackedUV(vertexPointer + NEW_ENTITY_UV1_OFFSET, packedOverlay);
+            putPackedUV(vertexPointer + NEW_ENTITY_UV2_OFFSET, packedLight);
+            MemoryUtil.memCopy(sourcePointer + srcNormalOffset, vertexPointer + NEW_ENTITY_NORMAL_OFFSET, 3L);
+            MemoryUtil.memPutByte(vertexPointer + NEW_ENTITY_NORMAL_OFFSET + 3L, (byte) 0);
+        }
+    }
+
+    private void drawIrisGpuSkinned(BufferBuilder builder,
+                                    RenderType renderType,
+                                    PoseStack.Pose pose,
+                                    org.joml.Matrix4f modelViewMatrix,
+                                    org.joml.Matrix4f projectionMatrix,
+                                    int vertexSize,
+                                    float brightness,
+                                    int packedLight,
+                                    int packedOverlay,
+                                    boolean readAlpha) {
+        boolean layoutValid = isIrisGpuBufferLayoutValid(vertexSize, readAlpha);
+        String cacheState = "gpu";
+        if (!layoutValid) {
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            cacheState = "gpu+miss";
+        } else if (!isIrisGpuBufferLightingValid(brightness, packedLight, packedOverlay)) {
+            uploadIrisGpuBuffer(builder, vertexSize, brightness, packedLight, packedOverlay, readAlpha);
+            cacheState = "gpu+light";
+        }
+        long skinningStart = ModelProfiler.start();
+        dispatchIrisGpuSkinning();
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("skinning.gpu.iris.transformFeedback", skinningStart,
+                    "vertices=" + numVertices + ", bones=" + gpuSkinningBones.length);
+        }
+        long drawStart = ModelProfiler.start();
+        renderType.setupRenderState();
+        int overriddenPositionLocation = -1;
+        try {
+            ShaderInstance shader = RenderSystem.getShader();
+            Matrix4f irisModelViewMatrix = new Matrix4f(modelViewMatrix).mul(pose.pose());
+            BufferUploader.reset();
+            irisGpuBuffer.bind();
+            shader.setDefaultUniforms(VertexFormat.Mode.QUADS, irisModelViewMatrix, projectionMatrix,
+                    Minecraft.getInstance().getWindow());
+            shader.apply();
+            overriddenPositionLocation = overrideIrisGpuSkinnedPositionAttribute(shader);
+            irisGpuBuffer.draw();
+            shader.clear();
+        } finally {
+            restoreIrisStaticAttributes(overriddenPositionLocation);
+            VertexBuffer.unbind();
+            BufferUploader.reset();
+            renderType.clearRenderState();
+        }
+        if (ModelProfiler.enabled()) {
+            ModelProfiler.record("render.drawStatic.iris", drawStart,
+                    "cache=" + cacheState + ", vertices=" + numVertices);
+        }
+    }
+
+    private boolean isIrisGpuBufferLightingValid(float brightness, int packedLight, int packedOverlay) {
+        return irisGpuBufferValid &&
+                irisGpuBuffer != null &&
+                irisGpuBufferPackedLight == packedLight &&
+                irisGpuBufferPackedOverlay == packedOverlay &&
+                Float.compare(irisGpuBufferBrightness, brightness) == 0;
+    }
+
+    private void dispatchIrisGpuSkinning() {
+        RenderSystem.assertOnRenderThread();
+        ensureIrisGpuSkinningObjects();
+        uploadIrisGpuSkinningSourceIfNeeded();
+        int previousProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+        int previousArrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+        int previousActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
+        RenderSystem.activeTexture(IRIS_GPU_SKINNING_TEXTURE_UNIT);
+        int previousTextureBinding = GL11.glGetInteger(GL31.GL_TEXTURE_BINDING_BUFFER);
+        boolean rasterizerDiscard = GL11.glGetBoolean(GL30.GL_RASTERIZER_DISCARD);
+        try {
+            GL20.glUseProgram(irisGpuSkinningProgramId);
+            int samplerLocation = GL20.glGetUniformLocation(irisGpuSkinningProgramId, "ksg_BoneTransforms");
+            if (samplerLocation >= 0) {
+                GL20.glUniform1i(samplerLocation, IRIS_GPU_SKINNING_TEXTURE_UNIT - GL13.GL_TEXTURE0);
+            }
+            GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, gpuBoneTransformTextureId);
+            GL30.glBindVertexArray(irisGpuSkinningSourceVaoId);
+            GL30.glBindBufferBase(GL30.GL_TRANSFORM_FEEDBACK_BUFFER, 0, irisGpuSkinningOutputBufferId);
+            GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);
+            GL30.glBeginTransformFeedback(GL11.GL_POINTS);
+            GL11.glDrawArrays(GL11.GL_POINTS, 0, numVertices);
+            GL30.glEndTransformFeedback();
+            GL11.glDisable(GL30.GL_RASTERIZER_DISCARD);
+        } finally {
+            if (rasterizerDiscard) {
+                GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);
+            } else {
+                GL11.glDisable(GL30.GL_RASTERIZER_DISCARD);
+            }
+            GL30.glBindBufferBase(GL30.GL_TRANSFORM_FEEDBACK_BUFFER, 0, 0);
+            GL30.glBindVertexArray(0);
+            GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, previousTextureBinding);
+            RenderSystem.activeTexture(previousActiveTexture);
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, previousArrayBuffer);
+            GL20.glUseProgram(previousProgram);
+        }
+    }
+
+    private void ensureIrisGpuSkinningObjects() {
+        if (irisGpuSkinningProgramId == 0) {
+            irisGpuSkinningProgramId = createIrisGpuSkinningProgram();
+        }
+        if (irisGpuSkinningSourceBufferId == 0) {
+            irisGpuSkinningSourceBufferId = GL15.glGenBuffers();
+        }
+        if (irisGpuSkinningSourceVaoId == 0) {
+            irisGpuSkinningSourceVaoId = GL30.glGenVertexArrays();
+        }
+        if (irisGpuSkinningOutputBufferId == 0) {
+            irisGpuSkinningOutputBufferId = GL15.glGenBuffers();
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, irisGpuSkinningOutputBufferId);
+            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, (long) numVertices * IRIS_GPU_SKINNING_OUTPUT_STRIDE, GL15.GL_DYNAMIC_DRAW);
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+        }
+    }
+
+    private void uploadIrisGpuSkinningSourceIfNeeded() {
+        if (irisGpuSkinningSourceValid) {
+            return;
+        }
+        int previousVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
+        int previousArrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+        try {
+            GL30.glBindVertexArray(irisGpuSkinningSourceVaoId);
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, irisGpuSkinningSourceBufferId);
+            ByteBuffer source = buffer.duplicate();
+            source.clear();
+            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, source, GL15.GL_STATIC_DRAW);
+            setupIrisGpuSkinningSourceAttributes();
+        } finally {
+            GL30.glBindVertexArray(previousVao);
+            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, previousArrayBuffer);
+        }
+        irisGpuSkinningSourceValid = true;
+    }
+
+    private void setupIrisGpuSkinningSourceAttributes() {
+        setupFloatAttribute(0, 3, bufOffsets.get(VertexFormatElement.POSITION));
+        setupByteNormalAttribute(5, bufOffsets.get(VertexFormatElement.NORMAL));
+        setupFloatAttribute(7, 4, bufOffsets.get(RenderState.TANGENT));
+        setupIntAsFloatAttribute(8, 1, bufOffsets.get(RenderState.BONE_BINDING_TYPE));
+        setupIntAsFloatAttribute(9, 4, bufOffsets.get(RenderState.BONE_INDICES));
+        setupFloatAttribute(10, 4, bufOffsets.get(RenderState.BONE_WEIGHTS));
+        setupFloatAttribute(11, 3, bufOffsets.get(RenderState.SDEF_R0));
+        setupFloatAttribute(12, 3, bufOffsets.get(RenderState.SDEF_R1));
+        setupFloatAttribute(13, 3, bufOffsets.get(RenderState.SDEF_C));
+    }
+
+    private void setupFloatAttribute(int index, int size, int offset) {
+        GL20.glEnableVertexAttribArray(index);
+        GL20.glVertexAttribPointer(index, size, GL11.GL_FLOAT, false, vertexSize, (long) offset);
+    }
+
+    private void setupByteNormalAttribute(int index, int offset) {
+        GL20.glEnableVertexAttribArray(index);
+        GL20.glVertexAttribPointer(index, 3, GL11.GL_BYTE, true, vertexSize, (long) offset);
+    }
+
+    private void setupIntAsFloatAttribute(int index, int size, int offset) {
+        GL20.glEnableVertexAttribArray(index);
+        GL20.glVertexAttribPointer(index, size, GL11.GL_INT, false, vertexSize, (long) offset);
+    }
+
+    private int overrideIrisGpuSkinnedPositionAttribute(ShaderInstance shader) {
+        int positionLocation = getFirstAttributeLocation(shader,
+                "iris_Position",
+                "Position",
+                "vaPosition",
+                "a_Position");
+        if (positionLocation < 0) {
+            positionLocation = 0;
+            if (!irisGpuSkinningLoggedMissingPositionAttribute) {
+                irisGpuSkinningLoggedMissingPositionAttribute = true;
+                long attributeStart = ModelProfiler.start();
+                ModelProfiler.record("skinning.gpu.iris.positionAttribute", attributeStart,
+                        "missing=true, fallback=0");
+            }
+        }
+        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, irisGpuSkinningOutputBufferId);
+        GL20.glEnableVertexAttribArray(positionLocation);
+        GL20.glVertexAttribPointer(positionLocation, 3, GL11.GL_FLOAT, false, IRIS_GPU_SKINNING_OUTPUT_STRIDE, 0L);
+        return positionLocation;
+    }
+
+    private int getFirstAttributeLocation(ShaderInstance shader, String... names) {
+        int programId = shader.getId();
+        for (String name : names) {
+            int location = GL20.glGetAttribLocation(programId, name);
+            if (location >= 0) {
+                return location;
+            }
+        }
+        return -1;
+    }
+
+    private void restoreIrisStaticAttributes(int overriddenPositionLocation) {
+        GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, ((AccessorVertexBuffer) irisGpuBuffer).getVertexBufferId());
+        DefaultVertexFormat.NEW_ENTITY.setupBufferState();
+        if (overriddenPositionLocation > 0) {
+            GL20.glDisableVertexAttribArray(overriddenPositionLocation);
+        }
+    }
+
+    private int createIrisGpuSkinningProgram() {
+        int vertexShader = compileShader(GL20.GL_VERTEX_SHADER, IRIS_GPU_SKINNING_VERTEX_SHADER);
+        int program = GL20.glCreateProgram();
+        GL20.glAttachShader(program, vertexShader);
+        GL20.glBindAttribLocation(program, 0, "Position");
+        GL20.glBindAttribLocation(program, 5, "Normal");
+        GL20.glBindAttribLocation(program, 7, "Tangent");
+        GL20.glBindAttribLocation(program, 8, "BoneBindingType");
+        GL20.glBindAttribLocation(program, 9, "BoneIndices");
+        GL20.glBindAttribLocation(program, 10, "BoneWeights");
+        GL20.glBindAttribLocation(program, 11, "sdefR0");
+        GL20.glBindAttribLocation(program, 12, "sdefR1");
+        GL20.glBindAttribLocation(program, 13, "sdefC");
+        GL30.glTransformFeedbackVaryings(program, new CharSequence[]{"tf_Position"}, GL30.GL_INTERLEAVED_ATTRIBS);
+        GL20.glLinkProgram(program);
+        int linked = GL20.glGetProgrami(program, GL20.GL_LINK_STATUS);
+        GL20.glDetachShader(program, vertexShader);
+        GL20.glDeleteShader(vertexShader);
+        if (linked == GL11.GL_FALSE) {
+            String log = GL20.glGetProgramInfoLog(program);
+            GL20.glDeleteProgram(program);
+            throw new IllegalStateException("Failed to link Iris GPU skinning program: " + log);
+        }
+        return program;
+    }
+
+    private static int compileShader(int type, String source) {
+        int shader = GL20.glCreateShader(type);
+        GL20.glShaderSource(shader, source);
+        GL20.glCompileShader(shader);
+        int compiled = GL20.glGetShaderi(shader, GL20.GL_COMPILE_STATUS);
+        if (compiled == GL11.GL_FALSE) {
+            String log = GL20.glGetShaderInfoLog(shader);
+            GL20.glDeleteShader(shader);
+            throw new IllegalStateException("Failed to compile Iris GPU skinning shader: " + log);
+        }
+        return shader;
+    }
+
     private void uploadIrisGpuBuffer(BufferBuilder builder, int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
         long uploadStart = ModelProfiler.start();
         ByteBufferBuilder byteBufferBuilder = null;
@@ -881,13 +1508,18 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                 byteBufferBuilder = fillIrisGpuCache(null, builder, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices);
             } else {
                 int taskCount = Math.ceilDiv(numVertices, MULTI_THREADED_SKINNING_THRESHOLD);
-                if (multiThreadedUploadCaches == null) {
+                if (multiThreadedUploadCaches == null || multiThreadedUploadCaches.length != taskCount) {
+                    if (multiThreadedUploadCaches != null) {
+                        for (ByteBufferBuilder bbb : multiThreadedUploadCaches) {
+                            bbb.close();
+                        }
+                    }
                     multiThreadedUploadCaches = new ByteBufferBuilder[taskCount];
                     for (int i = 0; i < taskCount; i++) {
                         multiThreadedUploadCaches[i] = new ByteBufferBuilder(MULTI_THREADED_SKINNING_THRESHOLD * vertexSize);
                     }
                 }
-                if (irisSkinningFutures == null) {
+                if (irisSkinningFutures == null || irisSkinningFutures.length != taskCount) {
                     irisSkinningFutures = new CompletableFuture[taskCount];
                 }
                 for (int i = 0; i < taskCount; i++) {
@@ -902,11 +1534,14 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                 long pointer = ((AccessorByteBufferBuilder) byteBufferBuilder).getPointer();
                 CompletableFuture.allOf(irisSkinningFutures).join();
 
-                for (ByteBufferBuilder bbb : multiThreadedUploadCaches) {
+                for (int i = 0; i < taskCount; i++) {
+                    ByteBufferBuilder bbb = multiThreadedUploadCaches[i];
+                    int taskStart = i * MULTI_THREADED_SKINNING_THRESHOLD;
+                    int taskVertices = Math.min(MULTI_THREADED_SKINNING_THRESHOLD, numVertices - taskStart);
+                    int byteCount = taskVertices * vertexSize;
                     long innerPointer = ((AccessorByteBufferBuilder) bbb).getPointer();
-                    int capacity = ((AccessorByteBufferBuilder) bbb).getCapacity();
-                    MemoryUtil.memCopy(innerPointer, pointer, capacity);
-                    pointer += capacity;
+                    MemoryUtil.memCopy(innerPointer, pointer, byteCount);
+                    pointer += byteCount;
                 }
                 ((AccessorByteBufferBuilder) byteBufferBuilder).setWriteOffset(numVertices * vertexSize);
             }
@@ -919,7 +1554,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                     VertexFormat.IndexType.least(numVertices)
             ));
             if (irisGpuBuffer == null) {
-                irisGpuBuffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                irisGpuBuffer = new VertexBuffer(VertexBuffer.Usage.DYNAMIC);
             }
             irisGpuBuffer.bind();
             try {
@@ -928,7 +1563,9 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
                 VertexBuffer.unbind();
             }
         } finally {
-            byteBufferBuilder.close();
+            if (byteBufferBuilder != null) {
+                byteBufferBuilder.close();
+            }
         }
         irisGpuBufferVertexSize = vertexSize;
         irisGpuBufferBrightness = brightness;
@@ -936,6 +1573,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         irisGpuBufferPackedOverlay = packedOverlay;
         irisGpuBufferReadAlpha = readAlpha;
         irisGpuBufferValid = true;
+        irisGpuDirtyVertices.clear();
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("gpu.uploadStatic.iris.full", uploadStart,
                     "vertices=" + numVertices);
@@ -1083,15 +1721,49 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         this.dirtySkinningIndices = new BitSet(vertices.size());
         this.gpuSkinningBones = model.getSkeleton().getBones();
 
-        for (Bone bone : gpuSkinningBones) {
+        HashMap<Bone, Integer> gpuBoneIndex = new HashMap<>();
+        for (int i = 0; i < gpuSkinningBones.length; i++) {
+            Bone bone = gpuSkinningBones[i];
+            gpuBoneIndex.put(bone, i);
             uniqueBindInverses.put(bone, model.getSkeleton().getBindingInverse(bone));
         }
+        this.gpuSkinningBoneIndex = gpuBoneIndex;
         this.gpuSkinningBindInverses = uniqueBindInverses;
         if (bufOffsets.get(RenderState.BONE_INDICES) == null || bufOffsets.get(RenderState.BONE_WEIGHTS) == null) {
             gpuSkinningDataReady = false;
             return;
         }
-        gpuSkinningDataReady = gpuSkinningBones.length > 0;
+        writeGpuSkinningVertexData(vertices);
+    }
+
+    private void writeGpuSkinningVertexData(ArrayList<Vertex> vertices) {
+        int boneIndexOffset = bufOffsets.get(RenderState.BONE_INDICES);
+        int boneWeightOffset = bufOffsets.get(RenderState.BONE_WEIGHTS);
+        int weightedVertices = 0;
+        for (int i = 0; i < vertices.size(); i++) {
+            int indexOffset = i * vertexSize + boneIndexOffset;
+            int weightOffset = i * vertexSize + boneWeightOffset;
+            for (int slot = 0; slot < 4; slot++) {
+                buffer.putInt(indexOffset + slot * 4, 0);
+                buffer.putFloat(weightOffset + slot * 4, 0.0f);
+            }
+
+            Pair<Bone, Float>[] weights = vertices.get(i).getBinding().getWeights();
+            int slots = Math.min(weights.length, 4);
+            float totalWeight = 0.0f;
+            for (int slot = 0; slot < slots; slot++) {
+                Pair<Bone, Float> weight = weights[slot];
+                Integer gpuIndex = gpuSkinningBoneIndex.get(weight.getFirst());
+                if (gpuIndex == null) continue;
+                buffer.putInt(indexOffset + slot * 4, gpuIndex);
+                buffer.putFloat(weightOffset + slot * 4, weight.getSecond());
+                totalWeight += weight.getSecond();
+            }
+            if (totalWeight > 0.0f) {
+                weightedVertices++;
+            }
+        }
+        gpuSkinningDataReady = weightedVertices > 0 && gpuSkinningBones.length > 0;
     }
 
     private void captureBaseTangents() {
@@ -1112,7 +1784,9 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
     public void updateForVersion(ModelInstance modelInstance, Bridge<?> bridge) {
         checkClosed();
         SkeletonInstance skeleton = modelInstance.getSkeletonInstance();
-        if (gpuSkinningDataReady && isGpuSkinningEnabled()) {
+        int vertexCount = skinningVertices.length;
+        if (vertexCount == 0) return;
+        if ((isGpuSkinningEnabled() || isIrisGpuSkinningEnabled()) && gpuSkinningDataReady) {
             long uploadStart = ModelProfiler.start();
             uploadGpuSkinningTransforms(skeleton);
             if (ModelProfiler.enabled()) {
@@ -1124,36 +1798,35 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
         if (skeleton.isLastFullUpdate()) {
             long updateStart = ModelProfiler.start();
-            updateAllSkinning(modelInstance, bridge, skeleton, numVertices);
+            updateAllSkinning(modelInstance, bridge, skeleton, vertexCount);
             if (ModelProfiler.enabled()) {
                 ModelProfiler.record("skinning.cpu.full", updateStart,
-                        "vertices=" + numVertices + ", reason=skeletonFull");
+                        "vertices=" + vertexCount + ", reason=skeletonFull");
             }
             return;
         }
         long collectStart = ModelProfiler.start();
-        BitSet dirtyIndices = collectDirtySkinningIndices(skeleton.getLastDirtyBones(), numVertices);
+        BitSet dirtyIndices = collectDirtySkinningIndices(skeleton.getLastDirtyBones(), vertexCount);
         int dirtyCount = dirtyIndices.cardinality();
         if (dirtyCount == 0) {
             if (ModelProfiler.enabled()) {
                 ModelProfiler.record("skinning.cpu.none", collectStart,
-                        "vertices=" + numVertices +
+                        "vertices=" + vertexCount +
                                 ", dirtyBones=" + skeleton.getLastDirtyBones().size());
             }
             return;
         }
-        if (dirtyCount * 4 >= numVertices * 3) {
+        if (dirtyCount * 4 >= vertexCount * 3) {
             long updateStart = ModelProfiler.start();
-            updateAllSkinning(modelInstance, bridge, skeleton, numVertices);
+            updateAllSkinning(modelInstance, bridge, skeleton, vertexCount);
             if (ModelProfiler.enabled()) {
                 ModelProfiler.record("skinning.cpu.full", updateStart,
-                        "vertices=" + numVertices + ", dirty=" + dirtyCount + ", reason=threshold");
+                        "vertices=" + vertexCount + ", dirty=" + dirtyCount + ", reason=threshold");
             }
             return;
         }
         long updateStart = ModelProfiler.start();
         invalidateCpuUploadCaches();
-        invalidateIrisGpuBuffer();
         boolean recalculateTangents = recalculateDynamicTangents();
         Bounds bounds = new Bounds();
         HashSet<Mesh> dirtyMeshes = new HashSet<>();
@@ -1181,7 +1854,9 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
             }
         }
         long dirtyUploadStart = ModelProfiler.start();
-        markStaticGpuDirty(dirtyIndices, recalculateTangents ? dirtyMeshes : Collections.emptySet());
+        Set<Mesh> dirtyTangentMeshes = recalculateTangents ? dirtyMeshes : Collections.emptySet();
+        markStaticGpuDirty(dirtyIndices, dirtyTangentMeshes);
+        markIrisGpuDirty(dirtyIndices, dirtyTangentMeshes);
         if (ModelProfiler.enabled()) {
             ModelProfiler.record("skinning.cpu.partial.markUpload", dirtyUploadStart,
                     "dirtyMeshes=" + (recalculateTangents ? dirtyMeshes.size() : 0));
@@ -1271,6 +1946,34 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
         for (Mesh mesh : dirtyMeshes) {
             markMeshVerticesDirty(mesh);
+        }
+    }
+
+    private void markIrisGpuDirty(BitSet dirtyIndices, Set<Mesh> dirtyMeshes) {
+        if (!irisGpuBufferValid || irisGpuBuffer == null) {
+            return;
+        }
+        for (int i = dirtyIndices.nextSetBit(0); i >= 0; i = dirtyIndices.nextSetBit(i + 1)) {
+            if (i < numVertices) {
+                irisGpuDirtyVertices.set(i);
+            }
+        }
+        for (Mesh mesh : dirtyMeshes) {
+            markIrisMeshVerticesDirty(mesh);
+        }
+    }
+
+    private void markIrisMeshVerticesDirty(Mesh mesh) {
+        for (Vertex vertex : mesh.getVertices()) {
+            HashMap<Mesh, Integer[]> byMesh = vertexMap.get(vertex);
+            if (byMesh == null) continue;
+            Integer[] indices = byMesh.get(mesh);
+            if (indices == null) continue;
+            for (Integer index : indices) {
+                if (index != null && index >= 0 && index < numVertices) {
+                    irisGpuDirtyVertices.set(index);
+                }
+            }
         }
     }
 
