@@ -160,7 +160,7 @@ dependencies {
 
     compileOnly("libs:iris:neoforge-mc1.21.1-1.8.12")
     compileOnly("libs:sodium:neoforge-mc1.21.1-0.6.13")
-    //shadow("libs:iris:mc1.21-1.7.3")
+    shadow("libs:iris:mc1.21-1.7.3")
     runtimeOnly("libs:iris:neoforge-mc1.21.1-1.8.12")
     runtimeOnly("libs:sodium:neoforge-mc1.21.1-0.6.13")
     implementation("libs:sodium:neoforge-mc1.21.1-0.6.13")
