@@ -67,6 +67,7 @@ public abstract class TextStreamLoader<
         String[] str = getString(input);
         LineProcessor lastProcessor = null;
         context = new SerialContext<>(this);
+        beforeProcessors(context);
         for (String line : str) {
             if (lastProcessor != null && lastProcessor.isValidInput(line, context)) {
                 lastProcessor.input(line, context);
@@ -83,6 +84,10 @@ public abstract class TextStreamLoader<
         }
         build(result);
         return result;
+    }
+
+    public void beforeProcessors(SerialContext<M> context) {
+
     }
 
     public abstract void build(HashMap<OutputIdentifier, Model> result);
