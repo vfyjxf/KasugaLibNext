@@ -36,6 +36,8 @@ public interface ModelLoader<InputType, OutputIdentifier, TextureIdentifier> {
 
     HashMap<SourceType, HashMap<String, SourceManager<?>>> getSidedSources();
 
+    default void setSourceManager(SourceManager<?> sourceManager) {}
+
     @Nullable
     default <T> T getSource(String type, String sourceManagerName, String sourceName) {
         HashMap<SourceType, HashMap<String, SourceManager<?>>> map = getSidedSources();

@@ -35,6 +35,7 @@ import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.dynamic.ModelPipeLine;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
 import lib.kasuga.rendering.models.uml.math.QuaternionHelper;
+import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
@@ -153,7 +154,7 @@ public class Constants {
                 ResourceLocation, String >()
                 .withModelSource(jsonSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
-                .withLoader(new JEModelLoader("je_model", KasugaLib.MODID))
+                .withLoader(new JEModelLoader("je_model"))
                 .withBridge("mc_bridge", mcBridge)
                 .withBackend("mc_backend", mcBackend)
                 .build();
@@ -298,8 +299,8 @@ public class Constants {
     }
 
     private static void testModel() {
-        testMMD();
-        testUI();
+//        testMMD();
+//        testUI();
 //        testObj();
 //        testBe();
 //        testJe();
@@ -358,10 +359,19 @@ public class Constants {
     }
 
     public static void testJe() {
-        ResourceLocation loc =  ResourceLocation.tryBuild("kasuga_lib", "models/je/test_je_fan.json");
-        ResourceLocation instanceLoc = ResourceLocation.tryBuild("kasuga_lib", "test_je");
-        if (JE_PIPELINE.hasInstance(loc, instanceLoc)) return;
-        JE_PIPELINE.createInstance(loc, instanceLoc, null, null, null);
-        JE_PIPELINE.addToRenderer(loc, instanceLoc, "mc_bridge", "mc_backend");
+        ResourceLocation locA = ResourceLocation.tryBuild("kasuga_lib", "models/je/test_parent_a.json");
+        ResourceLocation locB = ResourceLocation.tryBuild("kasuga_lib", "models/je/test_parent_b.json");
+        ResourceLocation instanceA = ResourceLocation.tryBuild("kasuga_lib", "test_je_a");
+        ResourceLocation instanceB = ResourceLocation.tryBuild("kasuga_lib", "test_je_b");
+
+        if (!JE_PIPELINE.hasInstance(locA, instanceA)) {
+            JE_PIPELINE.createInstance(locA, instanceA, null, null, null);
+            JE_PIPELINE.addToRenderer(locA, instanceA, "mc_bridge", "mc_backend");
+        }
+        if (!JE_PIPELINE.hasInstance(locB, instanceB)) {
+            Transform offsetB = new Transform().translate(2, 0, 0);
+            JE_PIPELINE.createInstance(locB, instanceB, offsetB, null, null);
+            JE_PIPELINE.addToRenderer(locB, instanceB, "mc_bridge", "mc_backend");
+        }
     }
 }

@@ -79,6 +79,7 @@ public class ModelPipeLine<SourceOutputType, BackendInputType, StorageIdentifier
             loader.getSidedSources().clear();
             loader.getSidedSources().putAll(this.sidedSources);
         }
+        loader.setSourceManager(this.sourceManager);
         Map<StorageIdentifierType, Model> map =
                 loader.load((StorageIdentifierType) source, sourceOutput.get());
         models.putAll(map);
