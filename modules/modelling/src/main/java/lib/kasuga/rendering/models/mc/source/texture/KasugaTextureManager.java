@@ -33,7 +33,7 @@ public class KasugaTextureManager extends SourceManager<InputStream> implements 
 
     @NotNull
     protected final KasugaTextureAtlas textureAtlas;
-    private final List<SpriteUploader<?>> spriteUploaders;
+    private final Map<Object, SpriteUploader<?>> spriteUploaders;
     private final Map<Object, SpriteContents> caches;
     private final Map<Object, TextureAtlasSprite> loadedSprites;
     private final Function<ResourceLocation, SpriteContents> missingImage;
@@ -45,7 +45,7 @@ public class KasugaTextureManager extends SourceManager<InputStream> implements 
                                 @Nullable Function<ResourceLocation, SpriteContents> missingImage) {
         super(type, name);
         this.textureAtlas = new KasugaTextureAtlas(textureAtlasLocation);
-        this.spriteUploaders = new ArrayList<>();
+        this.spriteUploaders = new HashMap<>();
         this.loadedSprites = new HashMap<>();
         this.caches = new HashMap<>();
         textureManager.register(this.textureAtlas.location(), this.textureAtlas);
@@ -99,7 +99,7 @@ public class KasugaTextureManager extends SourceManager<InputStream> implements 
         ResourceLocation missingNo = MissingTextureAtlasSprite.getLocation();
         List<Supplier<Pair<Object, SpriteContents>>> suppliers = new ArrayList<>();
         suppliers.add(() -> Pair.of(missingNo, missingImage.apply(missingNo)));
-        for (SpriteUploader<?> uploader : spriteUploaders) {
+        for (SpriteUploader<?> uploader : spriteUploaders.values()) {
             suppliers.add(() -> Pair.of(
                     uploader.getResourceIdentifier(),
                     uploader.loadSprite(null, null)
@@ -126,9 +126,12 @@ public class KasugaTextureManager extends SourceManager<InputStream> implements 
 
     @Override
     public Optional<InputStream> load(Object sourceIdentifier) {
+        if (this.spriteUploaders.containsKey(sourceIdentifier)) {
+            return Optional.empty();
+        }
         for (Source<?, ?> source : getSources().values()) {
             if (source.isValidInput(sourceIdentifier)) {
-                this.spriteUploaders.add(new SpriteUploader(this, (TextureSource) source, sourceIdentifier));
+                this.spriteUploaders.put(sourceIdentifier, new SpriteUploader(this, (TextureSource) source, sourceIdentifier));
                 return Optional.empty();
             }
         }

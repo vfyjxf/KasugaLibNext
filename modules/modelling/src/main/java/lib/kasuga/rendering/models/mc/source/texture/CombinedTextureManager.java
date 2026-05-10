@@ -26,7 +26,7 @@ public class CombinedTextureManager extends KasugaTextureManager {
 
     protected final TextureAtlas normalMap;
     protected final TextureAtlas specularMap;
-    private final List<SpriteUploader<?>[]> spriteUploaders;
+    private final Map<Object, SpriteUploader<?>[]> spriteUploaders;
     private final Map<Object, SpriteContents[]> caches;
     private final Map<Object, TextureAtlasSprite[]> loadedSprites;
     private final Function<ResourceLocation, SpriteContents>[] missingImages;
@@ -49,7 +49,7 @@ public class CombinedTextureManager extends KasugaTextureManager {
         super(type, name, textureManager, textureAtlasLocation, missingImage);
         this.normalMap = new TextureAtlas(normalMapLocation);
         this.specularMap = new TextureAtlas(specularMapLocation);
-        this.spriteUploaders = new ArrayList<>();
+        this.spriteUploaders = new HashMap<>();
         this.caches = new HashMap<>();
         this.loadedSprites = new HashMap<>();
         this.missingImages = new Function[]{missingImage, missingNormalMapImage, missingSpecularMapImage};
@@ -139,7 +139,7 @@ public class CombinedTextureManager extends KasugaTextureManager {
                 RenderState.createTransparencyDefaultSprite(),
                 RenderState.createTransparencyDefaultSprite()
         }));
-        for (SpriteUploader<?>[] uploader : spriteUploaders) {
+        for (SpriteUploader<?>[] uploader : spriteUploaders.values()) {
             combined.add(() -> {
                 Object identifier = uploader[0].getResourceIdentifier();
                 Objects.requireNonNull(uploader[0]);
@@ -222,9 +222,12 @@ public class CombinedTextureManager extends KasugaTextureManager {
     public Optional<InputStream> load(@NonNull Object sourceIdentifier,
                                       @Nullable Object normalMapIdentifier,
                                       @Nullable Object specularMapIdentifier) {
+        if (this.spriteUploaders.containsKey(sourceIdentifier)) {
+            return Optional.empty();
+        }
         for (Source<?, ?> source : getSources().values()) {
             if (source.isValidInput(sourceIdentifier)) {
-                this.spriteUploaders.add(new SpriteUploader[]{
+                this.spriteUploaders.put(sourceIdentifier, new SpriteUploader[]{
                         new SpriteUploader(this, (TextureSource) source, sourceIdentifier),
                         normalMapIdentifier != null ? new SpriteUploader<>(this,(TextureSource) source, normalMapIdentifier) : null,
                         specularMapIdentifier != null ? new SpriteUploader<>(this,(TextureSource) source, specularMapIdentifier) : null
