@@ -281,8 +281,8 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
 
     public ResourceLocation getLocation(ResourceLocation fileLoc, ZipResource resource) {
         String filePath = fileLoc.getPath();
-        String convertNameAsDir = filePath.endsWith(".mmd.zip")
-                ? filePath.substring(0, filePath.length() - ".mmd.zip".length()) + "/"
+        String convertNameAsDir = filePath.endsWith(".pmx.zip")
+                ? filePath.substring(0, filePath.length() - ".pmx.zip".length()) + "/"
                 : filePath + "/";
         String resourceName = resource.name().toLowerCase(Locale.ROOT);
         ResourceLocation loc = ResourceLocation.tryBuild(
@@ -299,11 +299,13 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     }
 
     public ResourceLocation getLocByFileAndName(ResourceLocation fileLoc, String name) {
+        String lowerName;
         for (ResourceLocation loc : loadedModelMap.keySet()) {
             if (!loc.equals(fileLoc)) continue;
             Map<String, ResourceLocation> map = loadedModelMap.get(loc);
-            if (map.containsKey(name)) {
-                return map.get(name);
+            lowerName = name.toLowerCase(Locale.ROOT);
+            if (map.containsKey(lowerName)) {
+                return map.get(lowerName);
             }
         }
         return null;
