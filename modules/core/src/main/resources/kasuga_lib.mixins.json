@@ -27,6 +27,7 @@
     "client.AccessorTextureAtlas",
     "client.AccessorVertexBuffer",
     "client.MixinBlockModelShaper",
-    "client.MixinGlslPreprocessor"
+    "client.MixinGlslPreprocessor",
+    "client.MixinScreen"
   ]
 }

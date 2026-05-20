@@ -9,6 +9,7 @@ import lib.kasuga.KasugaLib;
 import lib.kasuga.mixins.client.AccessorOnRegisterRenderTypesEvent;
 import lib.kasuga.rendering.models.mc.backend.*;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
+import lib.kasuga.rendering.models.mc.backend.ui.UIBackend;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.be.BEModelLoader;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.loader.je.JEModelLoader;
@@ -30,7 +31,6 @@ import lib.kasuga.rendering.models.mc.source.texture.JarTextureSource;
 import lib.kasuga.rendering.models.mc.typo.KsgPmxLoader;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipHelper;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipResource;
-import lib.kasuga.rendering.models.mc.util.RotHelper;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.dynamic.ModelPipeLine;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
@@ -56,7 +56,6 @@ import net.neoforged.neoforge.client.event.*;
 import org.joml.Matrix4f;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 
 import static lib.kasuga.rendering.models.mc.backend.RenderState.UML_VERTEX_FORMAT;
@@ -69,11 +68,16 @@ public class Constants {
     public static SourceType TEXTURE_TYPE, MODEL_TYPE;
     public static MCBackend MC_BACKEND;
     public static KsgPmxLoader PMX_LOADER;
+    public static UIBackend UI_BACKEND;
 
     public static ModelInstance currentInstance;
 
     @SubscribeEvent
-    public static void onClientSetup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {}
+    public static void onClientSetup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {
+        if (UI_BACKEND == null) {
+            UI_BACKEND = new UIBackend();
+        }
+    }
 
     @SubscribeEvent
     @SuppressWarnings("unchecked")
@@ -300,7 +304,7 @@ public class Constants {
 
     private static void testModel() {
 //        testMMD();
-//        testUI();
+        testUI();
 //        testObj();
 //        testBe();
 //        testJe();
@@ -319,10 +323,17 @@ public class Constants {
     }
 
     public static void testUI() {
-        Screen screen = new AlertScreen(() -> {}, Component.literal("Test"), Component.literal("This is a test"));
-        screen.init(Minecraft.getInstance(), Minecraft.getInstance().getWindow().getGuiScaledWidth(), Minecraft.getInstance().getWindow().getGuiScaledHeight());
+        if (UI_BACKEND.getRenderables().isEmpty()) {
+            Screen screen = new AlertScreen(() -> {
+                Minecraft.getInstance().player.displayClientMessage(
+                        Component.literal("触发了按钮"), true
+                );
+            }, Component.literal("Test"), Component.literal("This is a test"));
+            screen.init(Minecraft.getInstance(), Minecraft.getInstance().getWindow().getGuiScaledWidth(), Minecraft.getInstance().getWindow().getGuiScaledHeight());
+            UI_BACKEND.addRenderable(screen);
+        }
         GuiGraphics guiGraphics = UIBackend.constructGuiGraphics();
-        UIBackend.renderRenderable(guiGraphics, 0, screen);
+        UI_BACKEND.renderAllUis(guiGraphics, 0);
     }
 
     public static void testMMD(String fileName, String modelName, String instanceName) {
