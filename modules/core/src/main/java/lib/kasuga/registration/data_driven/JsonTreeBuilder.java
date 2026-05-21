@@ -213,7 +213,7 @@ public class JsonTreeBuilder {
 
             // Inject group-level properties as modifiers
             if (def.properties() != null) {
-                List<Modifier<BlockBehaviour.Properties>> mods = JsonPropertyParser.parseBlockProperties(def.properties());
+                List<Modifier<BlockBehaviour.Properties>> mods = JsonPropertyParser.getInstance().parseBlockProperties(def.properties());
                 for (Modifier<BlockBehaviour.Properties> m : mods) {
                     group.configure(m);
                 }
@@ -254,7 +254,7 @@ public class JsonTreeBuilder {
 
         // Inject block-level properties as modifiers
         if (def.properties() != null) {
-            List<Modifier<BlockBehaviour.Properties>> mods = JsonPropertyParser.parseBlockProperties(def.properties());
+            List<Modifier<BlockBehaviour.Properties>> mods = JsonPropertyParser.getInstance().parseBlockProperties(def.properties());
             for (Modifier<BlockBehaviour.Properties> m : mods) {
                 reg.configure(m);
             }

@@ -4,20 +4,29 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import lib.kasuga.registration.core.Modifier;
+import lib.kasuga.registration.data_driven.compiler.ModifierCompiler;
+import lib.kasuga.registration.data_driven.compiler.RLCompiler;
 import lib.kasuga.registration.minecraft.block.BlockRegModifiers;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 public class JsonPropertyParser {
 
+    public static final JsonPropertyParser INSTANCE = new JsonPropertyParser();
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final Map<String, SoundType> SOUND_TYPES = buildSoundTypeMap();
+    private final Map<String, SoundType> soundTypes;
+    private final List<ModifierCompiler> compilers;
 
-    public static List<Modifier<BlockBehaviour.Properties>> parseBlockProperties(JsonObject json) {
+    public List<Modifier<BlockBehaviour.Properties>> parseBlockProperties(JsonObject json) {
         if (json == null) return List.of();
         List<Modifier<BlockBehaviour.Properties>> result = new ArrayList<>();
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
@@ -29,35 +38,45 @@ public class JsonPropertyParser {
         return result;
     }
 
-    private static Modifier<BlockBehaviour.Properties> parseBlockProperty(String key, JsonElement value) {
+    private Modifier<BlockBehaviour.Properties> parseBlockProperty(String key, JsonElement value) {
         try {
-            return switch (key) {
-                case "no_occlusion" -> bool(value) ? BlockRegModifiers.NO_OCCLUSION : null;
-                case "no_collission" -> bool(value) ? BlockRegModifiers.NO_COLLISSION : null;
-                case "requires_correct_tool" -> bool(value) ? BlockRegModifiers.REQUIRES_CORRECT_TOOL_FOR_DROPS : null;
-                case "replaceable" -> bool(value) ? BlockRegModifiers.REPLACEABLE : null;
-                case "dynamic_shape" -> bool(value) ? BlockRegModifiers.DYNAMIC_SHAPE : null;
-                case "random_ticks" -> bool(value) ? BlockRegModifiers.RANDOM_TICKS : null;
-                case "no_loot_table" -> bool(value) ? BlockRegModifiers.NO_LOOT_TABLE : null;
-                case "ignited_by_lava" -> bool(value) ? BlockRegModifiers.IGNITED_BY_LAVA : null;
-                case "liquid" -> bool(value) ? BlockRegModifiers.LIQUID : null;
-                case "force_solid_on" -> bool(value) ? BlockRegModifiers.FORCE_SOLID_ON : null;
-                case "air" -> bool(value) ? BlockRegModifiers.AIR : null;
-                case "no_terrain_particles" -> bool(value) ? BlockRegModifiers.NO_TERRAIN_PARTICLES : null;
-                case "friction" -> BlockRegModifiers.FRICTION_BY_FLOAT.apply(value.getAsFloat());
-                case "speed_factor" -> BlockRegModifiers.SPEED_FACTOR_BY_FLOAT.apply(value.getAsFloat());
-                case "jump_factor" -> BlockRegModifiers.JUMP_FACTOR_BY_FLOAT.apply(value.getAsFloat());
-                case "destroy_time" -> BlockRegModifiers.DESTROY_TIME_BY_FLOAT.apply(value.getAsFloat());
-                case "explosion_resistance" -> BlockRegModifiers.EXPLOSION_RESISTANCE_BY_FLOAT.apply(value.getAsFloat());
-                case "strength" -> parseStrength(value);
-                case "map_color" -> parseMapColor(value);
-                case "sound_type" -> parseSoundType(value);
-                case "light_emission" -> BlockRegModifiers.LIGHT_LEVEL_BY_TO_INT_FUNCTION.apply(state -> value.getAsInt());
-                default -> {
-                    LOGGER.warn("Unknown block property: {}", key);
-                    yield null;
-                }
-            };
+            Modifier<BlockBehaviour.Properties> mod = null;
+            for (ModifierCompiler compiler : compilers) {
+                mod = compiler.parse(key, value);
+                if (mod != null) break;
+            }
+            if (mod == null) {
+                LOGGER.warn("Unknown block property: {}", key);
+            }
+            return mod;
+            // TODO: 若检查无问题后删除这地下注释掉的东西
+//            return switch (key) {
+//                case "no_occlusion" -> bool(value) ? BlockRegModifiers.NO_OCCLUSION : null;
+//                case "no_collission" -> bool(value) ? BlockRegModifiers.NO_COLLISSION : null;
+//                case "requires_correct_tool" -> bool(value) ? BlockRegModifiers.REQUIRES_CORRECT_TOOL_FOR_DROPS : null;
+//                case "replaceable" -> bool(value) ? BlockRegModifiers.REPLACEABLE : null;
+//                case "dynamic_shape" -> bool(value) ? BlockRegModifiers.DYNAMIC_SHAPE : null;
+//                case "random_ticks" -> bool(value) ? BlockRegModifiers.RANDOM_TICKS : null;
+//                case "no_loot_table" -> bool(value) ? BlockRegModifiers.NO_LOOT_TABLE : null;
+//                case "ignited_by_lava" -> bool(value) ? BlockRegModifiers.IGNITED_BY_LAVA : null;
+//                case "liquid" -> bool(value) ? BlockRegModifiers.LIQUID : null;
+//                case "force_solid_on" -> bool(value) ? BlockRegModifiers.FORCE_SOLID_ON : null;
+//                case "air" -> bool(value) ? BlockRegModifiers.AIR : null;
+//                case "no_terrain_particles" -> bool(value) ? BlockRegModifiers.NO_TERRAIN_PARTICLES : null;
+//                case "friction" -> BlockRegModifiers.FRICTION_BY_FLOAT.apply(value.getAsFloat());
+//                case "speed_factor" -> BlockRegModifiers.SPEED_FACTOR_BY_FLOAT.apply(value.getAsFloat());
+//                case "jump_factor" -> BlockRegModifiers.JUMP_FACTOR_BY_FLOAT.apply(value.getAsFloat());
+//                case "destroy_time" -> BlockRegModifiers.DESTROY_TIME_BY_FLOAT.apply(value.getAsFloat());
+//                case "explosion_resistance" -> BlockRegModifiers.EXPLOSION_RESISTANCE_BY_FLOAT.apply(value.getAsFloat());
+//                case "strength" -> parseStrength(value);
+//                case "map_color" -> parseMapColor(value);
+//                case "sound_type" -> parseSoundType(value);
+//                case "light_emission" -> BlockRegModifiers.LIGHT_LEVEL_BY_TO_INT_FUNCTION.apply(state -> value.getAsInt());
+//                default -> {
+//                    LOGGER.warn("Unknown block property: {}", key);
+//                    yield null;
+//                }
+//            };
         } catch (Exception e) {
             LOGGER.warn("Failed to parse block property '{}': {}", key, e.getMessage());
             return null;
@@ -68,7 +87,7 @@ public class JsonPropertyParser {
         return value.getAsBoolean();
     }
 
-    private static Modifier<BlockBehaviour.Properties> parseStrength(JsonElement value) {
+    private Modifier<BlockBehaviour.Properties> parseStrength(JsonElement value) {
         if (value.isJsonArray()) {
             var arr = value.getAsJsonArray();
             if (arr.size() == 2) {
@@ -79,7 +98,7 @@ public class JsonPropertyParser {
         return BlockRegModifiers.STRENGTH_BY_FLOAT.apply(value.getAsFloat());
     }
 
-    private static Modifier<BlockBehaviour.Properties> parseMapColor(JsonElement value) {
+    private Modifier<BlockBehaviour.Properties> parseMapColor(JsonElement value) {
         String name = value.getAsString();
         DyeColor dye = DyeColor.byName(name, null);
         if (dye != null) {
@@ -89,9 +108,9 @@ public class JsonPropertyParser {
         return null;
     }
 
-    private static Modifier<BlockBehaviour.Properties> parseSoundType(JsonElement value) {
+    private Modifier<BlockBehaviour.Properties> parseSoundType(JsonElement value) {
         String name = value.getAsString();
-        SoundType type = SOUND_TYPES.get(name);
+        SoundType type = soundTypes.get(name);
         if (type != null) {
             return BlockRegModifiers.SOUND_BY_SOUND_TYPE.apply(type);
         }
@@ -99,7 +118,7 @@ public class JsonPropertyParser {
         return null;
     }
 
-    private static Map<String, SoundType> buildSoundTypeMap() {
+    private Map<String, SoundType> buildSoundTypeMap() {
         Map<String, SoundType> map = new HashMap<>();
         addSound(map, "stone", SoundType.STONE);
         addSound(map, "wood", SoundType.WOOD);
@@ -146,12 +165,76 @@ public class JsonPropertyParser {
         addSound(map, "cobweb", SoundType.COBWEB);
         addSound(map, "suspicious_sand", SoundType.SUSPICIOUS_SAND);
         addSound(map, "suspicious_gravel", SoundType.SUSPICIOUS_GRAVEL);
+        // TODO: 这里应该加入一个事件，使得其他用户可以在这里加入自己的声音类型
         return map;
     }
+
+    public List<ModifierCompiler> buildCompilers() {
+        List<ModifierCompiler> compilers = new ArrayList<>();
+        addCompiler(compilers, "no_occlusion", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.NO_OCCLUSION, null));
+        // FIXME: 这里这个collission是不是写错了，应该写成collision.
+        addCompiler(compilers, "no_collission", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.NO_COLLISSION, null));
+        addCompiler(compilers, "requires_correct_tool", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.REQUIRES_CORRECT_TOOL_FOR_DROPS, null));
+        addCompiler(compilers, "replaceable", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.REPLACEABLE, null));
+        addCompiler(compilers, "dynamic_shape", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.DYNAMIC_SHAPE, null));
+        addCompiler(compilers, "random_ticks", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.RANDOM_TICKS, null));
+        addCompiler(compilers, "no_loot_table", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.NO_LOOT_TABLE, null));
+        addCompiler(compilers, "ignited_by_lava", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.IGNITED_BY_LAVA, null));
+        addCompiler(compilers, "liquid", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.LIQUID, null));
+        addCompiler(compilers, "force_solid_on", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.FORCE_SOLID_ON, null));
+        addCompiler(compilers, "air", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.AIR, null));
+        addCompiler(compilers, "no_terrain_particles", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.NO_TERRAIN_PARTICLES, null));
+        addCompiler(compilers, "friction", (k, v) -> BlockRegModifiers.FRICTION_BY_FLOAT.apply(v.getAsFloat()));
+        addCompiler(compilers, "speed_factor", (k, v) -> BlockRegModifiers.SPEED_FACTOR_BY_FLOAT.apply(v.getAsFloat()));
+        addCompiler(compilers, "jump_factor", (k, v) -> BlockRegModifiers.JUMP_FACTOR_BY_FLOAT.apply(v.getAsFloat()));
+        addCompiler(compilers, "destroy_time", (k, v) -> BlockRegModifiers.DESTROY_TIME_BY_FLOAT.apply(v.getAsFloat()));
+        addCompiler(compilers, "explosion_resistance", (k, v) -> BlockRegModifiers.EXPLOSION_RESISTANCE_BY_FLOAT.apply(v.getAsFloat()));
+        addCompiler(compilers, "strength", (k, v) -> parseStrength(v));
+        addCompiler(compilers, "map_color", (k, v) -> parseMapColor(v));
+        addCompiler(compilers, "sound_type", (k, v) -> parseSoundType(v));
+        addCompiler(compilers, "light_emission", (k, v) -> BlockRegModifiers.LIGHT_LEVEL_BY_TO_INT_FUNCTION.apply(state -> v.getAsInt()));
+        // TODO: 这里应该加入一个事件，使得其他用户可以在这里加入自己的编译器类型.
+        return compilers;
+    }
+
+    public static @NotNull BiFunction<String, JsonElement, Modifier<BlockBehaviour.Properties>> constructFunction(@NotNull Predicate<JsonElement> predicate,
+                                                                                                                  @NotNull Modifier<BlockBehaviour.Properties> prop,
+                                                                                                                  @Nullable Modifier<BlockBehaviour.Properties> defaultProp) {
+        return (k, v) -> predicate.test(v) ? prop : defaultProp;
+    }
+
 
     private static void addSound(Map<String, SoundType> map, String name, SoundType type) {
         map.put(name, type);
     }
 
-    private JsonPropertyParser() {}
+    private static void addCompiler(List<ModifierCompiler> list, String name,
+                                    BiFunction<String, JsonElement, Modifier<BlockBehaviour.Properties>> supplier) {
+        list.add(new RLCompiler(ResourceLocation.tryParse(name.toLowerCase(Locale.ROOT)), supplier));
+    }
+
+    private JsonPropertyParser() {
+        compilers = buildCompilers();
+        soundTypes = buildSoundTypeMap();
+    }
+
+    public void registerCompiler(ModifierCompiler compiler) {
+        compilers.add(compiler);
+    }
+
+    protected void clearCompilers() {
+        compilers.clear();
+    }
+
+    public void removeCompiler(ModifierCompiler compiler) {
+        compilers.remove(compiler);
+    }
+
+    public int compilerSize() {
+        return compilers.size();
+    }
+
+    public static JsonPropertyParser getInstance() {
+        return INSTANCE;
+    }
 }
