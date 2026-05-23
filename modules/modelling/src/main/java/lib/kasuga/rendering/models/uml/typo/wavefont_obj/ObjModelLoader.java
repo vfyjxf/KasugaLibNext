@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.uml.typo.wavefont_obj;
 
+import lib.kasuga.rendering.models.uml.dynamic.morph.Morph;
 import lib.kasuga.rendering.models.uml.loaders.serial.SerialContext;
 import lib.kasuga.rendering.models.uml.loaders.serial.text_stream.TextStreamLoader;
 import lib.kasuga.rendering.models.uml.math.Transform;
@@ -125,6 +126,10 @@ public abstract class ObjModelLoader<
 
     public abstract String getTextureContent(String mtlUrl);
 
+    public Morph collectMorph(ObjModelLoader loader, SerialContext<ObjContextData> context) {
+        return null;
+    }
+
     public ObjContextData ensureContext(SerialContext<ObjContextData> context) {
         if (context.isEmpty()) {
             context.push(new ObjContextData("default", false));
@@ -214,7 +219,8 @@ public abstract class ObjModelLoader<
                 b,
                 skeleton,
                 materialSetBuilder().endMaterialSet(),
-                getModelData(this)
+                getModelData(this),
+                collectMorph(this, getContext())
         );
         result.put(getIdentifier(this, currentInput), model);
         clear();

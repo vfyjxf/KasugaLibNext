@@ -96,7 +96,8 @@ public class JEModelLoader extends Loader<JsonObject, ResourceLocation, String> 
                 skeleton.getBones(),
                 skeleton,
                 materialSetBuilder().endMaterialSet(),
-                getData()
+                getData(),
+                null
         );
 
         ResourceLocation identifier = (ResourceLocation) getContext().getData("identifier");

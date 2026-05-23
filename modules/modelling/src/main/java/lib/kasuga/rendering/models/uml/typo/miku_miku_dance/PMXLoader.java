@@ -300,7 +300,16 @@ public abstract class PMXLoader<InputType, OutputIdentifier, TextureIdentifier, 
         }
         Skeleton skeleton = new Skeleton(boneArray, rootBone, new Anchor[0], null, new Transform());
 
-        Model model = new Model(verticesArray, meshesArray, boneArray, skeleton, materialSet, getModelData(header));
+        // TODO: 补充这里的morph
+        Model model = new Model(
+                verticesArray,
+                meshesArray,
+                boneArray,
+                skeleton,
+                materialSet,
+                getModelData(header),
+                null
+        );
 
         vertexMapping.clear();
         sortedVertices.clear();

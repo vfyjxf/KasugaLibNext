@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.uml.structure;
 
+import lib.kasuga.rendering.models.uml.dynamic.morph.Morph;
 import lib.kasuga.rendering.models.uml.structure.data.ModelData;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
@@ -32,18 +33,22 @@ public class Model {
 
     private final MaterialSet materialSet;
 
+    private final Morph morph;
+
 
     public Model(Vertex[] vertices,
                  Mesh[] meshes,
                  Bone[] bones,
                  Skeleton skeleton,
                  MaterialSet materialSet,
-                 @Nullable ModelData modelData) {
+                 @Nullable ModelData modelData,
+                 @Nullable Morph morph) {
         this.vertices = vertices;
         this.meshes = meshes;
         this.bones = bones;
         this.skeleton = skeleton;
         this.modelData = modelData;
         this.materialSet = materialSet;
+        this.morph = morph == null ? new Morph() : morph;
     }
 }

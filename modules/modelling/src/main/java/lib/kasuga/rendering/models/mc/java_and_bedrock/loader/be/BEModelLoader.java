@@ -112,7 +112,8 @@ public class BEModelLoader extends Loader<JsonObject, ResourceLocation, String> 
                             skeleton.getBones(),
                             skeleton,
                             materialSetBuilder().endMaterialSet(),
-                            getData()
+                            getData(),
+                     null
         );
         this.loadedModels.put(ResourceLocation.tryBuild(
                 nameSpace,
