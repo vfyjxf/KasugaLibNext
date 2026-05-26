@@ -14,6 +14,9 @@ import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 public class Mesh {
 
@@ -40,5 +43,22 @@ public class Mesh {
         this.data = data;
         this.normal = normal;
         this.materials = materials;
+    }
+
+    public void calculateNormal() {
+        Vector3f p1 = new Vector3f(),
+                 p2 = new Vector3f(),
+                 p3 = new Vector3f();
+        Vector3f normal = new Vector3f();
+        for (int i = 0; i < vertices.length; i++) {
+            int j1 = (i + 1) % materials.length;
+            int j2 = (i + 2) % materials.length;
+            p1.set(vertices[i].getPosition());
+            p2.set(vertices[j1].getPosition());
+            p3.set(vertices[j2].getPosition());
+            normal.add(new Vector3f(p2).sub(p1).cross(p3.sub(p2)));
+        }
+        normal.normalize();
+        this.normal.set(normal);
     }
 }

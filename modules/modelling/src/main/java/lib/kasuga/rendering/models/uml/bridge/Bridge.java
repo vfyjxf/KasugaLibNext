@@ -6,18 +6,8 @@ import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
-import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
-import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.MeshData;
-import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.VertexData;
-import lib.kasuga.rendering.models.uml.structure.data.ModelData;
-import lib.kasuga.rendering.models.uml.structure.data.ModelInstanceData;
-import lib.kasuga.rendering.models.uml.structure.material.data.TextureData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
+import lib.kasuga.rendering.models.uml.dynamic.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonInstanceData;
 
 import java.util.HashMap;
 

@@ -20,7 +20,7 @@ import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
-import lib.kasuga.rendering.models.uml.structure.skeleton.SkeletonInstance;
+import lib.kasuga.rendering.models.uml.dynamic.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
@@ -294,86 +294,86 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         return (int) ((index * vertexSize) + bufOffsets.get(element));
     }
 
-    @Deprecated
-    public void uploadOnIrisPresent(BufferBuilder builder,
-                                    PoseStack.Pose pose,
-                                    float brightness,
-                                    int packedLight,
-                                    int packedOverlay,
-                                    boolean readAlpha) {
-        checkClosed();
-        AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
-        ByteBufferBuilder dstBuffer = accessor.getBuffer();
-        int avs = accessor.getVertexSize();
-        if (!isIrisStaticCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
-            ensureIrisStaticCache(avs);
-            irisStaticCache = fillIrisGpuCache(null, builder, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices).build().byteBuffer();
-            irisStaticCacheVertexSize = avs;
-            irisStaticCacheBrightness = brightness;
-            irisStaticCachePackedLight = packedLight;
-            irisStaticCachePackedOverlay = packedOverlay;
-            irisStaticCacheReadAlpha = readAlpha;
-            irisStaticCacheValid = true;
-        }
-        long pointer = -1L;
-        long staticPointer = MemoryUtil.memAddress(irisStaticCache);
-        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
-        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
-        org.joml.Matrix4f poseMatrix = pose.pose();
-        org.joml.Matrix3f normalMatrix = pose.normal();
-        for (int i = 0; i < numVertices; i++) {
-            long vertexPointer = pointer + (long) i * avs;
-            long cachedVertexPointer = staticPointer + (long) i * avs;
-            int vertexOffset = i * vertexSize;
-            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_COLOR_OFFSET, vertexPointer + NEW_ENTITY_COLOR_OFFSET, 4L);
-            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV0_OFFSET, vertexPointer + NEW_ENTITY_UV0_OFFSET, 8L);
-            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV1_OFFSET, vertexPointer + NEW_ENTITY_UV1_OFFSET, 4L);
-            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV2_OFFSET, vertexPointer + NEW_ENTITY_UV2_OFFSET, 4L);
-            int bufOffset = vertexOffset + srcPositionOffset;
-            float x = buffer.getFloat(bufOffset);
-            float y = buffer.getFloat(bufOffset + 4);
-            float z = buffer.getFloat(bufOffset + 8);
-            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET,
-                    poseMatrix.m00() * x + poseMatrix.m10() * y + poseMatrix.m20() * z + poseMatrix.m30());
-            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET + 4L,
-                    poseMatrix.m01() * x + poseMatrix.m11() * y + poseMatrix.m21() * z + poseMatrix.m31());
-            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET + 8L,
-                    poseMatrix.m02() * x + poseMatrix.m12() * y + poseMatrix.m22() * z + poseMatrix.m32());
+//    @Deprecated
+//    public void uploadOnIrisPresent(BufferBuilder builder,
+//                                    PoseStack.Pose pose,
+//                                    float brightness,
+//                                    int packedLight,
+//                                    int packedOverlay,
+//                                    boolean readAlpha) {
+//        checkClosed();
+//        AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
+//        ByteBufferBuilder dstBuffer = accessor.getBuffer();
+//        int avs = accessor.getVertexSize();
+//        if (!isIrisStaticCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
+//            ensureIrisStaticCache(avs);
+//            irisStaticCache = fillIrisGpuCache(null, builder, brightness, packedLight, packedOverlay, readAlpha, 0, numVertices).build().byteBuffer();
+//            irisStaticCacheVertexSize = avs;
+//            irisStaticCacheBrightness = brightness;
+//            irisStaticCachePackedLight = packedLight;
+//            irisStaticCachePackedOverlay = packedOverlay;
+//            irisStaticCacheReadAlpha = readAlpha;
+//            irisStaticCacheValid = true;
+//        }
+//        long pointer = -1L;
+//        long staticPointer = MemoryUtil.memAddress(irisStaticCache);
+//        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+//        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+//        org.joml.Matrix4f poseMatrix = pose.pose();
+//        org.joml.Matrix3f normalMatrix = pose.normal();
+//        for (int i = 0; i < numVertices; i++) {
+//            long vertexPointer = pointer + (long) i * avs;
+//            long cachedVertexPointer = staticPointer + (long) i * avs;
+//            int vertexOffset = i * vertexSize;
+//            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_COLOR_OFFSET, vertexPointer + NEW_ENTITY_COLOR_OFFSET, 4L);
+//            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV0_OFFSET, vertexPointer + NEW_ENTITY_UV0_OFFSET, 8L);
+//            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV1_OFFSET, vertexPointer + NEW_ENTITY_UV1_OFFSET, 4L);
+//            MemoryUtil.memCopy(cachedVertexPointer + NEW_ENTITY_UV2_OFFSET, vertexPointer + NEW_ENTITY_UV2_OFFSET, 4L);
+//            int bufOffset = vertexOffset + srcPositionOffset;
+//            float x = buffer.getFloat(bufOffset);
+//            float y = buffer.getFloat(bufOffset + 4);
+//            float z = buffer.getFloat(bufOffset + 8);
+//            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET,
+//                    poseMatrix.m00() * x + poseMatrix.m10() * y + poseMatrix.m20() * z + poseMatrix.m30());
+//            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET + 4L,
+//                    poseMatrix.m01() * x + poseMatrix.m11() * y + poseMatrix.m21() * z + poseMatrix.m31());
+//            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_POSITION_OFFSET + 8L,
+//                    poseMatrix.m02() * x + poseMatrix.m12() * y + poseMatrix.m22() * z + poseMatrix.m32());
+//
+//            bufOffset = vertexOffset + srcNormalOffset;
+//            float nx = ((float) buffer.get(bufOffset)) / 127f;
+//            float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
+//            float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
+//            float tx = normalMatrix.m00() * nx + normalMatrix.m10() * ny + normalMatrix.m20() * nz;
+//            float ty = normalMatrix.m01() * nx + normalMatrix.m11() * ny + normalMatrix.m21() * nz;
+//            float tz = normalMatrix.m02() * nx + normalMatrix.m12() * ny + normalMatrix.m22() * nz;
+//            putNormal(vertexPointer + NEW_ENTITY_NORMAL_OFFSET, tx, ty, tz);
+//        }
+//        accessor.setVertices(accessor.getVertices() + numVertices);
+//    }
 
-            bufOffset = vertexOffset + srcNormalOffset;
-            float nx = ((float) buffer.get(bufOffset)) / 127f;
-            float ny = ((float) buffer.get(bufOffset + 1)) / 127f;
-            float nz = ((float) buffer.get(bufOffset + 2)) / 127f;
-            float tx = normalMatrix.m00() * nx + normalMatrix.m10() * ny + normalMatrix.m20() * nz;
-            float ty = normalMatrix.m01() * nx + normalMatrix.m11() * ny + normalMatrix.m21() * nz;
-            float tz = normalMatrix.m02() * nx + normalMatrix.m12() * ny + normalMatrix.m22() * nz;
-            putNormal(vertexPointer + NEW_ENTITY_NORMAL_OFFSET, tx, ty, tz);
-        }
-        accessor.setVertices(accessor.getVertices() + numVertices);
-    }
-
-    private boolean isIrisStaticCacheValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
-        return irisStaticCacheValid &&
-                irisStaticCache != null &&
-                irisStaticCacheVertexSize == vertexSize &&
-                irisStaticCachePackedLight == packedLight &&
-                irisStaticCachePackedOverlay == packedOverlay &&
-                irisStaticCacheReadAlpha == readAlpha &&
-                Float.compare(irisStaticCacheBrightness, brightness) == 0;
-    }
-
-    private void ensureIrisStaticCache(int vertexSize) {
-        int size = vertexSize * numVertices;
-        if (irisStaticCache != null && irisStaticCache.capacity() >= size) {
-            irisStaticCache.clear();
-            return;
-        }
-        if (irisStaticCache != null) {
-            MemoryUtil.memFree(irisStaticCache);
-        }
-        irisStaticCache = MemoryUtil.memAlloc(size);
-        irisStaticCache.order(ByteOrder.nativeOrder());
-    }
+//    private boolean isIrisStaticCacheValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+//        return irisStaticCacheValid &&
+//                irisStaticCache != null &&
+//                irisStaticCacheVertexSize == vertexSize &&
+//                irisStaticCachePackedLight == packedLight &&
+//                irisStaticCachePackedOverlay == packedOverlay &&
+//                irisStaticCacheReadAlpha == readAlpha &&
+//                Float.compare(irisStaticCacheBrightness, brightness) == 0;
+//    }
+//
+//    private void ensureIrisStaticCache(int vertexSize) {
+//        int size = vertexSize * numVertices;
+//        if (irisStaticCache != null && irisStaticCache.capacity() >= size) {
+//            irisStaticCache.clear();
+//            return;
+//        }
+//        if (irisStaticCache != null) {
+//            MemoryUtil.memFree(irisStaticCache);
+//        }
+//        irisStaticCache = MemoryUtil.memAlloc(size);
+//        irisStaticCache.order(ByteOrder.nativeOrder());
+//    }
 
     private void invalidateIrisStaticCache() {
         irisStaticCacheValid = false;
@@ -393,41 +393,41 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         irisGpuSkinningSourceValid = false;
     }
 
-    @Deprecated
-    private void fillIrisStaticCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
-        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
-        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
-        float colorScale = brightness / 255f;
-        for (int i = 0; i < numVertices; i++) {
-            long vertexPointer = pointer + (long) i * avs;
-            int vertexOffset = i * vertexSize;
-            int bufOffset = vertexOffset + srcColorOffset;
-            int a = buffer.get(bufOffset) & 0xff;
-            int b = buffer.get(bufOffset + 1) & 0xff;
-            int g = buffer.get(bufOffset + 2) & 0xff;
-            int r = buffer.get(bufOffset + 3) & 0xff;
-            int ma = buffer.get(bufOffset + 4) & 0xff;
-            int mb = buffer.get(bufOffset + 5) & 0xff;
-            int mg = buffer.get(bufOffset + 6) & 0xff;
-            int mr = buffer.get(bufOffset + 7) & 0xff;
-
-            int af = readAlpha ? (a * ma) / 255 : ma;
-            int bf = (int) (b * mb * colorScale);
-            int gf = (int) (g * mg * colorScale);
-            int rf = (int) (r * mr * colorScale);
-            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
-            MemoryUtil.memPutInt(vertexPointer + NEW_ENTITY_COLOR_OFFSET, IS_LITTLE_ENDIAN ?
-                    colorFinal :
-                    Integer.reverseBytes(colorFinal)
-            );
-
-            bufOffset = vertexOffset + srcUv0Offset;
-            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_UV0_OFFSET, buffer.getFloat(bufOffset));
-            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_UV0_OFFSET + 4L, buffer.getFloat(bufOffset + 4));
-            putPackedUV(vertexPointer + NEW_ENTITY_UV1_OFFSET, packedOverlay);
-            putPackedUV(vertexPointer + NEW_ENTITY_UV2_OFFSET, packedLight);
-        }
-    }
+//    @Deprecated
+//    private void fillIrisStaticCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+//        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
+//        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
+//        float colorScale = brightness / 255f;
+//        for (int i = 0; i < numVertices; i++) {
+//            long vertexPointer = pointer + (long) i * avs;
+//            int vertexOffset = i * vertexSize;
+//            int bufOffset = vertexOffset + srcColorOffset;
+//            int a = buffer.get(bufOffset) & 0xff;
+//            int b = buffer.get(bufOffset + 1) & 0xff;
+//            int g = buffer.get(bufOffset + 2) & 0xff;
+//            int r = buffer.get(bufOffset + 3) & 0xff;
+//            int ma = buffer.get(bufOffset + 4) & 0xff;
+//            int mb = buffer.get(bufOffset + 5) & 0xff;
+//            int mg = buffer.get(bufOffset + 6) & 0xff;
+//            int mr = buffer.get(bufOffset + 7) & 0xff;
+//
+//            int af = readAlpha ? (a * ma) / 255 : ma;
+//            int bf = (int) (b * mb * colorScale);
+//            int gf = (int) (g * mg * colorScale);
+//            int rf = (int) (r * mr * colorScale);
+//            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
+//            MemoryUtil.memPutInt(vertexPointer + NEW_ENTITY_COLOR_OFFSET, IS_LITTLE_ENDIAN ?
+//                    colorFinal :
+//                    Integer.reverseBytes(colorFinal)
+//            );
+//
+//            bufOffset = vertexOffset + srcUv0Offset;
+//            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_UV0_OFFSET, buffer.getFloat(bufOffset));
+//            MemoryUtil.memPutFloat(vertexPointer + NEW_ENTITY_UV0_OFFSET + 4L, buffer.getFloat(bufOffset + 4));
+//            putPackedUV(vertexPointer + NEW_ENTITY_UV1_OFFSET, packedOverlay);
+//            putPackedUV(vertexPointer + NEW_ENTITY_UV2_OFFSET, packedLight);
+//        }
+//    }
 
     private ByteBufferBuilder fillIrisGpuCache(@Nullable ByteBufferBuilder byteBufferBuilder,
                                                BufferBuilder builder,
@@ -487,109 +487,109 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         return bbb;
     }
 
-    @Deprecated
-    private void fillIrisGpuCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
-        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
-        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
-        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
-        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
-        long bufferPointer = MemoryUtil.memAddress(buffer);
-        float colorScale = brightness / 255f;
-        for (int i = 0; i < numVertices; i++) {
-            long vertexPointer = pointer + (long) i * avs;
-            int vertexOffset = i * vertexSize;
-            long sourcePointer = bufferPointer + vertexOffset;
-            MemoryUtil.memCopy(sourcePointer + srcPositionOffset, vertexPointer + NEW_ENTITY_POSITION_OFFSET, 12L);
+//    @Deprecated
+//    private void fillIrisGpuCache(long pointer, int avs, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+//        int srcPositionOffset = bufOffsets.get(VertexFormatElement.POSITION);
+//        int srcColorOffset = bufOffsets.get(VertexFormatElement.COLOR);
+//        int srcUv0Offset = bufOffsets.get(VertexFormatElement.UV0);
+//        int srcNormalOffset = bufOffsets.get(VertexFormatElement.NORMAL);
+//        long bufferPointer = MemoryUtil.memAddress(buffer);
+//        float colorScale = brightness / 255f;
+//        for (int i = 0; i < numVertices; i++) {
+//            long vertexPointer = pointer + (long) i * avs;
+//            int vertexOffset = i * vertexSize;
+//            long sourcePointer = bufferPointer + vertexOffset;
+//            MemoryUtil.memCopy(sourcePointer + srcPositionOffset, vertexPointer + NEW_ENTITY_POSITION_OFFSET, 12L);
+//
+//            int bufOffset = vertexOffset + srcColorOffset;
+//            int a = buffer.get(bufOffset) & 0xff;
+//            int b = buffer.get(bufOffset + 1) & 0xff;
+//            int g = buffer.get(bufOffset + 2) & 0xff;
+//            int r = buffer.get(bufOffset + 3) & 0xff;
+//            int ma = buffer.get(bufOffset + 4) & 0xff;
+//            int mb = buffer.get(bufOffset + 5) & 0xff;
+//            int mg = buffer.get(bufOffset + 6) & 0xff;
+//            int mr = buffer.get(bufOffset + 7) & 0xff;
+//
+//            int af = readAlpha ? (a * ma) / 255 : ma;
+//            int bf = (int) (b * mb * colorScale);
+//            int gf = (int) (g * mg * colorScale);
+//            int rf = (int) (r * mr * colorScale);
+//            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
+//            MemoryUtil.memPutInt(vertexPointer + NEW_ENTITY_COLOR_OFFSET, IS_LITTLE_ENDIAN ?
+//                    colorFinal :
+//                    Integer.reverseBytes(colorFinal)
+//            );
+//
+//            MemoryUtil.memCopy(sourcePointer + srcUv0Offset, vertexPointer + NEW_ENTITY_UV0_OFFSET, 8L);
+//            putPackedUV(vertexPointer + NEW_ENTITY_UV1_OFFSET, packedOverlay);
+//            putPackedUV(vertexPointer + NEW_ENTITY_UV2_OFFSET, packedLight);
+//            MemoryUtil.memCopy(sourcePointer + srcNormalOffset, vertexPointer + NEW_ENTITY_NORMAL_OFFSET, 3L);
+//        }
+//    }
 
-            int bufOffset = vertexOffset + srcColorOffset;
-            int a = buffer.get(bufOffset) & 0xff;
-            int b = buffer.get(bufOffset + 1) & 0xff;
-            int g = buffer.get(bufOffset + 2) & 0xff;
-            int r = buffer.get(bufOffset + 3) & 0xff;
-            int ma = buffer.get(bufOffset + 4) & 0xff;
-            int mb = buffer.get(bufOffset + 5) & 0xff;
-            int mg = buffer.get(bufOffset + 6) & 0xff;
-            int mr = buffer.get(bufOffset + 7) & 0xff;
+//    @Deprecated
+//    public void upload(BufferBuilder builder,
+//                       PoseStack.Pose pose,
+//                       @Nullable KasugaShaderInstance shader,
+//                       float brightness, float emissiveStrength,
+//                       int packedLight, int packedOverlay,
+//                       boolean readAlpha) {
+//        if (IrisCompat.isUsingShaderPack()) {
+//            uploadOnIrisPresent(builder, pose, brightness, packedLight, packedOverlay, readAlpha);
+//            return;
+//        }
+//        checkClosed();
+//        Objects.requireNonNull(shader);
+//        shader.setCurrentPose(pose);
+//        shader.setEmissiveStrength(emissiveStrength);
+//        shader.setLightData(brightness, packedLight, packedOverlay);
+//        shader.setGpuSkinningState(gpuSkinningDataReady && isGpuSkinningEnabled(), gpuBoneTransformTextureId);
+//        shader.apply();
+//        AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
+//        ByteBufferBuilder buf = accessor.getBuffer();
+//        int avs = accessor.getVertexSize();
+//        long pointer = buf.reserve(avs * numVertices);
+//        if (isUploadCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
+//            MemoryUtil.memCopy(MemoryUtil.memAddress(uploadCache), pointer, (long) avs * numVertices);
+//            accessor.setVertices(accessor.getVertices() + numVertices);
+//            return;
+//        }
+//        ensureUploadCache(avs);
+//        long cachePointer = MemoryUtil.memAddress(uploadCache);
+//        fillUploadCache(cachePointer, avs, brightness, packedLight, packedOverlay, readAlpha);
+//        MemoryUtil.memCopy(cachePointer, pointer, (long) avs * numVertices);
+//        uploadCacheVertexSize = avs;
+//        uploadCacheBrightness = brightness;
+//        uploadCachePackedLight = packedLight;
+//        uploadCachePackedOverlay = packedOverlay;
+//        uploadCacheReadAlpha = readAlpha;
+//        uploadCacheValid = true;
+//        accessor.setVertices(accessor.getVertices() + numVertices);
+//    }
 
-            int af = readAlpha ? (a * ma) / 255 : ma;
-            int bf = (int) (b * mb * colorScale);
-            int gf = (int) (g * mg * colorScale);
-            int rf = (int) (r * mr * colorScale);
-            int colorFinal = af << 24 | bf << 16 | gf << 8 | rf;
-            MemoryUtil.memPutInt(vertexPointer + NEW_ENTITY_COLOR_OFFSET, IS_LITTLE_ENDIAN ?
-                    colorFinal :
-                    Integer.reverseBytes(colorFinal)
-            );
-
-            MemoryUtil.memCopy(sourcePointer + srcUv0Offset, vertexPointer + NEW_ENTITY_UV0_OFFSET, 8L);
-            putPackedUV(vertexPointer + NEW_ENTITY_UV1_OFFSET, packedOverlay);
-            putPackedUV(vertexPointer + NEW_ENTITY_UV2_OFFSET, packedLight);
-            MemoryUtil.memCopy(sourcePointer + srcNormalOffset, vertexPointer + NEW_ENTITY_NORMAL_OFFSET, 3L);
-        }
-    }
-
-    @Deprecated
-    public void upload(BufferBuilder builder,
-                       PoseStack.Pose pose,
-                       @Nullable KasugaShaderInstance shader,
-                       float brightness, float emissiveStrength,
-                       int packedLight, int packedOverlay,
-                       boolean readAlpha) {
-        if (IrisCompat.isUsingShaderPack()) {
-            uploadOnIrisPresent(builder, pose, brightness, packedLight, packedOverlay, readAlpha);
-            return;
-        }
-        checkClosed();
-        Objects.requireNonNull(shader);
-        shader.setCurrentPose(pose);
-        shader.setEmissiveStrength(emissiveStrength);
-        shader.setLightData(brightness, packedLight, packedOverlay);
-        shader.setGpuSkinningState(gpuSkinningDataReady && isGpuSkinningEnabled(), gpuBoneTransformTextureId);
-        shader.apply();
-        AccessorBufferBuilder accessor = (AccessorBufferBuilder) builder;
-        ByteBufferBuilder buf = accessor.getBuffer();
-        int avs = accessor.getVertexSize();
-        long pointer = buf.reserve(avs * numVertices);
-        if (isUploadCacheValid(avs, brightness, packedLight, packedOverlay, readAlpha)) {
-            MemoryUtil.memCopy(MemoryUtil.memAddress(uploadCache), pointer, (long) avs * numVertices);
-            accessor.setVertices(accessor.getVertices() + numVertices);
-            return;
-        }
-        ensureUploadCache(avs);
-        long cachePointer = MemoryUtil.memAddress(uploadCache);
-        fillUploadCache(cachePointer, avs, brightness, packedLight, packedOverlay, readAlpha);
-        MemoryUtil.memCopy(cachePointer, pointer, (long) avs * numVertices);
-        uploadCacheVertexSize = avs;
-        uploadCacheBrightness = brightness;
-        uploadCachePackedLight = packedLight;
-        uploadCachePackedOverlay = packedOverlay;
-        uploadCacheReadAlpha = readAlpha;
-        uploadCacheValid = true;
-        accessor.setVertices(accessor.getVertices() + numVertices);
-    }
-
-    private boolean isUploadCacheValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
-        return uploadCacheValid &&
-                uploadCache != null &&
-                uploadCacheVertexSize == vertexSize &&
-                uploadCachePackedLight == packedLight &&
-                uploadCachePackedOverlay == packedOverlay &&
-                uploadCacheReadAlpha == readAlpha &&
-                Float.compare(uploadCacheBrightness, brightness) == 0;
-    }
-
-    private void ensureUploadCache(int vertexSize) {
-        int size = vertexSize * numVertices;
-        if (uploadCache != null && uploadCache.capacity() >= size) {
-            uploadCache.clear();
-            return;
-        }
-        if (uploadCache != null) {
-            MemoryUtil.memFree(uploadCache);
-        }
-        uploadCache = MemoryUtil.memAlloc(size);
-        uploadCache.order(ByteOrder.nativeOrder());
-    }
+//    private boolean isUploadCacheValid(int vertexSize, float brightness, int packedLight, int packedOverlay, boolean readAlpha) {
+//        return uploadCacheValid &&
+//                uploadCache != null &&
+//                uploadCacheVertexSize == vertexSize &&
+//                uploadCachePackedLight == packedLight &&
+//                uploadCachePackedOverlay == packedOverlay &&
+//                uploadCacheReadAlpha == readAlpha &&
+//                Float.compare(uploadCacheBrightness, brightness) == 0;
+//    }
+//
+//    private void ensureUploadCache(int vertexSize) {
+//        int size = vertexSize * numVertices;
+//        if (uploadCache != null && uploadCache.capacity() >= size) {
+//            uploadCache.clear();
+//            return;
+//        }
+//        if (uploadCache != null) {
+//            MemoryUtil.memFree(uploadCache);
+//        }
+//        uploadCache = MemoryUtil.memAlloc(size);
+//        uploadCache.order(ByteOrder.nativeOrder());
+//    }
 
     private void invalidateUploadCache() {
         invalidateCpuUploadCaches();
@@ -1075,6 +1075,7 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         int overriddenPositionLocation = -1;
         try {
             ShaderInstance shader = RenderSystem.getShader();
+            Objects.requireNonNull(shader);
             Matrix4f irisModelViewMatrix = new Matrix4f(modelViewMatrix).mul(pose.pose());
             BufferUploader.reset();
             irisGpuBuffer.bind();

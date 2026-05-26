@@ -2,16 +2,20 @@ package lib.kasuga.rendering.models.uml.dynamic.morph;
 
 import lib.kasuga.rendering.models.uml.dynamic.morph.blender.BlenderType;
 import lib.kasuga.rendering.models.uml.dynamic.morph.types.*;
+import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lombok.Getter;
+import lombok.Setter;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
 @Getter
-public abstract class MorphInstance<IdType> {
+public class MorphInstance<IdType> {
 
     protected final Morph<IdType> morph;
 
@@ -31,6 +35,14 @@ public abstract class MorphInstance<IdType> {
 
     protected final Map<Material, Material> materialCache;
 
+    protected final Map<Bone, Bone> newlyUpdatedBones;
+
+    protected final Map<Vertex, Vertex> newlyUpdatedVertices;
+
+    protected final Map<Mesh, Mesh> newlyUpdatedMeshes;
+
+    protected final Map<Material, Material> newlyUpdatedMaterials;
+
     protected final HashSet<Vertex> dirtyVertices;
 
     protected final HashSet<Mesh> dirtyMeshes;
@@ -38,6 +50,11 @@ public abstract class MorphInstance<IdType> {
     protected final HashSet<Bone> dirtyBones;
 
     protected final HashSet<Material> dirtyMaterials;
+
+    protected final Map<Vertex, MorphResult<Vertex>> newlyMorphedResults;
+
+    @Setter
+    protected byte resultMappingType;
 
     public MorphInstance(Morph<IdType> morph) {
         this.morph = morph;
@@ -56,7 +73,15 @@ public abstract class MorphInstance<IdType> {
         dirtyBones = new HashSet<>();
         dirtyMaterials = new HashSet<>();
         dirtyMeshes = new HashSet<>();
+
+        newlyUpdatedBones = new HashMap<>();
+        newlyUpdatedVertices = new HashMap<>();
+        newlyUpdatedMeshes = new HashMap<>();
+        newlyUpdatedMaterials = new HashMap<>();
+        newlyMorphedResults = new HashMap<>();
+
         initialInstance();
+        resultMappingType = (byte) 0b1011;
     }
 
     protected void innerInitGroupMorphs(GroupMorph<?> groupMorph, float parentFactor) {
@@ -232,9 +257,17 @@ public abstract class MorphInstance<IdType> {
         return materialCache.getOrDefault(original, original);
     }
 
+    public void clearCaches() {
+        vertexCache.clear();
+        meshCache.clear();
+        boneCache.clear();
+        materialCache.clear();
+    }
+
     public void update() {
         if (!isDirty()) return;
         if (isVerticesDirty()) {
+            newlyUpdatedVertices.clear();
             List<Vertex> result = new ArrayList<>();
             Map<VertexMorph, Float[]> map;
             for (Vertex v : dirtyVertices) {
@@ -246,11 +279,14 @@ public abstract class MorphInstance<IdType> {
                 }
                 BlenderType<Vertex> blender = getBlender(v, map, result);
                 if (blender != null) {
-                    vertexCache.put(v, blender.blend(v, map, result));
+                    Vertex vx = blender.blend(v, map, result);
+                    vertexCache.put(v, vx);
+                    newlyUpdatedVertices.put(v, vx);
                 }
             }
         }
         if (isBonesDirty()) {
+            newlyUpdatedBones.clear();
             List<Bone> result = new ArrayList<>();
             Map<BoneMorph, Float[]> map;
             for (Bone v : dirtyBones) {
@@ -262,11 +298,14 @@ public abstract class MorphInstance<IdType> {
                 }
                 BlenderType<Bone> blender = getBlender(v, map, result);
                 if (blender != null) {
-                    boneCache.put(v, blender.blend(v, map, result));
+                    Bone b =blender.blend(v, map, result);
+                    boneCache.put(v, b);
+                    newlyUpdatedBones.put(v, b);
                 }
             }
         }
         if (isMeshesDirty()) {
+            newlyUpdatedMeshes.clear();
             List<Mesh> result = new ArrayList<>();
             Map<MeshMorph, Float[]> map;
             for (Mesh v : dirtyMeshes) {
@@ -278,11 +317,14 @@ public abstract class MorphInstance<IdType> {
                 }
                 BlenderType<Mesh> blender = getBlender(v, map, result);
                 if (blender != null) {
-                    meshCache.put(v, blender.blend(v, map, result));
+                    Mesh m = blender.blend(v, map, result);
+                    meshCache.put(v, m);
+                    newlyUpdatedMeshes.put(v, m);
                 }
             }
         }
         if (isMaterialsDirty()) {
+            newlyUpdatedMaterials.clear();
             List<Material> result = new ArrayList<>();
             Map<MaterialMorph, Float[]> map;
             for (Material v : dirtyMaterials) {
@@ -294,16 +336,21 @@ public abstract class MorphInstance<IdType> {
                 }
                 BlenderType<Material> blender = getBlender(v, map, result);
                 if (blender != null) {
-                    materialCache.put(v, blender.blend(v, map, result));
+                    Material m = blender.blend(v, map, result);
+                    materialCache.put(v, m);
+                    newlyUpdatedMaterials.put(v, m);
                 }
             }
         }
         clearAllDirtyMarks();
+        collectMorphedVertices(resultMappingType);
     }
 
-    public abstract <T> BlenderType<T> getBlender(T original,
-                                                  Map<? extends MorphType, Float[]> map,
-                                                  List<T> results);
+    public <T> @Nullable BlenderType<T> getBlender(T original,
+                                                   Map<? extends MorphType, Float[]> map,
+                                                   List<T> results) {
+        return null;
+    }
 
     public boolean isDirty() {
         return !(
@@ -335,5 +382,82 @@ public abstract class MorphInstance<IdType> {
         dirtyVertices.clear();
         dirtyMaterials.clear();
         dirtyBones.clear();
+    }
+
+    public Map<Vertex, MorphResult<Vertex>> collectMorphedVertices(byte includes) {
+        if (includes == 0) return newlyMorphedResults;
+        boolean includeVertices = (includes & 8) > 0;
+        boolean includeBones = (includes & 4) > 0;
+        boolean includeMeshes = (includes & 2) > 0;
+        boolean includeMaterials = (includes & 1) > 0;
+        Map<Vertex, MorphResult<Vertex>> result = getVertexMorphResultMap(includeVertices);
+        if (includeBones) {
+            Model model = getMorph().getModel();
+            for (Map.Entry<Bone, Bone> entry : newlyUpdatedBones.entrySet()) {
+                Bone original = entry.getKey();
+                Bone target = entry.getValue();
+                Set<Vertex> vertexByBone = model.getVertexByBone(original);
+                putDataIntoMorphVertices(vertexByBone, result, original, target);
+            }
+        }
+        if (includeMeshes) {
+            for (Map.Entry<Mesh, Mesh> entry : newlyUpdatedMeshes.entrySet()) {
+                Mesh original = entry.getKey();
+                Mesh target = entry.getValue();
+                putDataIntoMorphVertices(List.of(original.getVertices()), result, original, target);
+            }
+        }
+        if (includeMaterials) {
+            Model model = getMorph().getModel();
+            for (Map.Entry<Material, Material> entry : newlyUpdatedMaterials.entrySet()) {
+                Material original = entry.getKey();
+                Material target = entry.getValue();
+                Set<Vertex> vertexByMaterials = model.getVertexByMaterial(original);
+                putDataIntoMorphVertices(vertexByMaterials, result, original, target);
+            }
+        }
+        return result;
+    }
+
+    private @NotNull Map<Vertex, MorphResult<Vertex>> getVertexMorphResultMap(boolean includeVertices) {
+        Map<Vertex, MorphResult<Vertex>> result = newlyMorphedResults;
+        result.clear();
+
+        if (includeVertices) {
+            for (Map.Entry<Vertex, Vertex> entry : newlyUpdatedVertices.entrySet()) {
+                Vertex original = entry.getKey();
+                Vertex target = entry.getValue();
+                MorphResult mr;
+                Map<Object, Object> orgAndTarget;
+                if (result.containsKey(original)) {
+                    mr = result.get(original);
+                    orgAndTarget = mr.morphTargetAndResult();
+                } else {
+                    orgAndTarget = new HashMap<>();
+                    mr = new MorphResult<>(original, orgAndTarget);
+                    result.put(original, mr);
+                }
+                orgAndTarget.put(original, target);
+            }
+        }
+        return result;
+    }
+
+    protected void putDataIntoMorphVertices(Collection<Vertex> vertices,
+                                            Map<Vertex, MorphResult<Vertex>> resltMap,
+                                            Object original, Object target) {
+        for (Vertex v : vertices) {
+            MorphResult mr;
+            Map<Object, Object> orgAndTarget;
+            if (resltMap.containsKey(v)) {
+                mr = resltMap.get(v);
+                orgAndTarget = mr.morphTargetAndResult();
+            } else {
+                orgAndTarget = new HashMap<>();
+                mr = new MorphResult<>(v, orgAndTarget);
+                resltMap.put(v, mr);
+            }
+            orgAndTarget.put(original, target);
+        }
     }
 }

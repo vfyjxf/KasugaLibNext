@@ -1,4 +1,4 @@
-package lib.kasuga.rendering.models.uml.structure.skeleton;
+package lib.kasuga.rendering.models.uml.dynamic;
 
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
@@ -6,10 +6,8 @@ import lib.kasuga.rendering.models.uml.math.BoneContext;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
-import lib.kasuga.rendering.models.uml.structure.basic.data.BoneBindingData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
-import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
+import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
+import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonInstanceData;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
@@ -23,6 +21,7 @@ import java.util.*;
 @Getter
 public class SkeletonInstance {
 
+    private final ModelInstance modelInstance;
     private final Skeleton skeleton;
 
     private final HashMap<Bone, Transform> transforms;
@@ -42,7 +41,8 @@ public class SkeletonInstance {
     private boolean lastFullUpdate;
     private long version;
 
-    public SkeletonInstance(Skeleton skeleton, @Nullable Transform transform, @Nullable SkeletonInstanceData data) {
+    public SkeletonInstance(ModelInstance instance, Skeleton skeleton, @Nullable Transform transform, @Nullable SkeletonInstanceData data) {
+        this.modelInstance = instance;
         this.skeleton = skeleton;
         this.transform = transform != null ? transform : new Transform();
         shouldUpdate = false;
@@ -55,6 +55,15 @@ public class SkeletonInstance {
         this.lastFullUpdate = true;
         this.version = 0;
         updateTransform();
+    }
+
+    public Bone getBoneMorphed(Bone original) {
+        return modelInstance.getBone(original);
+    }
+
+    public Transform getTransformMorphed(Bone original) {
+        Bone b = getBoneMorphed(original);
+        return b.getTransform();
     }
 
     public void updateTransform() {
@@ -263,6 +272,18 @@ public class SkeletonInstance {
     }
 
     private Set<Bone> collectUpdatedBones() {
+        Map<Bone, Bone> newlyUpdatedBones = modelInstance.getMorph().getNewlyUpdatedBones();
+        if (!newlyUpdatedBones.isEmpty()) {
+            for (Map.Entry<Bone, Bone> entry : newlyUpdatedBones.entrySet()) {
+                if (!getSkeleton().getBoneMap().containsValue(entry.getKey())) continue;
+                dirtyBones.add(entry.getKey());
+                Transform morphTransform = entry.getValue().getTransform();
+                Transform originalTransform = transforms.getOrDefault(entry.getKey(), new Transform());
+                Transform result = new Transform().mul(originalTransform).mul(morphTransform);
+                transforms.put(entry.getKey(), result);
+            }
+            newlyUpdatedBones.clear();
+        }
         if (fullUpdateRequested || dirtyBones.isEmpty()) {
             return Collections.emptySet();
         }

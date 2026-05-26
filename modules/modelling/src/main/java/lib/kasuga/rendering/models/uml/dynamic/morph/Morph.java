@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.uml.dynamic.morph;
 
 import lib.kasuga.rendering.models.uml.dynamic.morph.blender.BlenderType;
 import lib.kasuga.rendering.models.uml.dynamic.morph.types.*;
+import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
 import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
@@ -12,6 +13,8 @@ import java.util.*;
 
 @Getter
 public class Morph<IdType> {
+
+    protected final Model model;
 
     protected final Map<IdType, MorphType> morphs;
 
@@ -33,7 +36,8 @@ public class Morph<IdType> {
 
     protected final List<BlenderType<Mesh>> meshBlenders;
 
-    public Morph() {
+    public Morph(Model model) {
+        this.model = model;
         morphs = new HashMap<>();
         groupMorphs = new HashMap<>();
         vertexMorphs = new HashMap<>();
