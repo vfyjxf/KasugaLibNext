@@ -146,7 +146,7 @@ public final class ItemReg<T extends Item> extends MinecraftDeferRegistryReg<Ite
                 this.tabIdCached = true;
                 this.cachedTab = RegFacade.transformObject("TabsToModifiers", null);
             }
-            if(ctx.getTabKey().location() == cachedTab) {
+            if(ctx.getTabKey().location().equals(cachedTab)) {
                 ctx.getEvent().accept(this.getEntry());
             }
         });

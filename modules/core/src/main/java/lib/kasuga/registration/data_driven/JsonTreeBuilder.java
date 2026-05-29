@@ -10,6 +10,7 @@ import lib.kasuga.registration.RegistryGroup;
 import lib.kasuga.registration.core.Modifier;
 import lib.kasuga.registration.core.ResourceLocationModifiers;
 import lib.kasuga.registration.factory.FactoryRegistry;
+import lib.kasuga.registration.minecraft.item.ItemRegModifiers;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -272,7 +273,7 @@ public class JsonTreeBuilder {
         if (effectiveItemProps != null && effectiveItemProps.has("tab")) {
             String tabStr = effectiveItemProps.get("tab").getAsString();
             ResourceLocation tabId = ResourceLocation.parse(tabStr);
-            CreativeTabCollector.register(reg, tabId);
+            reg.configure(ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER.apply(() -> tabId));
             LOGGER.debug("Registered block '{}' for creative tab {}", def.id(), tabId);
         }
 
