@@ -93,7 +93,7 @@ public class ModelPipeLine<SourceOutputType, BackendInputType, StorageIdentifier
                                                 @Nullable SkeletonInstanceData skeletonInstanceData) {
         Model model = models.get(modelName);
         if (model == null) {return null;}
-        ModelInstance instance = new ModelInstance(model, transform, instanceData, skeletonInstanceData, new MaterialSetInstance(model.getMaterialSet()));
+        ModelInstance instance = new ModelInstance(model, transform, instanceData, skeletonInstanceData, new MaterialSetInstance(model.getMaterialSet()), null);
         modelInstances.computeIfAbsent(model, k -> new HashMap<>()).put(instanceIdentifier, instance);
         return instance;
     }
