@@ -28,7 +28,9 @@ FactoryRegistry          — 根据 type 字符串创建对应的 Reg 实例
 JsonRegistryGroup        — 虚拟注册组，挂载到主注册树
         │
         ▼
-CreativeTabCollector     — 将注册的方块填入指定创造模式标签页
+RegisterEvent 分发       — 复用现有事件链，tab 通过
+                            ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER
+                            以 Modifier 形式内联注入
 ```
 
 ### 集成时机
@@ -62,8 +64,10 @@ src/main/resources/data/<modid>/kasugalib/<任意文件名>.json
 
 ```json
 {
-  "groups": [ ... ],
-  "blocks": [ ... ]
+  "groups": [ ... ],       // (可选) Group 定义数组
+  "blocks": [ ... ],       // (可选) Block 定义数组
+  "items": [ ... ],        // (可选, 计划中) Item 定义数组（无对应 Block）
+  "block_entities": [ ... ] // (可选, 计划中) BlockEntity 定义数组
 }
 ```
 
@@ -96,8 +100,15 @@ src/main/resources/data/<modid>/kasugalib/<任意文件名>.json
   "group": "kuayue:c22_panels",
   "properties": { ... },
   "item_properties": { ... },
-  "model": { ... },
-  "textures": { ... }
+  "model": "kuayue:models/block/22_floor",
+  "textures": {
+    "0": "kuayue:block/22_floor"
+  },
+  "state_machine": "kuayue:panel_state_machine",
+  "block_entity": {
+    "type": "kuayue:simple_tile",
+    "data": { }
+  }
 }
 ```
 
@@ -108,8 +119,10 @@ src/main/resources/data/<modid>/kasugalib/<任意文件名>.json
 | `group` | string | 否 | 挂载的组 id |
 | `properties` | object | 否 | 方块属性 |
 | `item_properties` | object | 否 | 物品属性（如创造标签页） |
-| `model` | object | 否 | 模型引用 |
+| `model` | string | 否 | 模型路径 |
 | `textures` | object | 否 | 纹理引用 |
+| `state_machine` | string | 否 | 状态机 id |
+| `block_entity` | object | 否 | BlockEntity 绑定 |
 
 **优先级**：block 级属性 > group 级继承属性。当 block 的 `item_properties` 未指定 `tab` 时，自动从所属 group 继承。
 
@@ -126,15 +139,17 @@ JSON 中支持的方块属性通过 `JsonPropertyParser` 解析，映射到 `Blo
   "no_occlusion": true,
   "strength": [1.5, 3.0],
   "map_color": "blue",
-  "no_collision": true,
-  "requires_correct_tool_for_drops": true,
+  "no_collission": true,
+  "requires_correct_tool": true,
   "random_ticks": true,
-  "sound": "stone",
-  "light_level": 15,
+  "sound_type": "metal",
+  "light_emission": 15,
   "friction": 0.8,
   "speed_factor": 0.5,
   "jump_factor": 1.5,
-  "dynamic_shapes": true
+  "dynamic_shape": true,
+  "destroy_time": 1.5,
+  "explosion_resistance": 3.0
 }
 ```
 
@@ -143,15 +158,24 @@ JSON 中支持的方块属性通过 `JsonPropertyParser` 解析，映射到 `Blo
 | `no_occlusion` | boolean | 不遮挡相邻方块 |
 | `strength` | number 或 [number, number] | 破坏时间/硬度，两元素数组为 [hardness, resistance] |
 | `map_color` | string | 地图颜色（可使用 dye color 名称） |
-| `no_collision` | boolean | 无碰撞箱 |
-| `requires_correct_tool_for_drops` | boolean | 需要合适工具才能掉落 |
+| `no_collission` | boolean | 无碰撞箱 |
+| `requires_correct_tool` | boolean | 需要合适工具才能掉落 |
 | `random_ticks` | boolean | 随机刻更新 |
-| `sound` | string | 放置/破坏音效类型 |
-| `light_level` | number | 亮度等级 (0-15) |
+| `sound_type` | string | 放置/破坏音效类型 |
+| `light_emission` | number | 亮度等级 (0-15) |
 | `friction` | number | 摩擦力系数 |
 | `speed_factor` | number | 行走速度倍率 |
 | `jump_factor` | number | 跳跃高度倍率 |
-| `dynamic_shapes` | boolean | 动态碰撞箱 |
+| `dynamic_shape` | boolean | 动态碰撞箱 |
+| `replaceable` | boolean | 是否可替换 |
+| `destroy_time` | number | 破坏时间（单个值，与 `strength` 互斥） |
+| `explosion_resistance` | number | 爆炸抗性 |
+| `no_loot_table` | boolean | 无战利品表 |
+| `ignited_by_lava` | boolean | 可被熔岩点燃 |
+| `liquid` | boolean | 流体 |
+| `force_solid_on` | boolean | 强制固实 |
+| `air` | boolean | 空气 |
+| `no_terrain_particles` | boolean | 无地形粒子 |
 
 ### 物品属性 (item_properties)
 
@@ -224,7 +248,8 @@ public class MyFactory {
 - [ ] **模型/纹理**：JSON 中未明确指定模型和纹理路径时，按 Minecraft 约定路径自动查找（`assets/<namespace>/models/block/<path>.json`），需手动补全
 - [ ] **翻译键**：自动推导为 `block.<namespace>.<path>`，需在 lang 文件中手动添加
 - [ ] **FactoryRegistry**：目前仅有少数工厂类型，尚未覆盖所有 KuaYue block 变体
-- [ ] **SlabReg.getEntry()**：SlabReg 的 `getEntry()` 返回 `null`（已通过 `findBlock()` 递归子节点修复）
-- [ ] **Group 属性继承**：子 block 的 tab 会从 group 继承，但其他 item_properties 字段的继承尚未完全覆盖
-- [ ] **更多注册类型**：目前仅支持 block 注册，尚未扩展到 item、entity 等其他类型
-- [ ] **循环依赖检测**：已支持 group 间的循环依赖检测，但更复杂的依赖场景未经充分测试
+- [x] **SlabReg.getEntry()** 返回 `null` — 已通过 `ChildrenUtils.traverseRI()` 递归子节点修复
+- [ ] **Group 属性继承**：子 block 的 tab 会从 group 继承，但其他 `item_properties` 字段的继承尚未完全覆盖
+- [ ] **更多注册类型**：目前仅支持 block 注册，尚未扩展到 `items`、`block_entities` 等其他 JSON 顶层类型
+- [x] **循环依赖检测** — 已使用 `GraphCycleDetector.topologicalSort()` 实现 Group parent 链检测
+- [ ] **模型状态绑定**：`state_machine` 字段已解析但尚未在运行时消费

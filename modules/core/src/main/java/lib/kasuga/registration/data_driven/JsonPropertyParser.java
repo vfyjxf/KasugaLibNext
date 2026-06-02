@@ -49,34 +49,6 @@ public class JsonPropertyParser {
                 LOGGER.warn("Unknown block property: {}", key);
             }
             return mod;
-            // TODO: 若检查无问题后删除这地下注释掉的东西
-//            return switch (key) {
-//                case "no_occlusion" -> bool(value) ? BlockRegModifiers.NO_OCCLUSION : null;
-//                case "no_collission" -> bool(value) ? BlockRegModifiers.NO_COLLISSION : null;
-//                case "requires_correct_tool" -> bool(value) ? BlockRegModifiers.REQUIRES_CORRECT_TOOL_FOR_DROPS : null;
-//                case "replaceable" -> bool(value) ? BlockRegModifiers.REPLACEABLE : null;
-//                case "dynamic_shape" -> bool(value) ? BlockRegModifiers.DYNAMIC_SHAPE : null;
-//                case "random_ticks" -> bool(value) ? BlockRegModifiers.RANDOM_TICKS : null;
-//                case "no_loot_table" -> bool(value) ? BlockRegModifiers.NO_LOOT_TABLE : null;
-//                case "ignited_by_lava" -> bool(value) ? BlockRegModifiers.IGNITED_BY_LAVA : null;
-//                case "liquid" -> bool(value) ? BlockRegModifiers.LIQUID : null;
-//                case "force_solid_on" -> bool(value) ? BlockRegModifiers.FORCE_SOLID_ON : null;
-//                case "air" -> bool(value) ? BlockRegModifiers.AIR : null;
-//                case "no_terrain_particles" -> bool(value) ? BlockRegModifiers.NO_TERRAIN_PARTICLES : null;
-//                case "friction" -> BlockRegModifiers.FRICTION_BY_FLOAT.apply(value.getAsFloat());
-//                case "speed_factor" -> BlockRegModifiers.SPEED_FACTOR_BY_FLOAT.apply(value.getAsFloat());
-//                case "jump_factor" -> BlockRegModifiers.JUMP_FACTOR_BY_FLOAT.apply(value.getAsFloat());
-//                case "destroy_time" -> BlockRegModifiers.DESTROY_TIME_BY_FLOAT.apply(value.getAsFloat());
-//                case "explosion_resistance" -> BlockRegModifiers.EXPLOSION_RESISTANCE_BY_FLOAT.apply(value.getAsFloat());
-//                case "strength" -> parseStrength(value);
-//                case "map_color" -> parseMapColor(value);
-//                case "sound_type" -> parseSoundType(value);
-//                case "light_emission" -> BlockRegModifiers.LIGHT_LEVEL_BY_TO_INT_FUNCTION.apply(state -> value.getAsInt());
-//                default -> {
-//                    LOGGER.warn("Unknown block property: {}", key);
-//                    yield null;
-//                }
-//            };
         } catch (Exception e) {
             LOGGER.warn("Failed to parse block property '{}': {}", key, e.getMessage());
             return null;
