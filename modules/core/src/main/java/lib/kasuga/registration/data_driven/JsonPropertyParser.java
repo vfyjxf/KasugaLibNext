@@ -144,8 +144,11 @@ public class JsonPropertyParser {
     public List<ModifierCompiler> buildCompilers() {
         List<ModifierCompiler> compilers = new ArrayList<>();
         addCompiler(compilers, "no_occlusion", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.NO_OCCLUSION, null));
-        // FIXME: 这里这个collission是不是写错了，应该写成collision.
+
+        // wrong spelling from mojang.
+        addCompiler(compilers, "no_collision", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.NO_COLLISSION, null));
         addCompiler(compilers, "no_collission", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.NO_COLLISSION, null));
+
         addCompiler(compilers, "requires_correct_tool", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.REQUIRES_CORRECT_TOOL_FOR_DROPS, null));
         addCompiler(compilers, "replaceable", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.REPLACEABLE, null));
         addCompiler(compilers, "dynamic_shape", constructFunction(JsonPropertyParser::bool, BlockRegModifiers.DYNAMIC_SHAPE, null));
