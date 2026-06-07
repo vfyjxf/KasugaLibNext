@@ -1,0 +1,185 @@
+package lib.kasuga.rendering.models.mc.backend;
+
+import com.mojang.blaze3d.vertex.*;
+import lib.kasuga.rendering.models.mc.backend.context.CpuSkinningContext;
+import lib.kasuga.rendering.models.mc.backend.context.GLContext;
+import lib.kasuga.rendering.models.mc.backend.context.IrisGpuSkinningContext;
+import lib.kasuga.rendering.models.mc.backend.context.VanillaGpuSkinningContext;
+import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
+import lib.kasuga.rendering.models.mc.backend.transform.BoneTransformTBO;
+import lib.kasuga.rendering.models.mc.backend.transform.TransformFeedbackProgram;
+import lib.kasuga.rendering.models.mc.backend.vbuffer.IVertexBuffer;
+import lib.kasuga.rendering.models.mc.backend.vbuffer.IrisVertexBuffer;
+import lib.kasuga.rendering.models.mc.backend.vbuffer.VanillaVertexBuffer;
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
+import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
+import lombok.Getter;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
+
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
+
+public class BackendInstance {
+
+    public static final VertexFormat VANILLA_FORMAT = RenderState.UML_VERTEX_FORMAT;
+    public static final VertexFormat IRIS_FORMAT = DefaultVertexFormat.NEW_ENTITY;
+
+    public static final ResourceLocation SKINNING_PROGRAM_LOCATION =
+            ResourceLocation.parse("kasuga_lib:shaders/ksg_skinning.transform.glsl");
+
+    private final ExecutorService executor;
+
+    @Getter
+    private final ModelInstance model;
+
+    @Getter
+    private final FlatModelData data;
+
+    @Getter
+    private final VertexFormat.Mode meshMode;
+
+    private final VertexFormat format;
+
+    @Nullable
+    private final CpuSkinningContext cpuContext;
+
+    @Nullable
+    private final IrisGpuSkinningContext irisContext;
+
+    @Nullable
+    private final VanillaGpuSkinningContext vanillaContext;
+
+    @Nullable
+    private final IrisVertexBuffer irisBuffer;
+
+    private final VanillaVertexBuffer vanillaBuffer;
+
+    @Nullable
+    private final TransformFeedbackProgram program;
+
+    @Nullable
+    private final BoneTransformTBO tbo;
+
+    private final RenderType renderType;
+
+    private final boolean cpuSkinning;
+
+    private final Supplier<ShaderInstance> shaderSupplier;
+
+    private final Matrix4f matrixCache;
+
+    public BackendInstance(ModelInstance instance,
+                           RenderType renderType, ExecutorService executor,
+                           Supplier<ShaderInstance> shaderSupplier,
+                           boolean cpuSkinning) {
+        format = getFormat();
+        this.model = instance;
+        this.cpuSkinning = cpuSkinning;
+        this.renderType = renderType;
+        this.executor = executor;
+        this.shaderSupplier = shaderSupplier;
+        this.matrixCache = new Matrix4f();
+        Map<VertexFormatElement, Integer> bufOffsets = FlatModelData.genVertexFormat(RenderState.UML_VERTEX_FORMAT);
+        data = new FlatModelData(instance,
+                RenderState.UML_VERTEX_FORMAT.getVertexSize(),
+                bufOffsets, null,
+                1.0f, true, cpuSkinning,
+                OverlayTexture.NO_OVERLAY, LightTexture.FULL_SKY);
+        this.meshMode = data.getMcMeshMode();
+        if (cpuSkinning) {
+            irisContext = null;
+            vanillaContext = null;
+            tbo = null;
+            program = null;
+            irisBuffer =
+                    isIrisEnabled() ? new IrisVertexBuffer(data, getFormat(),
+                            10000, 64, this.executor) :
+                    null;
+            cpuContext = new CpuSkinningContext(this.renderType,
+                    () -> getBuffer().getVertexBuffer(), null);
+        } else {
+            tbo = new BoneTransformTBO(instance.getSkeletonInstance());
+            cpuContext = null;
+            if (isIrisInstalled()) {
+                program = new TransformFeedbackProgram(SKINNING_PROGRAM_LOCATION,
+                        data::getBuffer, bufOffsets,
+                        data.vertexSize);
+                irisContext = new IrisGpuSkinningContext(this.renderType,
+                        () -> getBuffer().getVertexBuffer(), null,
+                        tbo, program);
+                irisBuffer = new IrisVertexBuffer(data, getFormat(),
+                        10000, 64, this.executor);
+            } else {
+                program = null;
+                irisContext = null;
+                irisBuffer = null;
+            }
+            vanillaContext = new VanillaGpuSkinningContext(this.renderType,
+                    tbo, () -> getBuffer().getVertexBuffer(), null);
+        }
+        vanillaBuffer = new VanillaVertexBuffer(data, getFormat(), 64);
+    }
+
+    public GLContext getContext() {
+        if (cpuSkinning) return cpuContext;
+        return isIrisEnabled() ? irisContext : vanillaContext;
+    }
+
+    public IVertexBuffer getBuffer() {
+        return isIrisEnabled() ? irisBuffer : vanillaBuffer;
+    }
+
+    protected void drawBuffer(PoseStack.Pose pose, Matrix4f modelViewMatrix, Matrix4f projectionMatrix, float emissiveStrength) {
+        GLContext context = getContext();
+        IVertexBuffer buffer = getBuffer();
+        if (context == null || buffer == null) return;
+        ShaderInstance shader = shaderSupplier.get();
+        try {
+            context.dispatchSkinning(data.vertexCount);
+            if (isIrisEnabled()) {
+                modelViewMatrix = matrixCache.set(modelViewMatrix).mul(pose.pose());
+            }
+            setupShader(shader, pose, emissiveStrength);
+            context.enter(shader, meshMode, modelViewMatrix, projectionMatrix);
+            VertexBuffer vertexBuffer = buffer.getVertexBuffer();
+            vertexBuffer.drawWithShader(modelViewMatrix, projectionMatrix, shader);
+        } finally {
+            context.exit(shader);
+        }
+    }
+
+    public static boolean isIrisInstalled() {
+        return IrisCompat.isIrisPresent();
+    }
+
+    public static boolean isIrisEnabled() {
+        return IrisCompat.isUsingShaderPack();
+    }
+
+    public static VertexFormat getFormat() {
+        return getFormat(isIrisEnabled());
+    }
+
+    public static VertexFormat getFormat(boolean iris) {
+        if (iris) {
+            return IrisCompat.getIrisCompatibleFormat(IRIS_FORMAT);
+        } else {
+            return VANILLA_FORMAT;
+        }
+    }
+
+    public void setupShader(ShaderInstance s, PoseStack.Pose pose, float emissiveStrength) {
+        if (!(s instanceof KasugaShaderInstance shader)) return;
+        shader.setCurrentPose(pose);
+        shader.setEmissiveStrength(emissiveStrength);
+        shader.setLightData(data.getBrightness(), data.getLightmap(), data.getOverlay());
+        shader.setGpuSkinningState(!cpuSkinning, tbo != null ? tbo.getTextureId() : 0);
+    }
+}

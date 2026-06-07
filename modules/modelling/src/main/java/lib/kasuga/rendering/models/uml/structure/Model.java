@@ -16,6 +16,7 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
+import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
@@ -44,12 +45,15 @@ public class Model {
 
     private final Morph morph;
 
+    private final MeshMode meshMode;
+
 
     public Model(Vertex[] vertices,
                  Mesh[] meshes,
                  Bone[] bones,
                  Skeleton skeleton,
                  MaterialSet materialSet,
+                 MeshMode meshMode,
                  @Nullable ModelData modelData,
                  @Nullable Morph morph) {
         this.vertices = vertices;
@@ -58,6 +62,7 @@ public class Model {
         this.skeleton = skeleton;
         this.modelData = modelData;
         this.materialSet = materialSet;
+        this.meshMode = meshMode;
         this.morph = morph == null ? new Morph(this) : morph;
         this.vertexByMaterials = new HashMap<>();
         this.vertexByBones = new HashMap<>();

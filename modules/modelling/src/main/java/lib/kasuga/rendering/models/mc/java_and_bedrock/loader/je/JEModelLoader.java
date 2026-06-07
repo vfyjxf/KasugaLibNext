@@ -15,6 +15,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
+import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lib.kasuga.structure.Pair;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
@@ -96,6 +97,7 @@ public class JEModelLoader extends Loader<JsonObject, ResourceLocation, String> 
                 skeleton.getBones(),
                 skeleton,
                 materialSetBuilder().endMaterialSet(),
+                MeshMode.QUADS,
                 getData(),
                 null
         );

@@ -11,7 +11,7 @@ import java.util.function.Consumer;
 
 public interface GLContext {
 
-    void enter(ShaderInstance shader, Matrix4f modelViewMatrix, Matrix4f projectionMatrix);
+    void enter(ShaderInstance shader, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix);
 
     void exit(ShaderInstance shader);
 
@@ -19,13 +19,13 @@ public interface GLContext {
 
     void dispatchSkinning(int numVertices);
 
-    default void setupShaderState(@Nullable ShaderInstance shader, @Nullable Consumer<ShaderInstance> beforeShaderApply, Matrix4f modelViewMatrix, Matrix4f projectionMatrix, Window window) {
+    default void setupShaderState(@Nullable ShaderInstance shader, VertexFormat.Mode mode, @Nullable Consumer<ShaderInstance> beforeShaderApply, Matrix4f modelViewMatrix, Matrix4f projectionMatrix, Window window) {
         if (shader != null) {
             if (beforeShaderApply != null) {
                 beforeShaderApply.accept(shader);
             }
             shader.setDefaultUniforms(
-                    VertexFormat.Mode.QUADS,
+                    mode,
                     modelViewMatrix,
                     projectionMatrix,
                     window

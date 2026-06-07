@@ -13,7 +13,9 @@ import lib.kasuga.rendering.models.uml.structure.material.SpriteSet;
 import lib.kasuga.rendering.models.uml.structure.material.animators.MaterialAnimation;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonInstanceData;
+import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lombok.Getter;
+import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,6 +36,9 @@ public class ModelInstance implements AutoCloseable {
     @NotNull
     private MorphInstance morph;
 
+    @Setter
+    private MeshMode meshMode;
+
     public ModelInstance(Model model, @Nullable Transform initTransform,
                          @Nullable ModelInstanceData data,
                          @Nullable SkeletonInstanceData skeletonInstanceData,
@@ -41,6 +46,7 @@ public class ModelInstance implements AutoCloseable {
                          @Nullable MorphInstance morph) {
         this.model = model;
         this.data = data;
+        this.meshMode = model.getMeshMode();
         this.morph = morph == null ? new MorphInstance<>(model.getMorph()) : morph;
         this.skeletonInstance = new SkeletonInstance(this, model.getSkeleton(), initTransform, skeletonInstanceData);
         this.materialInstance = materialInstance;

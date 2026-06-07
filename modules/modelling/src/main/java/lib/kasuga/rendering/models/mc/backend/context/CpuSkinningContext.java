@@ -46,7 +46,7 @@ public class CpuSkinningContext implements GLContext {
     }
 
     @Override
-    public void enter(ShaderInstance shader, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
+    public void enter(ShaderInstance shader, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
         previousProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
         previousArrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
         previousVertexArray = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
@@ -54,7 +54,7 @@ public class CpuSkinningContext implements GLContext {
         previousTextureBinding = GL11.glGetInteger(GL31.GL_TEXTURE_BINDING_BUFFER);
         previousRasterizerDiscard = GL11.glGetBoolean(GL30.GL_RASTERIZER_DISCARD);
 
-        setupShaderState(shader, beforeShaderApply, modelViewMatrix, projectionMatrix,
+        setupShaderState(shader, mode, beforeShaderApply, modelViewMatrix, projectionMatrix,
                 Minecraft.getInstance().getWindow());
         renderType.setupRenderState();
         BufferUploader.reset();

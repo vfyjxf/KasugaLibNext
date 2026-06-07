@@ -22,6 +22,8 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.dynamic.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import lib.kasuga.structure.Pair;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
@@ -175,6 +177,15 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
             ModelProfiler.record("mcbridge.buildVertexBuffer", buildStart,
                     "meshes=" + meshes.length + ", vertices=" + (meshes.length * 4));
         }
+        FlatModelData fmd = new FlatModelData(
+                instance, RenderState.UML_VERTEX_FORMAT.getVertexSize(),
+                FlatModelData.genVertexFormat(RenderState.UML_VERTEX_FORMAT),
+                null, 1f, true, true,
+                OverlayTexture.NO_OVERLAY, LightTexture.FULL_SKY
+        );
+//        fmd.setLight(LightTexture.FULL_BLOCK);
+        fmd.updateBOL();
+//        System.out.println(fmd);
         return buffer;
     }
 

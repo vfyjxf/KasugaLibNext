@@ -37,6 +37,7 @@ import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.header.PmxHeade
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.material.PmxMaterial;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.mesh.PmxMesh;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.vertex.PmxVertex;
+import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
@@ -307,6 +308,7 @@ public abstract class PMXLoader<InputType, OutputIdentifier, TextureIdentifier, 
                 boneArray,
                 skeleton,
                 materialSet,
+                MeshMode.TRIANGLES,
                 getModelData(header),
                 null
         );

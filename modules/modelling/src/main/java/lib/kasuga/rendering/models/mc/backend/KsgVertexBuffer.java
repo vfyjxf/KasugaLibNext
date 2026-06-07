@@ -1530,6 +1530,8 @@ public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderabl
         }
         this.skinningIndicesByBone = compactIndicesByBone;
         this.dirtySkinningIndices = new BitSet(vertices.size());
+
+        // GPU 部分
         this.gpuSkinningBones = model.getSkeleton().getBones();
 
         HashMap<Bone, Integer> gpuBoneIndex = new HashMap<>();

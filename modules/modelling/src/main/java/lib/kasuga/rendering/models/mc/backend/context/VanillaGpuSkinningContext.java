@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import lib.kasuga.rendering.models.mc.backend.transform.BoneTransformTBO;
 import lombok.Getter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
@@ -31,7 +32,7 @@ public class VanillaGpuSkinningContext implements GLContext {
     private final RenderType renderType;
 
     @Getter
-    private final int boneTransformTextureId;
+    private final BoneTransformTBO boneTransformTBO;
 
     @Getter
     private final Supplier<VertexBuffer> bufferSupplier;
@@ -41,18 +42,22 @@ public class VanillaGpuSkinningContext implements GLContext {
     private final Consumer<ShaderInstance> beforeShaderApply;
 
     public VanillaGpuSkinningContext(RenderType renderType,
-                                     int boneTransformTextureId,
+                                     BoneTransformTBO boneTransformTBO,
                                      @NotNull Supplier<VertexBuffer> bufferSupplier,
                                      @Nullable Consumer<ShaderInstance>  beforeShaderApply)
     {
         this.renderType = renderType;
-        this.boneTransformTextureId = boneTransformTextureId;
+        this.boneTransformTBO = boneTransformTBO;
         this.bufferSupplier = bufferSupplier;
         this.beforeShaderApply = beforeShaderApply;
     }
 
+    public int getBoneTransformTextureId() {
+        return boneTransformTBO.getTextureId();
+    }
+
     @Override
-    public void enter(ShaderInstance shader, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
+    public void enter(ShaderInstance shader, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
         previousProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
         previousArrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
         previousVertexArray = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
@@ -60,12 +65,12 @@ public class VanillaGpuSkinningContext implements GLContext {
         previousTexturesBinding = GL11.glGetInteger(GL31.GL_TEXTURE_BINDING_BUFFER);
         previousRasterizerDiscard = GL11.glGetBoolean(GL30.GL_RASTERIZER_DISCARD);
 
-        if (boneTransformTextureId != 0) {
+        if (getBoneTransformTextureId() != 0) {
             RenderSystem.activeTexture(GL13.GL_TEXTURE7);
-            GL15.glBindTexture(GL31.GL_TEXTURE_BUFFER, boneTransformTextureId);
+            GL15.glBindTexture(GL31.GL_TEXTURE_BUFFER, getBoneTransformTextureId());
         }
 
-        setupShaderState(shader, beforeShaderApply, modelViewMatrix, projectionMatrix,
+        setupShaderState(shader, mode, beforeShaderApply, modelViewMatrix, projectionMatrix,
                 Minecraft.getInstance().getWindow());
         renderType.setupRenderState();
         BufferUploader.reset();
@@ -86,7 +91,7 @@ public class VanillaGpuSkinningContext implements GLContext {
             BufferUploader.reset();
             renderType.clearRenderState();
 
-            if (boneTransformTextureId != 0) {
+            if (getBoneTransformTextureId() != 0) {
                 RenderSystem.activeTexture(GL13.GL_TEXTURE7);
                 GL15.glBindTexture(GL31.GL_TEXTURE_BUFFER, 0);
             }

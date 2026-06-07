@@ -18,7 +18,7 @@ public class MaterialAnimation implements Animatable, AutoCloseable {
     public MaterialAnimation(Animator animator, Material material, int currentFrame) {
         this.animator = animator;
         this.material = material;
-        currentFrame = Math.clamp(currentFrame, 0, getFrameCount() - 1);
+        this.currentFrame = Math.clamp(currentFrame, 0, getFrameCount() - 1);
     }
 
     public int getFrameCount() {

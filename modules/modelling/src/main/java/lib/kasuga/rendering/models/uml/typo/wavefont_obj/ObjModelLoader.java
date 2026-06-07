@@ -20,6 +20,7 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
 import lib.kasuga.rendering.models.uml.typo.wavefont_obj.mtl.MtlLoader;
 import lib.kasuga.rendering.models.uml.typo.wavefont_obj.processors.*;
+import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
@@ -219,6 +220,7 @@ public abstract class ObjModelLoader<
                 b,
                 skeleton,
                 materialSetBuilder().endMaterialSet(),
+                MeshMode.QUADS,
                 getModelData(this),
                 collectMorph(this, getContext())
         );

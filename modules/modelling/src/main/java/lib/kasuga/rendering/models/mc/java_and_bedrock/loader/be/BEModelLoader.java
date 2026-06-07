@@ -27,6 +27,7 @@ import lib.kasuga.rendering.models.uml.structure.skeleton.Skeleton;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.AnchorData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.BoneData;
 import lib.kasuga.rendering.models.uml.structure.skeleton.data.SkeletonData;
+import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import net.minecraft.client.resources.model.Material;
@@ -112,6 +113,7 @@ public class BEModelLoader extends Loader<JsonObject, ResourceLocation, String> 
                             skeleton.getBones(),
                             skeleton,
                             materialSetBuilder().endMaterialSet(),
+                            MeshMode.QUADS,
                             getData(),
                      null
         );

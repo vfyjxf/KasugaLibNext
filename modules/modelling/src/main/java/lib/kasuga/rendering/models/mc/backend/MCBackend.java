@@ -15,6 +15,7 @@ import lib.kasuga.rendering.models.uml.math.QuaternionHelper;
 import lombok.Getter;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
@@ -34,6 +35,8 @@ import static java.util.concurrent.Executors.newFixedThreadPool;
 public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> implements AutoCloseable {
 
     public final ExecutorService executor;
+
+    private BackendInstance bis = null;
 
     public MCBackend() {
         executor = newFixedThreadPool(Runtime.getRuntime().availableProcessors());
@@ -72,6 +75,10 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
             return;
         }
         RenderType renderType = RenderState.getRenderType();
+//        if (bis == null) {
+//            bis = new BackendInstance(renderable.getModelInstance(), renderType, executor, RenderSystem::getShader, false);
+//        }
+//        bis.drawBuffer(poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(), emissive);
         if (irisShaderPack) {
             BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
             buffer.drawStaticOnIrisPresent(builder, renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
