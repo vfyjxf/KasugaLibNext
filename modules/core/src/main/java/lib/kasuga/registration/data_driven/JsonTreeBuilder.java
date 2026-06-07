@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
-import lib.kasuga.core.util.graph.GraphCycleDetector;
+import lib.kasuga.content.graph.GraphCycleDetector;
 import lib.kasuga.registration.Reg;
 import lib.kasuga.registration.RegistryGroup;
 import lib.kasuga.registration.core.Modifier;

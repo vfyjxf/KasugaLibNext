@@ -1,4 +1,4 @@
-package lib.kasuga.core.util.graph;
+package lib.kasuga.content.graph;
 
 import java.util.*;
 
