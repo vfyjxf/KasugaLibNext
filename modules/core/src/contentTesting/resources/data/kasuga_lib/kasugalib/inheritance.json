@@ -1,0 +1,28 @@
+{
+  "groups": [
+    {
+      "id": "kasuga_lib:inherit_group",
+      "properties": {
+        "strength": [1.0, 1.0]
+      },
+      "item_properties": {
+        "tab": "minecraft:building_blocks"
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "id": "kasuga_lib:inherited_block",
+      "type": "simple_block",
+      "group": "kasuga_lib:inherit_group"
+    },
+    {
+      "id": "kasuga_lib:overridden_block",
+      "type": "simple_block",
+      "group": "kasuga_lib:inherit_group",
+      "properties": {
+        "strength": [5.0, 5.0]
+      }
+    }
+  ]
+}
