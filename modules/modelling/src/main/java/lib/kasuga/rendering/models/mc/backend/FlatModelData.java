@@ -255,6 +255,7 @@ public class FlatModelData {
         this.dirtyWeights = new BitSet(vertexCount);
         this.allMorphedWeights = new BitSet(vertexCount);
         this.buffer = MemoryUtil.memAlloc(vertexCount * vertexSize);
+        buffer.order(ByteOrder.nativeOrder());
 
         Vector3f posOffset = new Vector3f();
         Vector3f sumPosOffset = new Vector3f();
@@ -340,6 +341,7 @@ public class FlatModelData {
             resetVertexWeight(i, true);
         }
 
+        calculateTangents();
         buildupBuffer(false);
     }
 
@@ -494,6 +496,7 @@ public class FlatModelData {
 
         fillBoneAndWeightToBuffer(vertex, bufOrg);
         fillSdefDataToBuffer(vertex, bufOrg);
+        fillLightAndOverlayToBuffer(bufOrg);
     }
 
     public void getFinalUv(int vertexIndex, Vector2f dest) {
@@ -514,7 +517,7 @@ public class FlatModelData {
         float invY = 1f - y;
 
         float w0 = invX * invY;
-        float w1 = x * invX;
+        float w1 = x * invY;
         float w2 = x * y;
         float w3 = invX * y;
 
@@ -655,9 +658,13 @@ public class FlatModelData {
 
     protected void fillNormalToBufferFromV3f(int bufPos, Vector3f v3f) {
         bufPos += normOffset;
-        buffer.putFloat(bufPos, v3f.x());
-        buffer.putFloat(bufPos + 4, v3f.y());
-        buffer.putFloat(bufPos + 8, v3f.z());
+
+        if (v3f.lengthSquared() > 0f) {
+            v3f.normalize();
+        }
+        buffer.put(bufPos, (byte) Math.round(v3f.x() * 127f));
+        buffer.put(bufPos + 1, (byte) Math.round(v3f.y() * 127f));
+        buffer.put(bufPos + 2, (byte) Math.round(v3f.z() * 127f));
     }
 
     protected void fillTangentToBuffer(int index, int bufPos) {
@@ -966,6 +973,109 @@ public class FlatModelData {
                 tangents[index * 4 + 2],
                 tangents[index * 4 + 3]
         );
+    }
+
+    /**
+     * 为所有 mesh 计算切线（Mikktspace 算法），结果写入 {@link #tangents} 数组。
+     * 在 {@link #buildupBuffer} 之前调用以确保切线数据被写入缓冲区。
+     */
+    public void calculateTangents() {
+        if (tangOffset < 0) return;
+        for (int m = 0; m < meshes.length; m++) {
+            calculateMeshTangents(meshes[m], m);
+        }
+    }
+
+    private void calculateMeshTangents(Mesh mesh, int meshIndex) {
+        Vertex[] rawVertices = mesh.getVertices();
+        if (rawVertices.length < 3) return;
+
+        int n = rawVertices.length;
+        for (int i = 0; i < n; i++) {
+            Vertex v0 = rawVertices[i];
+            Vertex v1 = rawVertices[(i + n - 1) % n];
+            Vertex v2 = rawVertices[(i + 1) % n];
+
+            int i0 = getFirstVertexIndexInMesh(v0, meshIndex);
+            int i1 = getFirstVertexIndexInMesh(v1, meshIndex);
+            int i2 = getFirstVertexIndexInMesh(v2, meshIndex);
+            if (i0 < 0 || i1 < 0 || i2 < 0) continue;
+
+            calculateAndSetTangent(i0, i1, i2, v0);
+        }
+    }
+
+    private int getFirstVertexIndexInMesh(Vertex vertex, int meshIndex) {
+        Integer[] indices = vertexByIndex.get(vertex);
+        if (indices == null) return -1;
+        for (int idx : indices) {
+            if (vertexMeshes[idx] == meshIndex) {
+                return idx;
+            }
+        }
+        return -1;
+    }
+
+    private void calculateAndSetTangent(int i0, int i1, int i2, Vertex vertex) {
+        // 边的 3D 向量
+        int p0 = i0 * 3, p1 = i1 * 3, p2 = i2 * 3;
+        float e1x = positions[p1]     - positions[p0];
+        float e1y = positions[p1 + 1] - positions[p0 + 1];
+        float e1z = positions[p1 + 2] - positions[p0 + 2];
+        float e2x = positions[p2]     - positions[p0];
+        float e2y = positions[p2 + 1] - positions[p0 + 1];
+        float e2z = positions[p2 + 2] - positions[p0 + 2];
+
+        // UV 差值
+        int u0 = i0 * 2, u1 = i1 * 2, u2 = i2 * 2;
+        float du1 = uv0s[u1]     - uv0s[u0];
+        float dv1 = uv0s[u1 + 1] - uv0s[u0 + 1];
+        float du2 = uv0s[u2]     - uv0s[u0];
+        float dv2 = uv0s[u2 + 1] - uv0s[u0 + 1];
+
+        float denom = du1 * dv2 - du2 * dv1;
+        float factor = denom == 0.0f ? 1.0f : 1.0f / denom;
+
+        // 切线方向
+        float tx = factor * (dv2 * e1x - dv1 * e2x);
+        float ty = factor * (dv2 * e1y - dv1 * e2y);
+        float tz = factor * (dv2 * e1z - dv1 * e2z);
+        float tLen = (float) Math.sqrt(tx * tx + ty * ty + tz * tz);
+
+        if (tLen == 0.0f || Float.isNaN(tLen)) {
+            setVertexTangentForAll(vertex, 0.0f, 0.0f, 0.0f, 0.0f);
+            return;
+        }
+        tx /= tLen;
+        ty /= tLen;
+        tz /= tLen;
+
+        // 正交化：bitangent = cross(normal, tangent) * factor
+        int n0 = i0 * 3;
+        float nx = normals[n0];
+        float ny = normals[n0 + 1];
+        float nz = normals[n0 + 2];
+
+        float bx = factor * (ty * nz - tz * ny);
+        float by = factor * (tz * nx - tx * nz);
+        float bz = factor * (tx * ny - ty * nx);
+        float bLen = (float) Math.sqrt(bx * bx + by * by + bz * bz);
+
+        if (bLen == 0.0f || Float.isNaN(bLen)) {
+            setVertexTangentForAll(vertex, 0.0f, 0.0f, 0.0f, 0.0f);
+            return;
+        }
+        setVertexTangentForAll(vertex,
+                bx / bLen, by / bLen, bz / bLen,
+                bLen < 0.0f ? -1.0f : 1.0f);
+    }
+
+    private void setVertexTangentForAll(Vertex vertex, float x, float y, float z, float w) {
+        Integer[] indices = vertexByIndex.get(vertex);
+        if (indices == null) return;
+        for (int idx : indices) {
+            setVertexTangent(idx, new Vector4f(x, y, z, w));
+        }
     }
 
     public void setVertexColor(int position, Vector4f org) {

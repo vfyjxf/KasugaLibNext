@@ -62,6 +62,7 @@ public class BoneTransformTBO implements AutoCloseable {
 
         ensureObjects();
         ensureUploadCache();
+        uploadTransforms();
     }
 
     public void uploadTransforms() {

@@ -142,6 +142,9 @@ public class BackendInstance {
         if (context == null || buffer == null) return;
         ShaderInstance shader = shaderSupplier.get();
         try {
+            if (!cpuSkinning) {
+                tbo.updateForVersion();
+            }
             context.dispatchSkinning(data.vertexCount);
             if (isIrisEnabled()) {
                 modelViewMatrix = matrixCache.set(modelViewMatrix).mul(pose.pose());

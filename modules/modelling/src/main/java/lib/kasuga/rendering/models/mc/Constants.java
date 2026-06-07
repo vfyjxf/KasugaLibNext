@@ -303,8 +303,8 @@ public class Constants {
     }
 
     private static void testModel() {
-//        testMMD();
-        testUI();
+        testMMD();
+//        testUI();
 //        testObj();
 //        testBe();
 //        testJe();
@@ -314,7 +314,7 @@ public class Constants {
         String fileName1 = "test.mmd.zip";
         String fileName2 = "test2.mmd.zip";
         String fileName3 = "test3.mmd.zip";
-        String name = "公式服111.pmx";
+        String name = "PS - Classical Butterfly Kanade.pmx";
         String name2 = "OL制服弱音盘发.pmx";
         String name3 = "OL制服弱音散发.pmx";
         String name4 = "tda bunny miku 2.0.pmx";
