@@ -9,6 +9,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import lib.kasuga.mixins.client.AccessorVertexBuffer;
 import lib.kasuga.rendering.models.mc.backend.transform.BoneTransformTBO;
 import lib.kasuga.rendering.models.mc.backend.transform.TransformFeedbackProgram;
+import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 import lombok.Getter;
 import net.minecraft.client.Minecraft;
@@ -54,7 +55,11 @@ public class IrisGpuSkinningContext implements GLContext {
     @Getter
     private int overriddenPositionLocation;
 
+    @Getter
+    private final VertexFormat format;
+
     public IrisGpuSkinningContext(@NotNull RenderType renderType,
+                                  @NotNull VertexFormat format,
                                   @NotNull Supplier<VertexBuffer> bufferSupplier,
                                   @Nullable Consumer<ShaderInstance> beforeShaderApply,
                                   BoneTransformTBO boneTransformTBO,
@@ -65,6 +70,7 @@ public class IrisGpuSkinningContext implements GLContext {
         this.overriddenPositionLocation = 0;
         this.beforeShaderApply = beforeShaderApply;
         this.program = program;
+        this.format = format;
         currentBuffer = null;
     }
 
@@ -143,7 +149,7 @@ public class IrisGpuSkinningContext implements GLContext {
             VertexBuffer irisBuffer = currentBuffer;
             if (currentBuffer == null) throw new IllegalStateException("Vertex Buffer is not binding!");
             GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, ((AccessorVertexBuffer) irisBuffer).getVertexBufferId());
-            DefaultVertexFormat.NEW_ENTITY.setupBufferState();
+            format.setupBufferState();
 
             if (program.getOutputBufferId() != 0) {
                 GL30.glBindBufferBase(GL30.GL_TRANSFORM_FEEDBACK_BUFFER, 0, 0);
@@ -203,7 +209,7 @@ public class IrisGpuSkinningContext implements GLContext {
 
     protected void restoreIrisStaticAttributes(int overriddenPositionLocation) {
         GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, ((AccessorVertexBuffer)currentBuffer).getVertexBufferId());
-        DefaultVertexFormat.NEW_ENTITY.setupBufferState();
+        format.setupBufferState();
         if (overriddenPositionLocation > 0) {
             GL20.glDisableVertexAttribArray(overriddenPositionLocation);
         }

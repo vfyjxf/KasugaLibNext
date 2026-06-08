@@ -45,8 +45,6 @@ public class BackendInstance {
     @Getter
     private final VertexFormat.Mode meshMode;
 
-    private final VertexFormat format;
-
     @Nullable
     private final CpuSkinningContext cpuContext;
 
@@ -75,11 +73,12 @@ public class BackendInstance {
 
     private final Matrix4f matrixCache;
 
+    private IVertexBuffer currentBuffer = null;
+
     public BackendInstance(ModelInstance instance,
                            RenderType renderType, ExecutorService executor,
                            Supplier<ShaderInstance> shaderSupplier,
                            boolean cpuSkinning) {
-        format = getFormat();
         this.model = instance;
         this.cpuSkinning = cpuSkinning;
         this.renderType = renderType;
@@ -91,7 +90,7 @@ public class BackendInstance {
                 RenderState.UML_VERTEX_FORMAT.getVertexSize(),
                 bufOffsets, null,
                 1.0f, true, cpuSkinning,
-                OverlayTexture.NO_OVERLAY, LightTexture.FULL_SKY);
+                OverlayTexture.NO_OVERLAY, LightTexture.FULL_BLOCK);
         this.meshMode = data.getMcMeshMode();
         if (cpuSkinning) {
             irisContext = null;
@@ -99,7 +98,7 @@ public class BackendInstance {
             tbo = null;
             program = null;
             irisBuffer =
-                    isIrisEnabled() ? new IrisVertexBuffer(data, getFormat(),
+                    isIrisInstalled() ? new IrisVertexBuffer(data, getFormat(true),
                             10000, 64, this.executor) :
                     null;
             cpuContext = new CpuSkinningContext(this.renderType,
@@ -111,10 +110,10 @@ public class BackendInstance {
                 program = new TransformFeedbackProgram(SKINNING_PROGRAM_LOCATION,
                         data::getBuffer, bufOffsets,
                         data.vertexSize);
-                irisContext = new IrisGpuSkinningContext(this.renderType,
+                irisContext = new IrisGpuSkinningContext(this.renderType, getFormat(true),
                         () -> getBuffer().getVertexBuffer(), null,
                         tbo, program);
-                irisBuffer = new IrisVertexBuffer(data, getFormat(),
+                irisBuffer = new IrisVertexBuffer(data, getFormat(true),
                         10000, 64, this.executor);
             } else {
                 program = null;
@@ -124,7 +123,7 @@ public class BackendInstance {
             vanillaContext = new VanillaGpuSkinningContext(this.renderType,
                     tbo, () -> getBuffer().getVertexBuffer(), null);
         }
-        vanillaBuffer = new VanillaVertexBuffer(data, getFormat(), 64);
+        vanillaBuffer = new VanillaVertexBuffer(data, getFormat(false), 64);
     }
 
     public GLContext getContext() {
@@ -133,12 +132,16 @@ public class BackendInstance {
     }
 
     public IVertexBuffer getBuffer() {
-        return isIrisEnabled() ? irisBuffer : vanillaBuffer;
+        if (currentBuffer == null) {
+            return isIrisEnabled() ? irisBuffer : vanillaBuffer;
+        }
+        return currentBuffer;
     }
 
     protected void drawBuffer(PoseStack.Pose pose, Matrix4f modelViewMatrix, Matrix4f projectionMatrix, float emissiveStrength) {
         GLContext context = getContext();
         IVertexBuffer buffer = getBuffer();
+        currentBuffer = buffer;
         if (context == null || buffer == null) return;
         ShaderInstance shader = shaderSupplier.get();
         try {
@@ -152,9 +155,14 @@ public class BackendInstance {
             setupShader(shader, pose, emissiveStrength);
             context.enter(shader, meshMode, modelViewMatrix, projectionMatrix);
             VertexBuffer vertexBuffer = buffer.getVertexBuffer();
-            vertexBuffer.drawWithShader(modelViewMatrix, projectionMatrix, shader);
+            if (isIrisEnabled()) {
+                vertexBuffer.draw();
+            } else {
+                vertexBuffer.drawWithShader(modelViewMatrix, projectionMatrix, shader);
+            }
         } finally {
             context.exit(shader);
+            currentBuffer = null;
         }
     }
 

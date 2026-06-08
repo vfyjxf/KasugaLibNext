@@ -69,24 +69,24 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
             emissive = 1f;
         }
 
-        KsgVertexBuffer buffer = renderable.apply();
-        if (!isVisible(context, transform, buffer)) {
-            poseStack.popPose();
-            return;
-        }
-        RenderType renderType = RenderState.getRenderType();
-//        if (bis == null) {
-//            bis = new BackendInstance(renderable.getModelInstance(), renderType, executor, RenderSystem::getShader, false);
+//        KsgVertexBuffer buffer = renderable.apply();
+//        if (!isVisible(context, transform, buffer)) {
+//            poseStack.popPose();
+//            return;
 //        }
-//        bis.drawBuffer(poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(), emissive);
-        if (irisShaderPack) {
-            BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
-            buffer.drawStaticOnIrisPresent(builder, renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
-                    lightData.brightness, lightData.packedLight, overlay, true);
-        } else {
-            buffer.drawStatic(renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
-                    shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
+        RenderType renderType = RenderState.getRenderType();
+        if (bis == null) {
+            bis = new BackendInstance(renderable.getModelInstance(), renderType, executor, RenderSystem::getShader, false);
         }
+        bis.drawBuffer(poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(), emissive);
+//        if (irisShaderPack) {
+//            BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
+//            buffer.drawStaticOnIrisPresent(builder, renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
+//                    lightData.brightness, lightData.packedLight, overlay, true);
+//        } else {
+//            buffer.drawStatic(renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
+//                    shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
+//        }
 
         poseStack.popPose();
     }
