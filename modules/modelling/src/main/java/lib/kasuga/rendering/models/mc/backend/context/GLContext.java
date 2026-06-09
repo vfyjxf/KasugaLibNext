@@ -3,6 +3,7 @@ package lib.kasuga.rendering.models.mc.backend.context;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
@@ -11,9 +12,9 @@ import java.util.function.Consumer;
 
 public interface GLContext {
 
-    void enter(ShaderInstance shader, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix);
+    void enter(ShaderInstance shader, RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix);
 
-    void exit(ShaderInstance shader);
+    void exit(ShaderInstance shader, RenderType renderType);
 
     boolean isGpuSkinning();
 

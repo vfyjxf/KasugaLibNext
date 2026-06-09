@@ -177,4 +177,8 @@ public class RenderState {
     public static RenderType getRenderType() {
         return IrisCompat.isUsingShaderPack() ? IRIS_COMPAT_RENDER_TYPE : RENDER_TYPE;
     }
+
+    public static RenderType getRenderType(boolean iris) {
+        return iris ? IRIS_COMPAT_RENDER_TYPE : RENDER_TYPE;
+    }
 }

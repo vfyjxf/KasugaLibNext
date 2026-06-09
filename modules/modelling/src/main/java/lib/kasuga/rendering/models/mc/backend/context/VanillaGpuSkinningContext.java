@@ -29,9 +29,6 @@ public class VanillaGpuSkinningContext implements GLContext {
     private boolean previousRasterizerDiscard;
 
     @Getter
-    private final RenderType renderType;
-
-    @Getter
     private final BoneTransformTBO boneTransformTBO;
 
     @Getter
@@ -41,12 +38,10 @@ public class VanillaGpuSkinningContext implements GLContext {
     @Nullable
     private final Consumer<ShaderInstance> beforeShaderApply;
 
-    public VanillaGpuSkinningContext(RenderType renderType,
-                                     BoneTransformTBO boneTransformTBO,
+    public VanillaGpuSkinningContext(BoneTransformTBO boneTransformTBO,
                                      @NotNull Supplier<VertexBuffer> bufferSupplier,
                                      @Nullable Consumer<ShaderInstance>  beforeShaderApply)
     {
-        this.renderType = renderType;
         this.boneTransformTBO = boneTransformTBO;
         this.bufferSupplier = bufferSupplier;
         this.beforeShaderApply = beforeShaderApply;
@@ -57,7 +52,7 @@ public class VanillaGpuSkinningContext implements GLContext {
     }
 
     @Override
-    public void enter(ShaderInstance shader, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
+    public void enter(ShaderInstance shader, RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
         previousProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
         previousArrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
         previousVertexArray = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
@@ -85,7 +80,7 @@ public class VanillaGpuSkinningContext implements GLContext {
     }
 
     @Override
-    public void exit(ShaderInstance shader) {
+    public void exit(ShaderInstance shader, RenderType renderType) {
         try {
             VertexBuffer.unbind();
             BufferUploader.reset();

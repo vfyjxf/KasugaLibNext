@@ -65,8 +65,6 @@ public class BackendInstance {
     @Nullable
     private final BoneTransformTBO tbo;
 
-    private final RenderType renderType;
-
     private final boolean cpuSkinning;
 
     private final Supplier<ShaderInstance> shaderSupplier;
@@ -76,12 +74,11 @@ public class BackendInstance {
     private IVertexBuffer currentBuffer = null;
 
     public BackendInstance(ModelInstance instance,
-                           RenderType renderType, ExecutorService executor,
+                           ExecutorService executor,
                            Supplier<ShaderInstance> shaderSupplier,
                            boolean cpuSkinning) {
         this.model = instance;
         this.cpuSkinning = cpuSkinning;
-        this.renderType = renderType;
         this.executor = executor;
         this.shaderSupplier = shaderSupplier;
         this.matrixCache = new Matrix4f();
@@ -101,7 +98,7 @@ public class BackendInstance {
                     isIrisInstalled() ? new IrisVertexBuffer(data, getFormat(true),
                             10000, 64, this.executor) :
                     null;
-            cpuContext = new CpuSkinningContext(this.renderType,
+            cpuContext = new CpuSkinningContext(
                     () -> getBuffer().getVertexBuffer(), null);
         } else {
             tbo = new BoneTransformTBO(instance.getSkeletonInstance());
@@ -110,7 +107,7 @@ public class BackendInstance {
                 program = new TransformFeedbackProgram(SKINNING_PROGRAM_LOCATION,
                         data::getBuffer, bufOffsets,
                         data.vertexSize);
-                irisContext = new IrisGpuSkinningContext(this.renderType, getFormat(true),
+                irisContext = new IrisGpuSkinningContext(getFormat(true),
                         () -> getBuffer().getVertexBuffer(), null,
                         tbo, program);
                 irisBuffer = new IrisVertexBuffer(data, getFormat(true),
@@ -120,8 +117,8 @@ public class BackendInstance {
                 irisContext = null;
                 irisBuffer = null;
             }
-            vanillaContext = new VanillaGpuSkinningContext(this.renderType,
-                    tbo, () -> getBuffer().getVertexBuffer(), null);
+            vanillaContext = new VanillaGpuSkinningContext(tbo,
+                    () -> getBuffer().getVertexBuffer(), null);
         }
         vanillaBuffer = new VanillaVertexBuffer(data, getFormat(false), 64);
     }
@@ -138,7 +135,9 @@ public class BackendInstance {
         return currentBuffer;
     }
 
-    protected void drawBuffer(PoseStack.Pose pose, Matrix4f modelViewMatrix, Matrix4f projectionMatrix, float emissiveStrength) {
+    protected void drawBuffer(PoseStack.Pose pose, RenderType renderType,
+                              Matrix4f modelViewMatrix, Matrix4f projectionMatrix,
+                              float emissiveStrength) {
         GLContext context = getContext();
         IVertexBuffer buffer = getBuffer();
         currentBuffer = buffer;
@@ -153,15 +152,10 @@ public class BackendInstance {
                 modelViewMatrix = matrixCache.set(modelViewMatrix).mul(pose.pose());
             }
             setupShader(shader, pose, emissiveStrength);
-            context.enter(shader, meshMode, modelViewMatrix, projectionMatrix);
-            VertexBuffer vertexBuffer = buffer.getVertexBuffer();
-            if (isIrisEnabled()) {
-                vertexBuffer.draw();
-            } else {
-                vertexBuffer.drawWithShader(modelViewMatrix, projectionMatrix, shader);
-            }
+            context.enter(shader, renderType, meshMode, modelViewMatrix, projectionMatrix);
+            buffer.draw(modelViewMatrix, projectionMatrix, shader);
         } finally {
-            context.exit(shader);
+            context.exit(shader, renderType);
             currentBuffer = null;
         }
     }

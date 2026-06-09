@@ -7,7 +7,9 @@ import lib.kasuga.mixins.client.AccessorByteBufferBuilder;
 import lib.kasuga.mixins.client.AccessorVertexBuffer;
 import lib.kasuga.rendering.models.mc.backend.FlatModelData;
 import lombok.Getter;
+import net.minecraft.client.renderer.ShaderInstance;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 
@@ -106,8 +108,9 @@ public class IrisVertexBuffer implements IVertexBuffer {
                     int taskStart = i * multiThreadedThreshold;
                     int taskVertices = Math.min(multiThreadedThreshold, vertexCount - taskStart);
                     int byteCount = taskVertices * vertexSize;
-                    long innerPointer = ((AccessorByteBufferBuilder) bbb).getPointer();
-                    MemoryUtil.memCopy(innerPointer, pointer, byteCount);
+                    long p = ((AccessorByteBufferBuilder) bbb).getPointer();
+                    MemoryUtil.memCopy(p, pointer, byteCount);
+                    MemoryUtil.nmemFree(p);
                     pointer += byteCount;
                 }
 
@@ -136,6 +139,12 @@ public class IrisVertexBuffer implements IVertexBuffer {
             }
         }
         valid = true;
+    }
+
+    @Override
+    public void draw(Matrix4f modelViewMatrix, Matrix4f projectionMatrix, ShaderInstance shader) {
+        if (vertexBuffer == null) return;
+        vertexBuffer.draw();
     }
 
     @Override
@@ -197,7 +206,7 @@ public class IrisVertexBuffer implements IVertexBuffer {
             vOffset = i * srcVertexSize;
 
             bufOffset = vOffset + modelData.getColorOffset();
-            color = src.getInt(bufOffset);
+            color = Integer.reverseBytes(src.getInt(bufOffset));
 
             bufOffset = vOffset + modelData.getPosOffset();
             x = src.getFloat(bufOffset);

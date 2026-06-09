@@ -60,8 +60,8 @@ public class TransformFeedbackProgram implements AutoCloseable {
         }
     }
 
-    public void unbind() {
-        GL20.glUseProgram(0);
+    public void unbind(int previousProgram) {
+        GL20.glUseProgram(previousProgram);
     }
 
     public boolean isValid() {

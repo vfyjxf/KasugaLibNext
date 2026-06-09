@@ -7,7 +7,9 @@ import lib.kasuga.mixins.client.AccessorByteBufferBuilder;
 import lib.kasuga.mixins.client.AccessorVertexBuffer;
 import lib.kasuga.rendering.models.mc.backend.FlatModelData;
 import lombok.Getter;
+import net.minecraft.client.renderer.ShaderInstance;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 
@@ -117,6 +119,12 @@ public class VanillaVertexBuffer implements IVertexBuffer {
         } finally {
             GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, previousBinding);
         }
+    }
+
+    @Override
+    public void draw(Matrix4f modelViewMatrix, Matrix4f projectionMatrix, ShaderInstance shader) {
+        if (vertexBuffer == null) return;
+        vertexBuffer.drawWithShader(modelViewMatrix, projectionMatrix, shader);
     }
 
     @Override

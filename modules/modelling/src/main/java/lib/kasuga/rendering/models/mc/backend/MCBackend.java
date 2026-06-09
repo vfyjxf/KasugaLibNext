@@ -76,9 +76,9 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
 //        }
         RenderType renderType = RenderState.getRenderType();
         if (bis == null) {
-            bis = new BackendInstance(renderable.getModelInstance(), renderType, executor, RenderSystem::getShader, false);
+            bis = new BackendInstance(renderable.getModelInstance(), executor, RenderSystem::getShader, false);
         }
-        bis.drawBuffer(poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(), emissive);
+        bis.drawBuffer(poseStack.last(), renderType, context.getModelViewMatrix(), context.getProjectionMatrix(), emissive);
 //        if (irisShaderPack) {
 //            BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
 //            buffer.drawStaticOnIrisPresent(builder, renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
