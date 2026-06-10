@@ -7,10 +7,12 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
 import lib.kasuga.rendering.models.mc.backend.data_type.MCRenderableContext;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
+import lib.kasuga.rendering.models.mc.util.RotHelper;
 import lib.kasuga.rendering.models.uml.backend.Backend;
 import lib.kasuga.rendering.models.uml.backend.BackendContext;
 import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
+import lib.kasuga.rendering.models.uml.dynamic.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.math.QuaternionHelper;
 import lombok.Getter;
 import net.minecraft.client.renderer.LightTexture;
@@ -78,6 +80,8 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
         if (bis == null) {
             bis = new BackendInstance(renderable.getModelInstance(), executor, RenderSystem::getShader, false);
         }
+        SkeletonInstance skeleton = renderable.getModelInstance().getSkeletonInstance();
+        skeleton.rotate(skeleton.getSkeleton().getRoot(), QuaternionHelper.fromXYZDegrees(0, 1f, 0));
         bis.drawBuffer(poseStack.last(), renderType, context.getModelViewMatrix(), context.getProjectionMatrix(), emissive);
 //        if (irisShaderPack) {
 //            BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();

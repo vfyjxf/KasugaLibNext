@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.mc.backend;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import lib.kasuga.rendering.models.mc.backend.context.CpuSkinningContext;
 import lib.kasuga.rendering.models.mc.backend.context.GLContext;
@@ -141,16 +142,22 @@ public class BackendInstance {
         GLContext context = getContext();
         IVertexBuffer buffer = getBuffer();
         currentBuffer = buffer;
+        ShaderInstance shader = null;
         if (context == null || buffer == null) return;
-        ShaderInstance shader = shaderSupplier.get();
         try {
-            if (!cpuSkinning) {
-                tbo.updateForVersion();
+            if (!cpuSkinning && tbo != null) {
+                if (tbo.getSkeleton().isShouldUpdate()) {
+                    tbo.getSkeleton().updateTransform();
+                    tbo.updateForVersion();
+                }
             }
             context.dispatchSkinning(data.vertexCount);
             if (isIrisEnabled()) {
                 modelViewMatrix = matrixCache.set(modelViewMatrix).mul(pose.pose());
+            } else {
+                RenderSystem.setShader(() -> RenderState.UML_SHADER_INSTANCE);
             }
+            shader = shaderSupplier.get();
             setupShader(shader, pose, emissiveStrength);
             context.enter(shader, renderType, meshMode, modelViewMatrix, projectionMatrix);
             buffer.draw(modelViewMatrix, projectionMatrix, shader);
@@ -174,7 +181,7 @@ public class BackendInstance {
 
     public static VertexFormat getFormat(boolean iris) {
         if (iris) {
-            return IrisCompat.getIrisCompatibleFormat(IRIS_FORMAT);
+            return IrisCompat.getIrisFormat(IRIS_FORMAT, iris);
         } else {
             return VANILLA_FORMAT;
         }

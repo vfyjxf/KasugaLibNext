@@ -32,4 +32,15 @@ public class IrisConstants {
             return format;
         }
     }
+
+    public static VertexFormat forceIrisFormat(VertexFormat format) {
+        if (format == DefaultVertexFormat.NEW_ENTITY || format == IrisVertexFormats.ENTITY) {
+            return IrisVertexFormats.ENTITY;
+        } else if (format == DefaultVertexFormat.BLOCK || format == IrisVertexFormats.TERRAIN) {
+            return IrisVertexFormats.TERRAIN;
+        } else if (format == DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP || format == IrisVertexFormats.GLYPH) {
+            return IrisVertexFormats.GLYPH;
+        }
+        return format;
+    }
 }

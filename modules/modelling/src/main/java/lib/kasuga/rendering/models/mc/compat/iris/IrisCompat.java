@@ -96,4 +96,8 @@ public class IrisCompat {
         if (!isUsingShaderPack()) return format;
         return IrisConstants.getIrisFormat(format);
     }
+
+    public static VertexFormat getIrisFormat(VertexFormat format, boolean iris) {
+        return iris && isIrisPresent() ? IrisConstants.forceIrisFormat(format) : format;
+    }
 }

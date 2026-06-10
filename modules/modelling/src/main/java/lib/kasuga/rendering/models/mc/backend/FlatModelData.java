@@ -22,6 +22,7 @@ import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import net.minecraft.client.renderer.LightTexture;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import org.jetbrains.annotations.Nullable;
