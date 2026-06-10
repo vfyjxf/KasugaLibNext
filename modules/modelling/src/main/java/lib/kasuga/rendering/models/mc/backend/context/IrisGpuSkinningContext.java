@@ -76,9 +76,10 @@ public class IrisGpuSkinningContext implements GLContext {
         irisBuffer.bind();
         currentBuffer = irisBuffer;
 
-        setupShaderState(shader, mode, beforeShaderApply, modelViewMatrix, projectionMatrix,
+        ShaderInstance currentShader = RenderSystem.getShader();
+        setupShaderState(currentShader, mode, beforeShaderApply, modelViewMatrix, projectionMatrix,
                 Minecraft.getInstance().getWindow());
-        overriddenPositionLocation = overrideIrisGpuSkinnedPositionAttribute(shader);
+        overriddenPositionLocation = overrideIrisGpuSkinnedPositionAttribute(currentShader);
     }
 
     public void dispatchSkinning(int numVertices) {

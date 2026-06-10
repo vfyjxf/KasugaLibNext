@@ -87,7 +87,7 @@ public class BackendInstance {
                 RenderState.UML_VERTEX_FORMAT.getVertexSize(),
                 bufOffsets, null,
                 1.0f, true, cpuSkinning,
-                OverlayTexture.NO_OVERLAY, LightTexture.FULL_BLOCK);
+                OverlayTexture.NO_OVERLAY, LightTexture.FULL_BRIGHT);
         this.meshMode = data.getMcMeshMode();
         if (cpuSkinning) {
             irisContext = null;

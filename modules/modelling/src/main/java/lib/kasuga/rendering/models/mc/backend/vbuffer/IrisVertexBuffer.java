@@ -14,6 +14,7 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.BitSet;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -206,7 +207,11 @@ public class IrisVertexBuffer implements IVertexBuffer {
             vOffset = i * srcVertexSize;
 
             bufOffset = vOffset + modelData.getColorOffset();
-            color = Integer.reverseBytes(src.getInt(bufOffset));
+            color = src.getInt(bufOffset);
+            if (!FlatModelData.IS_LITTLE_ENDIAN) {
+                color = Integer.reverseBytes(color);
+            }
+            color = (color & 0xFF00FF00) | ((color & 0x00FF0000) >> 16) | ((color & 0x000000FF) << 16);
 
             bufOffset = vOffset + modelData.getPosOffset();
             x = src.getFloat(bufOffset);

@@ -38,7 +38,8 @@ import java.util.function.BiConsumer;
 public class FlatModelData {
 
     protected final ModelInstance model;
-    private static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN);
+
+    public static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN);
 
     @Getter
     protected final int vertexCount;

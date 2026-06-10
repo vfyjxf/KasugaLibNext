@@ -177,15 +177,6 @@ public class MCBridge implements Bridge<KsgVertexBuffer> {
             ModelProfiler.record("mcbridge.buildVertexBuffer", buildStart,
                     "meshes=" + meshes.length + ", vertices=" + (meshes.length * 4));
         }
-        FlatModelData fmd = new FlatModelData(
-                instance, RenderState.UML_VERTEX_FORMAT.getVertexSize(),
-                FlatModelData.genVertexFormat(RenderState.UML_VERTEX_FORMAT),
-                null, 1f, true, true,
-                OverlayTexture.NO_OVERLAY, LightTexture.FULL_SKY
-        );
-//        fmd.setLight(LightTexture.FULL_BLOCK);
-        fmd.updateBOL();
-//        System.out.println(fmd);
         return buffer;
     }
 
