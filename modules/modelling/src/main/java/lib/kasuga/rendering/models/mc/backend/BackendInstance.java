@@ -69,20 +69,16 @@ public class BackendInstance {
 
     private final boolean cpuSkinning;
 
-    private final Supplier<ShaderInstance> shaderSupplier;
-
     private final Matrix4f matrixCache;
 
     private IVertexBuffer currentBuffer = null;
 
     public BackendInstance(ModelInstance instance,
                            ExecutorService executor,
-                           Supplier<ShaderInstance> shaderSupplier,
                            boolean cpuSkinning) {
         this.model = instance;
         this.cpuSkinning = cpuSkinning;
         this.executor = executor;
-        this.shaderSupplier = shaderSupplier;
         this.matrixCache = new Matrix4f();
         Map<VertexFormatElement, Integer> bufOffsets = FlatModelData.genVertexFormat(RenderState.UML_VERTEX_FORMAT);
         data = new FlatModelData(instance,
@@ -135,6 +131,12 @@ public class BackendInstance {
             return isIrisEnabled() ? irisBuffer : vanillaBuffer;
         }
         return currentBuffer;
+    }
+
+    public void updateLightData(int light, int overlay, float brightness) {
+        data.setLight(light);
+        data.setOverlay(overlay);
+        data.setBrightness(brightness);
     }
 
     protected void drawBuffer(PoseStack.Pose pose, RenderType renderType,

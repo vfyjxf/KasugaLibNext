@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.uml.bridge;
 
+import lib.kasuga.rendering.models.uml.backend.Backend;
 import lib.kasuga.rendering.models.uml.backend.BackendContext;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
@@ -10,6 +11,7 @@ import lib.kasuga.rendering.models.uml.dynamic.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.util.ModelProfiler;
 
 import java.util.HashMap;
+import java.util.Map;
 
 public interface Bridge<R> {
     HashMap<Vertex, Vertex> transformVertices(Model model,
@@ -28,6 +30,10 @@ public interface Bridge<R> {
                                           Vertex vertex);
 
     BackendContext<?, R, ?, ?> getBackendContext(ModelInstance modelInstance);
+
+    void setBackends(Map<String, Backend<?, R, ?, ?>> backends);
+
+    Map<String, Backend<?, R, ?, ?>> getBackends();
 
     default R apply(ModelInstance modelInstance) {
         Model model = modelInstance.getModel();

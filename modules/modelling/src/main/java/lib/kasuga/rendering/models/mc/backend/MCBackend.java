@@ -34,27 +34,21 @@ import java.util.concurrent.ExecutorService;
 
 import static java.util.concurrent.Executors.newFixedThreadPool;
 
-public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendContext, MCBackend.BackendTransform> implements AutoCloseable {
+public class MCBackend extends Backend<MCBridge, BackendInstance, MCBackendContext, MCBackend.BackendTransform> implements AutoCloseable {
 
+    @Getter
     public final ExecutorService executor;
 
-    private BackendInstance bis = null;
+    private float t = 0;
 
     public MCBackend() {
         executor = newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     }
 
     @Override
-    public void render(BackendContext<MCBridge, KsgVertexBuffer, MCBackendContext, BackendTransform> renderable, MCBackendContext context) {
+    public void render(BackendContext<MCBridge, BackendInstance, MCBackendContext, BackendTransform> renderable, MCBackendContext context) {
         PoseStack poseStack = context.getPoseStack();
         poseStack.pushPose();
-
-        KasugaShaderInstance shader = null;
-        boolean irisShaderPack = IrisCompat.isUsingShaderPack();
-        if (!irisShaderPack) {
-            RenderSystem.setShader(() -> RenderState.UML_SHADER_INSTANCE);
-            shader  = (KasugaShaderInstance) RenderSystem.getShader();
-        }
 
         BackendTransform transform = renderable.beforeRender(context);
         LightData lightData;
@@ -66,27 +60,19 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
             overlay = transform.getOverlay();
             emissive = transform.emissiveStrength;
         } else {
-            lightData = new LightData(0, 0, LightTexture.FULL_BLOCK, 1f);
+            lightData = new LightData(0, 0, LightTexture.FULL_BLOCK, (float) Math.abs(Math.sin(t)));
+            t += 0.05f;
             overlay = OverlayTexture.NO_OVERLAY;
             emissive = 1f;
         }
 
-        if (bis == null) {
-            bis = new BackendInstance(renderable.getModelInstance(), executor, RenderSystem::getShader, true);
-        }
+        BackendInstance instance = renderable.apply();
         SkeletonInstance skeleton = renderable.getModelInstance().getSkeletonInstance();
         skeleton.rotate(skeleton.getSkeleton().getRoot(), QuaternionHelper.fromXYZDegrees(0, 1f, 0));
-        bis.drawBuffer(poseStack.last(), RenderState.getRenderType(),
+        instance.updateLightData(lightData.packedLight(), overlay, lightData.brightness());
+        instance.drawBuffer(poseStack.last(), RenderState.getRenderType(),
                 context.getModelViewMatrix(), context.getProjectionMatrix(),
                 emissive);
-//        if (irisShaderPack) {
-//            BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
-//            buffer.drawStaticOnIrisPresent(builder, renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
-//                    lightData.brightness, lightData.packedLight, overlay, true);
-//        } else {
-//            buffer.drawStatic(renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),
-//                    shader, lightData.brightness, emissive, lightData.packedLight, overlay, true);
-//        }
 
         poseStack.popPose();
     }

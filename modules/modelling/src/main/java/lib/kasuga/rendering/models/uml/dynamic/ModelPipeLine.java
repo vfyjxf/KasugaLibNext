@@ -248,6 +248,7 @@ public class ModelPipeLine<SourceOutputType, BackendInputType, StorageIdentifier
             if (backends.isEmpty()) {
                 throw new IllegalStateException("At least one backend must be provided");
             }
+            bridges.forEach((name, bridge) -> bridge.setBackends((Map) backends));
             return new ModelPipeLine<>(sourceManager, loader, bridges, backends, sidedSources);
         }
     }

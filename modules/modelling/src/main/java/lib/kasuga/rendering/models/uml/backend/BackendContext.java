@@ -36,35 +36,36 @@ public abstract class BackendContext<
 
     @SuppressWarnings("unchecked")
     public BackendRenderableType apply() {
-        SkeletonInstance skeleton = modelInstance.getSkeletonInstance();
-        long tickStart = ModelProfiler.start();
-        skeleton.tick();
-        if (ModelProfiler.enabled()) {
-            ModelProfiler.record("skeleton.tick", tickStart,
-                    "version=" + skeleton.getVersion() +
-                            ", full=" + skeleton.isLastFullUpdate() +
-                            ", dirtyBones=" + skeleton.getLastDirtyBones().size());
-        }
-        long currentVersion = skeleton.getVersion();
-        if (cache != null && skeletonVersion == currentVersion) return cache;
-        if (cache instanceof VersionedBackendRenderable versioned) {
-            long updateStart = ModelProfiler.start();
-            versioned.updateForVersion(modelInstance, bridge);
-            if (ModelProfiler.enabled()) {
-                ModelProfiler.record("backend.updateForVersion", updateStart,
-                        "version=" + currentVersion);
-            }
-            skeletonVersion = currentVersion;
-            return cache;
-        }
-        closeCache();
-        long buildStart = ModelProfiler.start();
+//        SkeletonInstance skeleton = modelInstance.getSkeletonInstance();
+//        long tickStart = ModelProfiler.start();
+//        skeleton.tick();
+//        if (ModelProfiler.enabled()) {
+//            ModelProfiler.record("skeleton.tick", tickStart,
+//                    "version=" + skeleton.getVersion() +
+//                            ", full=" + skeleton.isLastFullUpdate() +
+//                            ", dirtyBones=" + skeleton.getLastDirtyBones().size());
+//        }
+//        long currentVersion = skeleton.getVersion();
+//        if (cache != null && skeletonVersion == currentVersion) return cache;
+//        if (cache instanceof VersionedBackendRenderable versioned) {
+//            long updateStart = ModelProfiler.start();
+//            versioned.updateForVersion(modelInstance, bridge);
+//            if (ModelProfiler.enabled()) {
+//                ModelProfiler.record("backend.updateForVersion", updateStart,
+//                        "version=" + currentVersion);
+//            }
+//            skeletonVersion = currentVersion;
+//            return cache;
+//        }
+//        closeCache();
+//        long buildStart = ModelProfiler.start();
+        if (cache != null) return cache;
         cache = (BackendRenderableType) bridge.apply(modelInstance);
-        if (ModelProfiler.enabled()) {
-            ModelProfiler.record("backend.buildRenderable", buildStart,
-                    "version=" + currentVersion);
-        }
-        skeletonVersion = currentVersion;
+//        if (ModelProfiler.enabled()) {
+//            ModelProfiler.record("backend.buildRenderable", buildStart,
+//                    "version=" + currentVersion);
+//        }
+//        skeletonVersion = currentVersion;
         return cache;
     }
 

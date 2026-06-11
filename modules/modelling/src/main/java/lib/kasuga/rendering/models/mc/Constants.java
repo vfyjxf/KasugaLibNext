@@ -145,7 +145,7 @@ public class Constants {
         MCBackend mcBackend = new MCBackend();
         MC_BACKEND = mcBackend;
 
-        BE_PIPELINE = new ModelPipeLine.Builder<JsonObject, KsgVertexBuffer, ResourceLocation,
+        BE_PIPELINE = new ModelPipeLine.Builder<JsonObject, BackendInstance, ResourceLocation,
                 ResourceLocation, String>()
                 .withModelSource(jsonSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
@@ -154,7 +154,7 @@ public class Constants {
                 .withBackend("mc_backend", mcBackend)
                 .build();
 
-        JE_PIPELINE = new ModelPipeLine.Builder<JsonObject, KsgVertexBuffer, ResourceLocation,
+        JE_PIPELINE = new ModelPipeLine.Builder<JsonObject, BackendInstance, ResourceLocation,
                 ResourceLocation, String >()
                 .withModelSource(jsonSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
@@ -163,7 +163,7 @@ public class Constants {
                 .withBackend("mc_backend", mcBackend)
                 .build();
 
-        OBJ_PIPELINE = new ModelPipeLine.Builder<String, KsgVertexBuffer, ResourceLocation,
+        OBJ_PIPELINE = new ModelPipeLine.Builder<String, BackendInstance, ResourceLocation,
                 ResourceLocation, String>().withModelSource(strSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
                 .withLoader(new KsgObjLoader("obj_model"))
@@ -173,7 +173,7 @@ public class Constants {
 
         PMX_LOADER = new KsgPmxLoader("pmx_model");
 
-        MMD_PIPELINE = new ModelPipeLine.Builder<ZipHelper, KsgVertexBuffer, ResourceLocation, ResourceLocation, ZipResource>()
+        MMD_PIPELINE = new ModelPipeLine.Builder<ZipHelper, BackendInstance, ResourceLocation, ResourceLocation, ZipResource>()
                 .withModelSource(zipSource)
                 .withSidedSource(basic.getType(), "mc_layer_0", basic)
                 .withLoader(PMX_LOADER)
