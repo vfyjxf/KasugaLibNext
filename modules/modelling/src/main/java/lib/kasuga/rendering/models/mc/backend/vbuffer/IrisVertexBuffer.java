@@ -81,12 +81,12 @@ public class IrisVertexBuffer implements IVertexBuffer {
                         }
                     }
                     multiBufferBuilders = new ByteBufferBuilder[taskCount];
-                    for (int i = 0; i < taskCount; i++) {
-                        if (i == taskCount - 1) {
-                            multiBufferBuilders[i] = new ByteBufferBuilder((vertexCount - i * multiThreadedThreshold) * vertexSize);
-                        } else {
-                            multiBufferBuilders[i] = new ByteBufferBuilder(multiThreadedThreshold * vertexSize);
-                        }
+                }
+                for (int i = 0; i < taskCount; i++) {
+                    if (i == taskCount - 1) {
+                        multiBufferBuilders[i] = new ByteBufferBuilder((vertexCount - i * multiThreadedThreshold) * vertexSize);
+                    } else {
+                        multiBufferBuilders[i] = new ByteBufferBuilder(multiThreadedThreshold * vertexSize);
                     }
                 }
                 if (futures == null || futures.length != taskCount) {
@@ -113,6 +113,7 @@ public class IrisVertexBuffer implements IVertexBuffer {
                     MemoryUtil.memCopy(p, pointer, byteCount);
                     MemoryUtil.nmemFree(p);
                     pointer += byteCount;
+                    multiBufferBuilders[i] = null;
                 }
 
                 ((AccessorByteBufferBuilder) byteBufferBuilder).setWriteOffset(vertexCount * vertexSize);

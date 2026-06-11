@@ -57,6 +57,7 @@ public class VanillaVertexBuffer implements IVertexBuffer {
 
     @Override
     public void uploadGpuBuffer() {
+//        if (vertexBuffer != null) vertexBuffer.close();
         int size = vertexSize * vertexCount;
         try (ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(size)) {
             long sourcePointer = MemoryUtil.memAddress(modelData.getBuffer());

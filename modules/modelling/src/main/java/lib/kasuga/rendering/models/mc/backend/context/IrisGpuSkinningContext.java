@@ -67,7 +67,7 @@ public class IrisGpuSkinningContext implements GLContext {
     }
 
     @Override
-    public void enter(ShaderInstance shader, RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
+    public Supplier<ShaderInstance> enter(RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix, Consumer<ShaderInstance> beforeShaderApply) {
         renderType.setupRenderState();
         BufferUploader.reset();
 
@@ -80,6 +80,7 @@ public class IrisGpuSkinningContext implements GLContext {
         setupShaderState(currentShader, mode, beforeShaderApply, modelViewMatrix, projectionMatrix,
                 Minecraft.getInstance().getWindow());
         overriddenPositionLocation = overrideIrisGpuSkinnedPositionAttribute(currentShader);
+        return () -> currentShader;
     }
 
     public void dispatchSkinning(int numVertices) {

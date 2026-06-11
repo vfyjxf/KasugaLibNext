@@ -23,6 +23,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 
+import java.util.BitSet;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
@@ -150,16 +151,20 @@ public class BackendInstance {
                     tbo.getSkeleton().updateTransform();
                     tbo.updateForVersion();
                 }
+            } else {
+                BitSet dirty = data.updateForVersion();
+                if (dirty != null) {
+                    buffer.updateGpuBuffer(dirty, false);
+                }
             }
             context.dispatchSkinning(data.vertexCount);
             if (isIrisEnabled()) {
                 modelViewMatrix = matrixCache.set(modelViewMatrix).mul(pose.pose());
-            } else {
-                RenderSystem.setShader(() -> RenderState.UML_SHADER_INSTANCE);
             }
-            shader = shaderSupplier.get();
-            setupShader(shader, pose, emissiveStrength);
-            context.enter(shader, renderType, meshMode, modelViewMatrix, projectionMatrix);
+            shader = context.enter(renderType, meshMode,
+                    modelViewMatrix, projectionMatrix,
+                    s -> setupShader(s, pose, emissiveStrength)
+            ).get();
             buffer.draw(modelViewMatrix, projectionMatrix, shader);
         } finally {
             context.exit(shader, renderType);

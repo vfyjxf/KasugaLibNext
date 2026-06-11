@@ -9,10 +9,14 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public interface GLContext {
 
-    void enter(ShaderInstance shader, RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix);
+    Supplier<ShaderInstance> enter(RenderType renderType,
+                   VertexFormat.Mode mode, Matrix4f modelViewMatrix,
+                   Matrix4f projectionMatrix,
+                   Consumer<ShaderInstance> beforeShaderApply);
 
     void exit(ShaderInstance shader, RenderType renderType);
 

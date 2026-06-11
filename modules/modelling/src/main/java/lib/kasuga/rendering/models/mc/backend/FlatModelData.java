@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.mc.backend;
 
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.SpriteHolder;
@@ -29,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
@@ -67,6 +69,7 @@ public class FlatModelData {
     private final Map<Mesh, Integer[]> vertexByMesh;           // 用以映射颜色
     private final Map<Vertex, Integer[]> vertexByIndex;        // 用以映射位置、法线
     private final Map<Material, Integer[]> vertexByMaterials;  // 用以映射颜色、uv
+    private final Map<Bone, Integer[]> vertexByBone;           // 用以映射骨骼
 
     private final Vertex[] vertices;           // fixed
     private final int[] vertexMaterials;       // fixed
@@ -131,6 +134,8 @@ public class FlatModelData {
     private final BiConsumer<Sprite, Vector4f> materialColorBlender;  // fixed
     private final boolean cpuSkinning;
 
+    private long skeletonVersion;
+
     public FlatModelData(ModelInstance model,
                          int vertexSize,
                          Map<VertexFormatElement, Integer> bufOffsets,
@@ -147,6 +152,7 @@ public class FlatModelData {
         this.cpuSkinning = cpuSkinning;
         this.overlay = overlay;
         this.lightmap = lightmap;
+        this.skeletonVersion = model.getSkeletonInstance().getVersion();
 
         this.posOffset = bufOffsets.get(VertexFormatElement.POSITION);
         this.normOffset = bufOffsets.getOrDefault(VertexFormatElement.NORMAL, -1);
@@ -209,6 +215,7 @@ public class FlatModelData {
         this.vertexByMesh = new HashMap<>();
         this.vertexByIndex = new HashMap<>();
         this.vertexByMaterials = new HashMap<>();
+        this.vertexByBone = new HashMap<>();
 
         // 先统计顶点的总数量
         Vector4f meshColor = new Vector4f();
@@ -277,6 +284,7 @@ public class FlatModelData {
         Map<Material, ArrayList<Integer>> buildingMaterialIndices = new HashMap<>();
         Map<Mesh, ArrayList<Integer>> buildingMeshIndices = new HashMap<>();
         Map<Vertex, ArrayList<Integer>> buildingVertexIndices = new HashMap<>();
+        Map<Bone, ArrayList<Integer>> buildingBoneIndices = new HashMap<>();
         ArrayList<Integer> currentMaterialIndices;
         ArrayList<Integer> currentMeshIndices;
         Vector4f vColor = new Vector4f(1, 1, 1, 1);
@@ -311,6 +319,12 @@ public class FlatModelData {
                     weightCounts[vertexPos] = binding.getWeights().length;
                     sumWeights += binding.getWeights().length;
 
+                    for (Pair<Bone, Float> weight : binding.getWeights()) {
+                        buildingBoneIndices.computeIfAbsent(
+                                weight.getFirst(), b -> new ArrayList<>()
+                        ).add(vertexPos);
+                    }
+
                     currentMaterialIndices.add(vertexPos);
                     currentMeshIndices.add(vertexPos);
 
@@ -336,6 +350,10 @@ public class FlatModelData {
             this.vertexByIndex.put(entry.getKey(), entry.getValue().toArray(new Integer[0]));
         }
         buildingVertexIndices.clear();
+        for (Map.Entry<Bone, ArrayList<Integer>> entry : buildingBoneIndices.entrySet()) {
+            this.vertexByBone.put(entry.getKey(), entry.getValue().toArray(new Integer[0]));
+        }
+        buildingBoneIndices.clear();
 
         weights = new float[sumWeights];
         vertexBones = new int[sumWeights];
@@ -344,7 +362,7 @@ public class FlatModelData {
         }
 
         calculateTangents();
-        buildupBuffer(false);
+        buildupBuffer(cpuSkinning);
     }
 
     /**
@@ -362,6 +380,69 @@ public class FlatModelData {
             bufOrg += vertexSize;
         }
         this.needToUpdateAll = false;
+    }
+
+    public @Nullable BitSet updateForVersion() {
+        if (!cpuSkinning) return null;
+        SkeletonInstance skeletonInstance = model.getSkeletonInstance();
+        if (skeletonInstance.isShouldUpdate()) skeletonInstance.updateTransform();
+        if (this.skeletonVersion == skeletonInstance.getVersion()) return null;
+        this.skeletonVersion = skeletonInstance.getVersion();
+
+        Transform neoTransform;
+        for (int i = 0; i < bones.length; i++) {
+            neoTransform = skeletonInstance.getAbsoluteTransforms().get(bones[i]);
+            if (!Objects.equals(neoTransform, absTransforms[i])) {
+                absTransforms[i] = neoTransform;
+                markBoneDirty(bones[i], dirtyPositions);
+            }
+        }
+
+        int count = dirtyPositions.cardinality();
+        int maxMergeGap = 64;
+        if (count * 4 > vertexCount * 3) {
+            buildupBuffer(true);
+            return dirtyPositions;
+        }
+
+        Vector2f v2fCache = new Vector2f();
+        ArrayList<BoneContext> cacheList = new ArrayList<BoneContext>();
+        Vector3f posCache = new Vector3f(),
+                posCache2 = new Vector3f(),
+                normalCache = new Vector3f(),
+                normalCache2 = new Vector3f();
+        Vector4f tangentCache = new Vector4f();
+        Vector3f tangentCache2 = new Vector3f();
+
+        int start = dirtyPositions.nextSetBit(0);
+        while (start >= 0) {
+            int end = dirtyPositions.nextClearBit(start);
+            int next = dirtyPositions.nextSetBit(end);
+            while (next >= 0 && next - end <= maxMergeGap) {
+                end = dirtyPositions.nextClearBit(next);
+                next = dirtyPositions.nextSetBit(end);
+            }
+            end = Math.min(end, vertexCount);
+            for (int i = start; i < end; i++) {
+                int bufOrg = i * vertexSize;
+                fillCpuSkinningElements(i, bufOrg,
+                        cacheList,
+                        posCache, posCache2,
+                        normalCache, normalCache2,
+                        tangentCache, tangentCache2,
+                        true);
+            }
+            start = next;
+        }
+        return dirtyPositions;
+    }
+
+    public void markBoneDirty(Bone bone, BitSet vertexBitset) {
+        Integer[] dirtyVertices = vertexByBone.get(bone);
+        if (dirtyVertices == null) return;
+        for (int i : dirtyVertices) {
+            vertexBitset.set(i);
+        }
     }
 
     public void setBrightness(float brightness) {

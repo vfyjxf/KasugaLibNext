@@ -50,7 +50,9 @@ void main() {
     vec3 skinnedPosition = Position;
     vec3 skinnedNormal = Normal;
     vec4 skinnedTangent = Tangent;
-    ksg_applyGpuSkinning(skinnedPosition, skinnedNormal, skinnedTangent);
+    if (ksg_GpuSkinningEnabled > 0) {
+        ksg_applyGpuSkinning(skinnedPosition, skinnedNormal, skinnedTangent);
+    }
 
     vec4 posWorld = (ksg_ModelPoseMat * vec4(skinnedPosition, 1.0));
     vertexColor = vec4(Color.rgb * ksg_BrightnessScale, Color.a);

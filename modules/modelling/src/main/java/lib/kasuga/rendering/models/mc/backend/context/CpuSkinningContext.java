@@ -20,11 +20,6 @@ import java.util.function.Supplier;
 
 public class CpuSkinningContext implements GLContext {
 
-    private int previousProgram;
-    private int previousArrayBuffer;
-    private int previousVertexArray;
-    private int previousActiveTexture;
-    private int previousTextureBinding;
     private boolean previousRasterizerDiscard;
 
     @Getter
@@ -41,18 +36,15 @@ public class CpuSkinningContext implements GLContext {
     }
 
     @Override
-    public void enter(ShaderInstance shader, RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
-        previousProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
-        previousArrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
-        previousVertexArray = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
-        previousActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
-        previousTextureBinding = GL11.glGetInteger(GL31.GL_TEXTURE_BINDING_BUFFER);
+    public Supplier<ShaderInstance> enter(RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix,
+                      Consumer<ShaderInstance> beforeShaderApply) {
         previousRasterizerDiscard = GL11.glGetBoolean(GL30.GL_RASTERIZER_DISCARD);
+        BufferUploader.reset();
 
+        renderType.setupRenderState();
+        ShaderInstance shader = RenderSystem.getShader();
         setupShaderState(shader, mode, beforeShaderApply, modelViewMatrix, projectionMatrix,
                 Minecraft.getInstance().getWindow());
-        renderType.setupRenderState();
-        BufferUploader.reset();
 
         VertexBuffer buffer = bufferSupplier.get();
         Objects.requireNonNull(buffer);
@@ -61,6 +53,7 @@ public class CpuSkinningContext implements GLContext {
         if (previousRasterizerDiscard) {
             GL11.glDisable(GL30.GL_RASTERIZER_DISCARD);
         }
+        return () -> shader;
     }
 
     @Override
@@ -69,12 +62,6 @@ public class CpuSkinningContext implements GLContext {
             VertexBuffer.unbind();
             BufferUploader.reset();
             renderType.clearRenderState();
-
-            GL20.glUseProgram(previousProgram);
-            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, previousArrayBuffer);
-            GL30.glBindVertexArray(previousVertexArray);
-            RenderSystem.activeTexture(previousActiveTexture);
-            GL15.glBindTexture(GL31.GL_TEXTURE_BUFFER, previousTextureBinding);
 
             if (previousRasterizerDiscard) {
                 GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);

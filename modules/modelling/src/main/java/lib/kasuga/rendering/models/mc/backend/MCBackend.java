@@ -71,18 +71,14 @@ public class MCBackend extends Backend<MCBridge, KsgVertexBuffer, MCBackendConte
             emissive = 1f;
         }
 
-//        KsgVertexBuffer buffer = renderable.apply();
-//        if (!isVisible(context, transform, buffer)) {
-//            poseStack.popPose();
-//            return;
-//        }
-        RenderType renderType = RenderState.getRenderType();
         if (bis == null) {
-            bis = new BackendInstance(renderable.getModelInstance(), executor, RenderSystem::getShader, false);
+            bis = new BackendInstance(renderable.getModelInstance(), executor, RenderSystem::getShader, true);
         }
         SkeletonInstance skeleton = renderable.getModelInstance().getSkeletonInstance();
         skeleton.rotate(skeleton.getSkeleton().getRoot(), QuaternionHelper.fromXYZDegrees(0, 1f, 0));
-        bis.drawBuffer(poseStack.last(), renderType, context.getModelViewMatrix(), context.getProjectionMatrix(), emissive);
+        bis.drawBuffer(poseStack.last(), RenderState.getRenderType(),
+                context.getModelViewMatrix(), context.getProjectionMatrix(),
+                emissive);
 //        if (irisShaderPack) {
 //            BufferBuilder builder = (BufferBuilder) context.getVertexConsumer();
 //            buffer.drawStaticOnIrisPresent(builder, renderType, poseStack.last(), context.getModelViewMatrix(), context.getProjectionMatrix(),

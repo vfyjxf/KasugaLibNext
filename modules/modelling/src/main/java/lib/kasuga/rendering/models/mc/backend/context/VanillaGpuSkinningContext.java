@@ -52,12 +52,10 @@ public class VanillaGpuSkinningContext implements GLContext {
     }
 
     @Override
-    public void enter(ShaderInstance shader, RenderType renderType, VertexFormat.Mode mode, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
-        previousProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
-        previousArrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
-        previousVertexArray = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
-        previousActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
-        previousTexturesBinding = GL11.glGetInteger(GL31.GL_TEXTURE_BINDING_BUFFER);
+    public Supplier<ShaderInstance> enter(RenderType renderType,
+                      VertexFormat.Mode mode, Matrix4f modelViewMatrix,
+                      Matrix4f projectionMatrix,
+                      Consumer<ShaderInstance> beforeShaderApply) {
         previousRasterizerDiscard = GL11.glGetBoolean(GL30.GL_RASTERIZER_DISCARD);
 
         if (getBoneTransformTextureId() != 0) {
@@ -65,9 +63,11 @@ public class VanillaGpuSkinningContext implements GLContext {
             GL15.glBindTexture(GL31.GL_TEXTURE_BUFFER, getBoneTransformTextureId());
         }
 
-        setupShaderState(shader, mode, beforeShaderApply, modelViewMatrix, projectionMatrix,
-                Minecraft.getInstance().getWindow());
         renderType.setupRenderState();
+        ShaderInstance shader = RenderSystem.getShader();
+        setupShaderState(shader, mode, beforeShaderApply,
+                modelViewMatrix, projectionMatrix,
+                Minecraft.getInstance().getWindow());
         BufferUploader.reset();
 
         VertexBuffer vertexBuffer = bufferSupplier.get();
@@ -77,6 +77,7 @@ public class VanillaGpuSkinningContext implements GLContext {
         if (previousRasterizerDiscard) {
             GL11.glDisable(GL30.GL_RASTERIZER_DISCARD);
         }
+        return () -> shader;
     }
 
     @Override
@@ -90,12 +91,6 @@ public class VanillaGpuSkinningContext implements GLContext {
                 RenderSystem.activeTexture(GL13.GL_TEXTURE7);
                 GL15.glBindTexture(GL31.GL_TEXTURE_BUFFER, 0);
             }
-
-            GL20.glUseProgram(previousProgram);
-            RenderSystem.activeTexture(previousActiveTexture);
-            GL15.glBindTexture(GL31.GL_TEXTURE_BUFFER, previousTexturesBinding);
-            GlStateManager._glBindBuffer(GL15.GL_ARRAY_BUFFER, previousArrayBuffer);
-            GL30.glBindVertexArray(previousVertexArray);
 
             if (previousRasterizerDiscard) {
                 GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);
