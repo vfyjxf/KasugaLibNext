@@ -3,7 +3,7 @@
     {
       "id": "kasuga_lib:test_material",
       "type": "simple_item",
-      "group": "kasuga_lib:data_driven_group",
+      "registry_group": "kasuga_lib:data_driven_group",
       "properties": {
         "stacks_to": 64
       }
