@@ -1,17 +1,56 @@
 package test.kasuga.core.data_driven;
 
 import io.micronaut.context.annotation.Context;
+import lib.kasuga.registration.Reg;
+import lib.kasuga.registration.core.Modifier;
 import lib.kasuga.registration.factory.FactoryRegistry;
 import lib.kasuga.registration.minecraft.block.BlockReg;
+import lib.kasuga.registration.minecraft.block_entity.BlockEntityReg;
+import lib.kasuga.registration.minecraft.block_entity.BlockEntityRegModifiers;
+import lib.kasuga.registration.minecraft.item.ItemReg;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import test.kasuga.core.data_driven.block.BEBlock;
 import test.kasuga.core.data_driven.block.OccludingTestBlock;
 import test.kasuga.core.data_driven.block.SimpleTestBlock;
-import test.kasuga.core.data_driven.block.SlabTestBlock;
+import test.kasuga.core.data_driven.block_entity.TestBlockEntity;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.function.Function;
 
 @Context
 public class DataDrivenTestFactories {
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Block> Reg<?, Block> blockWithItem(
+            String id, Function<BlockBehaviour.Properties, T> blockSupplier) {
+        return (Reg<?, Block>) (Reg<?, ?>) BlockReg.of(id, blockSupplier).withDefaultBlockItem(id);
+    }
+
     static {
-        FactoryRegistry.register("simple_block", id -> BlockReg.of(id, SimpleTestBlock::new));
-        FactoryRegistry.register("slab_block", id -> BlockReg.of(id, SlabTestBlock::new));
-        FactoryRegistry.register("occluding_block", id -> BlockReg.of(id, OccludingTestBlock::new));
+        // Block factories — each factory is responsible for creating its own BlockItem
+        FactoryRegistry.register("simple_block", id -> blockWithItem(id, SimpleTestBlock::new));
+        FactoryRegistry.register("be_block", id -> blockWithItem(id, BEBlock::new));
+        FactoryRegistry.register("occluding_block", id -> blockWithItem(id, OccludingTestBlock::new));
+
+        // Item factories
+        FactoryRegistry.registerItem("simple_item", id -> ItemReg.of(id, Item::new));
+
+        // Block entity factories
+        FactoryRegistry.registerBlockEntity("test_be", (id, validBlocks) -> {
+            BlockEntityReg<TestBlockEntity> reg = new BlockEntityReg<>(id,
+                    r -> (pos, state) -> new TestBlockEntity(r.getEntry(), pos, state));
+            // Convert Supplier<Block[]> to Modifier<Collection<Block>>
+            Modifier<Collection<Block>> validBlocksModifier = BlockEntityRegModifiers.ValidBlocksType.of(
+                    "validBlocks", original -> {
+                        Block[] blocks = validBlocks.get();
+                        original.addAll(Arrays.asList(blocks));
+                        return original;
+                    });
+            reg.configure(validBlocksModifier);
+            return reg;
+        });
     }
 }

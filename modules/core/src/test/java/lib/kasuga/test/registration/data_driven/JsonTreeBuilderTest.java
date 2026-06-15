@@ -121,13 +121,21 @@ class JsonTreeBuilderTest {
     }
 
     @Test
-    void itemRegisteredInVanillaRegistry(MinecraftServer server) {
-        // NOTE: JSON-defined blocks don't automatically get items unless the factory
-        // explicitly calls withDefaultBlockItem. Current test factories don't do this.
-        // This test verifies the block exists; item registration depends on factory design.
-        var blockRegistry = server.registryAccess().registryOrThrow(Registries.BLOCK);
-        assertTrue(blockRegistry.containsKey(
+    void blockItemsRegisteredInItemRegistry(MinecraftServer server) {
+        var itemRegistry = server.registryAccess().registryOrThrow(Registries.ITEM);
+        // Factories are responsible for creating BlockItems via withDefaultBlockItem
+        assertTrue(itemRegistry.containsKey(
                 ResourceLocation.fromNamespaceAndPath(KasugaLib.MODID, "simple_panel")));
+        assertTrue(itemRegistry.containsKey(
+                ResourceLocation.fromNamespaceAndPath(KasugaLib.MODID, "detail_slab")));
+        assertTrue(itemRegistry.containsKey(
+                ResourceLocation.fromNamespaceAndPath(KasugaLib.MODID, "standalone_block")));
+        assertTrue(itemRegistry.containsKey(
+                ResourceLocation.fromNamespaceAndPath(KasugaLib.MODID, "inherited_block")));
+        assertTrue(itemRegistry.containsKey(
+                ResourceLocation.fromNamespaceAndPath(KasugaLib.MODID, "overridden_block")));
+        assertTrue(itemRegistry.containsKey(
+                ResourceLocation.fromNamespaceAndPath(KasugaLib.MODID, "be_test_block")));
     }
 
     @Test

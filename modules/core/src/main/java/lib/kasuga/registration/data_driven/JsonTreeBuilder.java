@@ -12,6 +12,7 @@ import lib.kasuga.registration.core.ResourceLocationModifiers;
 import lib.kasuga.registration.factory.FactoryRegistry;
 import lib.kasuga.registration.minecraft.item.ItemRegModifiers;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.fml.ModList;
@@ -22,6 +23,8 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -34,9 +37,11 @@ public class JsonTreeBuilder {
 
     private record RawGroup(String id, String parent, JsonObject properties, JsonObject itemProperties) {}
     private record RawBlock(String id, String type, String group, JsonObject properties,
-                            JsonObject itemProperties, JsonObject modelData) {}
+                            JsonObject itemProperties, JsonObject modelData, String blockEntityType) {}
 
-    private record RawData(Map<String, RawGroup> groups, List<RawBlock> blocks) {}
+    private record RawItem(String id, String type, String group, JsonObject properties) {}
+
+    private record RawData(Map<String, RawGroup> groups, List<RawBlock> blocks, List<RawItem> items) {}
 
     /**
      * Scans a specific mod's JSON files and builds the virtual registration tree.
@@ -46,14 +51,15 @@ public class JsonTreeBuilder {
      * via {@code setParent()} or {@code addChild()} to integrate with the existing tree.
      */
     public static JsonRegistryGroup buildForMod(String modId) {
+        LOGGER.info("[buildForMod] called for modId='{}'", modId);
         Path kasugalibDir = findKasugalibDir(modId);
         if (kasugalibDir == null) return null;
 
         RawData data = scanFolder(kasugalibDir);
-        if (data.groups().isEmpty() && data.blocks().isEmpty()) return null;
+        if (data.groups().isEmpty() && data.blocks().isEmpty() && data.items().isEmpty()) return null;
 
-        LOGGER.info("Building JSON registration tree for mod '{}' with {} groups and {} blocks",
-                modId, data.groups().size(), data.blocks().size());
+        LOGGER.info("Building JSON registration tree for mod '{}' with {} groups, {} blocks, {} items",
+                modId, data.groups().size(), data.blocks().size(), data.items().size());
         return buildTree(modId, data);
     }
 
@@ -107,19 +113,21 @@ public class JsonTreeBuilder {
     private static RawData scanFolder(Path dir) {
         Map<String, RawGroup> groups = new LinkedHashMap<>();
         List<RawBlock> blocks = new ArrayList<>();
+        List<RawItem> items = new ArrayList<>();
 
         try (Stream<Path> files = Files.list(dir)) {
             files.filter(p -> p.toString().endsWith(".json"))
                  .sorted()
-                 .forEach(path -> parseFile(path, groups, blocks));
+                 .forEach(path -> parseFile(path, groups, blocks, items));
         } catch (IOException e) {
             LOGGER.error("Error scanning directory: {}", dir, e);
         }
 
-        return new RawData(groups, blocks);
+        return new RawData(groups, blocks, items);
     }
 
-    private static void parseFile(Path path, Map<String, RawGroup> groups, List<RawBlock> blocks) {
+    private static void parseFile(Path path, Map<String, RawGroup> groups,
+                                   List<RawBlock> blocks, List<RawItem> items) {
         try (Reader reader = Files.newBufferedReader(path)) {
             JsonObject root = GSON.fromJson(reader, JsonObject.class);
             if (root == null) return;
@@ -151,8 +159,30 @@ public class JsonTreeBuilder {
                     if (b.has("model")) modelData.addProperty("model", b.get("model").getAsString());
                     if (b.has("textures")) modelData.add("textures", b.get("textures"));
                     if (b.has("state_machine")) modelData.addProperty("state_machine", b.get("state_machine").getAsString());
-                    if (b.has("block_entity")) modelData.add("block_entity", b.get("block_entity"));
-                    blocks.add(new RawBlock(id, type, group, props, itemProps, modelData));
+
+                    // Parse block_entity reference
+                    String blockEntityType = null;
+                    if (b.has("block_entity")) {
+                        JsonObject beObj = b.getAsJsonObject("block_entity");
+                        if (beObj.has("type")) {
+                            blockEntityType = beObj.get("type").getAsString();
+                        }
+                        modelData.add("block_entity", b.get("block_entity"));
+                        LOGGER.info("[parseFile] block '{}' has block_entity, parsed type='{}'", id, blockEntityType);
+                    }
+
+                    blocks.add(new RawBlock(id, type, group, props, itemProps, modelData, blockEntityType));
+                }
+            }
+
+            if (root.has("items")) {
+                for (JsonElement el : root.getAsJsonArray("items")) {
+                    JsonObject i = el.getAsJsonObject();
+                    String id = i.get("id").getAsString();
+                    String type = i.get("type").getAsString();
+                    String group = i.has("group") ? i.get("group").getAsString() : null;
+                    JsonObject props = i.has("properties") ? i.getAsJsonObject("properties") : null;
+                    items.add(new RawItem(id, type, group, props));
                 }
             }
         } catch (Exception e) {
@@ -221,24 +251,52 @@ public class JsonTreeBuilder {
             }
         }
 
+        // Track created block regs for BE association
+        Map<String, Reg<?, Block>> blockRegMap = new LinkedHashMap<>();
+
         // Create block regs and attach to groups
         for (RawBlock def : data.blocks()) {
             try {
-                createBlock(def, groupDefs, groupMap, rootGroup);
+                Reg<?, Block> blockReg = createBlock(def, groupDefs, groupMap, rootGroup);
+                if (blockReg != null) {
+                    blockRegMap.put(def.id(), blockReg);
+                }
             } catch (Exception e) {
                 LOGGER.error("Failed to create block '{}': {}", def.id(), e.getMessage());
+            }
+        }
+
+        // Create block entities for blocks that reference them
+        for (RawBlock def : data.blocks()) {
+            LOGGER.info("[buildTree] block '{}' blockEntityType={}", def.id(), def.blockEntityType());
+            if (def.blockEntityType() != null) {
+                try {
+                    createBlockEntity(def, blockRegMap);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to create block entity for block '{}': {}", def.id(), e.getMessage());
+                }
+            }
+        }
+
+        // Create standalone items
+        for (RawItem def : data.items()) {
+            try {
+                createItem(def, groupDefs, groupMap, rootGroup);
+            } catch (Exception e) {
+                LOGGER.error("Failed to create item '{}': {}", def.id(), e.getMessage());
             }
         }
 
         return rootGroup;
     }
 
-    private static void createBlock(RawBlock def, Map<String, RawGroup> groupDefs,
-                                     Map<String, JsonRegistryGroup> groupMap,
-                                     RegistryGroup rootGroup) {
+    private static Reg<?, Block> createBlock(RawBlock def, Map<String, RawGroup> groupDefs,
+                                              Map<String, JsonRegistryGroup> groupMap,
+                                              RegistryGroup rootGroup) {
+        LOGGER.info("[createBlock] creating block '{}' type='{}' group='{}'", def.id(), def.type(), def.group());
         if (!FactoryRegistry.contains(def.type())) {
             LOGGER.warn("Unknown block type '{}' for block '{}'", def.type(), def.id());
-            return;
+            return null;
         }
 
         String[] parts = def.id().split(":", 2);
@@ -262,20 +320,7 @@ public class JsonTreeBuilder {
         }
 
         // Register creative tab: per-block item_properties.tab, or inherit from group
-        JsonObject effectiveItemProps = def.itemProperties();
-        if ((effectiveItemProps == null || !effectiveItemProps.has("tab"))
-                && def.group() != null && groupDefs.containsKey(def.group())) {
-            RawGroup group = groupDefs.get(def.group());
-            if (group.itemProperties() != null && group.itemProperties().has("tab")) {
-                effectiveItemProps = group.itemProperties();
-            }
-        }
-        if (effectiveItemProps != null && effectiveItemProps.has("tab")) {
-            String tabStr = effectiveItemProps.get("tab").getAsString();
-            ResourceLocation tabId = ResourceLocation.parse(tabStr);
-            reg.configure(ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER.apply(() -> tabId));
-            LOGGER.debug("Registered block '{}' for creative tab {}", def.id(), tabId);
-        }
+        applyCreativeTab(reg, def.itemProperties(), def.group(), groupDefs);
 
         // Attach to group
         if (def.group() != null && groupMap.containsKey(def.group())) {
@@ -285,6 +330,101 @@ public class JsonTreeBuilder {
             reg.setParent(rootGroup);
         } else {
             reg.setParent(rootGroup);
+        }
+
+        return reg;
+    }
+
+    private static void createItem(RawItem def, Map<String, RawGroup> groupDefs,
+                                    Map<String, JsonRegistryGroup> groupMap,
+                                    RegistryGroup rootGroup) {
+        if (!FactoryRegistry.containsItem(def.type())) {
+            LOGGER.warn("Unknown item type '{}' for item '{}'", def.type(), def.id());
+            return;
+        }
+
+        String[] parts = def.id().split(":", 2);
+        String path = parts.length > 1 ? parts[1] : parts[0];
+        String namespace = parts.length > 1 ? parts[0] : "minecraft";
+
+        FactoryRegistry.ItemFactory factory = FactoryRegistry.getItemFactory(def.type());
+        Reg<?, Item> reg = factory.create(path);
+
+        // Override namespace if different from root
+        if (!namespace.equals("minecraft")) {
+            reg.configure(ResourceLocationModifiers.withNamespace(namespace));
+        }
+
+        // Inject item-level properties as modifiers
+        if (def.properties() != null) {
+            List<Modifier<Item.Properties>> mods = JsonItemParser.INSTANCE.parseItemProperties(def.properties());
+            for (Modifier<Item.Properties> m : mods) {
+                reg.configure(m);
+            }
+        }
+
+        // Register creative tab: per-item properties.tab, or inherit from group
+        applyCreativeTab(reg, def.properties(), def.group(), groupDefs);
+
+        // Attach to group
+        if (def.group() != null && groupMap.containsKey(def.group())) {
+            reg.setParent(groupMap.get(def.group()));
+        } else if (def.group() != null) {
+            LOGGER.warn("Item '{}' references unknown group '{}', attaching to root", def.id(), def.group());
+            reg.setParent(rootGroup);
+        } else {
+            reg.setParent(rootGroup);
+        }
+    }
+
+    private static void createBlockEntity(RawBlock blockDef, Map<String, Reg<?, Block>> blockRegMap) {
+        String beType = blockDef.blockEntityType();
+        LOGGER.info("[createBlockEntity] block='{}' beType='{}'", blockDef.id(), beType);
+        if (!FactoryRegistry.containsBlockEntity(beType)) {
+            LOGGER.warn("Unknown block entity type '{}' for block '{}', registered types: {}",
+                    beType, blockDef.id(), FactoryRegistry.getBlockEntityTypes());
+            return;
+        }
+
+        // Get the block reg for valid blocks
+        Reg<?, Block> blockReg = blockRegMap.get(blockDef.id());
+        if (blockReg == null) {
+            LOGGER.warn("Block '{}' not found for block entity association, available blocks: {}",
+                    blockDef.id(), blockRegMap.keySet());
+            return;
+        }
+
+        String beName = blockDef.id().split(":", 2).length > 1
+                ? blockDef.id().split(":", 2)[1] + "_be"
+                : blockDef.id() + "_be";
+
+        LOGGER.info("[createBlockEntity] creating BE '{}' with factory '{}'", beName, beType);
+        FactoryRegistry.BlockEntityFactory factory = FactoryRegistry.getBlockEntityFactory(beType);
+        Reg<?, ?> beReg = factory.create(beName, () -> new Block[]{blockReg.getEntry()});
+
+        // Attach BE as child of the block so it registers alongside it
+        blockReg.addChild(beReg);
+        LOGGER.info("[createBlockEntity] BE '{}' attached to block '{}'", beName, blockDef.id());
+    }
+
+    /**
+     * Applies creative tab registration from item_properties.tab.
+     * Checks per-entry first, then falls back to group inheritance.
+     */
+    private static void applyCreativeTab(Reg<?, ?> reg, JsonObject entryItemProps,
+                                          String groupId, Map<String, RawGroup> groupDefs) {
+        JsonObject effectiveItemProps = entryItemProps;
+        if ((effectiveItemProps == null || !effectiveItemProps.has("tab"))
+                && groupId != null && groupDefs.containsKey(groupId)) {
+            RawGroup group = groupDefs.get(groupId);
+            if (group.itemProperties() != null && group.itemProperties().has("tab")) {
+                effectiveItemProps = group.itemProperties();
+            }
+        }
+        if (effectiveItemProps != null && effectiveItemProps.has("tab")) {
+            String tabStr = effectiveItemProps.get("tab").getAsString();
+            ResourceLocation tabId = ResourceLocation.parse(tabStr);
+            reg.configure(ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER.apply(() -> tabId));
         }
     }
 

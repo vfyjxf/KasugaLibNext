@@ -10,12 +10,13 @@
     },
     {
       "id": "kasuga_lib:detail_slab",
-      "type": "slab_block",
+      "type": "simple_block",
       "group": "kasuga_lib:detail_panels"
     },
     {
       "id": "kasuga_lib:standalone_block",
-      "type": "simple_block"
+      "type": "simple_block",
+      "group": "kasuga_lib:data_driven_group"
     }
   ]
 }

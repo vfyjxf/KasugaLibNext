@@ -1,0 +1,12 @@
+{
+  "blocks": [
+    {
+      "id": "kasuga_lib:be_test_block",
+      "type": "be_block",
+      "group": "kasuga_lib:data_driven_group",
+      "block_entity": {
+        "type": "test_be"
+      }
+    }
+  ]
+}
