@@ -16,7 +16,7 @@ import lib.kasuga.slp.javet.value.JavetValueBridge;
 
 import java.lang.ref.WeakReference;
 import java.math.BigInteger;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class FastJavetClassConverter extends JavetObjectConverter {
     private final V8Runtime v8Runtime;
@@ -26,9 +26,9 @@ public class FastJavetClassConverter extends JavetObjectConverter {
         this.v8Runtime = v8Runtime;
         scriptConverter = new ScriptConverter(this);
     }
-    public HashMap<Class<?>, V8ValueObject> classTypeCache = new HashMap<>();
+    public ConcurrentHashMap<Class<?>, V8ValueObject> classTypeCache = new ConcurrentHashMap<>();
 
-    public HashMap<Class<?>, ClassAccessor> accessors = new HashMap<>();
+    public ConcurrentHashMap<Class<?>, ClassAccessor> accessors = new ConcurrentHashMap<>();
 
 
     public V8ValueObject getClassPrototype(Class<?> prototype) throws JavetException {
@@ -47,9 +47,9 @@ public class FastJavetClassConverter extends JavetObjectConverter {
     }
 
 
-    HashMap<Integer, WeakReference<Object>> cachedObjects = new HashMap<>();
+    ConcurrentHashMap<Integer, WeakReference<Object>> cachedObjects = new ConcurrentHashMap<>();
 
-    HashMap<Long, Integer> trackingObjects = new HashMap<>();
+    ConcurrentHashMap<Long, Integer> trackingObjects = new ConcurrentHashMap<>();
 
     @Override
     protected <T extends V8Value> T toV8Value(V8Runtime v8Runtime, Object object, int depth) throws JavetException {

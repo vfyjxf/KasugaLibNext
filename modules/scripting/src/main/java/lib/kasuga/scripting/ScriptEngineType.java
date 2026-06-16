@@ -21,7 +21,9 @@ public class ScriptEngineType<T extends ScriptEngine> {
     public final int priority;
     public final List<Throwable> loadingIssues;
     protected final Map<EngineFeatureType<?>, Function<T, ? extends EngineFeature>> features;
-    public ScriptEngineType(String scriptType, Supplier<T> engineSupplier, boolean multiThreadSupporting, int priority, Map<EngineFeatureType<?>, Function<T, ? extends EngineFeature>> features) {
+    // public final EngineModuleResolver resolver;
+
+    public ScriptEngineType(String scriptType, Supplier<T> engineSupplier, /*EngineModuleResolver resolver, */boolean multiThreadSupporting, int priority, Map<EngineFeatureType<?>, Function<T, ? extends EngineFeature>> features) {
         this.scriptType = scriptType;
         this.engineSupplier = engineSupplier;
         this.multiThreadSupporting = multiThreadSupporting;
@@ -39,20 +41,28 @@ public class ScriptEngineType<T extends ScriptEngine> {
     }
 
     public boolean isAvailable() {
-        return false;
+        return loadingIssues.isEmpty();
     }
 
     public static class Builder<T extends ScriptEngine> {
+
         protected String scriptType;
         protected Supplier<T> engineSupplier;
+//        protected EngineModuleResolver resolver;
         protected boolean multiThreadSupporting = false;
         protected int priority = 0;
         protected final Map<EngineFeatureType<?>, Function<T, ? extends EngineFeature>> features = new HashMap<>();
+
 
         public Builder<T> scriptType(String scriptType) {
             this.scriptType = scriptType;
             return this;
         }
+
+//        public Builder<T> resolver(EngineModuleResolver resolver) {
+//            this.resolver = resolver;
+//            return this;
+//        }
 
         public Builder<T> engineSupplier(Supplier<T> engineSupplier) {
             this.engineSupplier = engineSupplier;
@@ -75,7 +85,7 @@ public class ScriptEngineType<T extends ScriptEngine> {
         }
 
         public ScriptEngineType<T> build() {
-            return new ScriptEngineType<>(scriptType, engineSupplier, multiThreadSupporting, priority, features);
+            return new ScriptEngineType<>(scriptType, engineSupplier, /*resolver,*/ multiThreadSupporting, priority, features);
         }
     }
 }

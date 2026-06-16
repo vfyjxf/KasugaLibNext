@@ -6,8 +6,12 @@ import jakarta.inject.Inject;
 import lib.kasuga.core.resource.ResourceSystem;
 import lib.kasuga.core.resource.ScopedResourceManager;
 import lib.kasuga.core.resource.ScopedResourceManagerConsumer;
+import lib.kasuga.core.resource.ServerResourceReloadFinishEvent;
+import lib.kasuga.scripting.discovery.PackageSystem;
 import net.minecraft.server.MinecraftServer;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Set;
 
 @Context()
 public class ScriptingApplication {

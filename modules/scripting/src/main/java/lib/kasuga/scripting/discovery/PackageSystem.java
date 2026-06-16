@@ -5,11 +5,10 @@ import com.electronwill.nightconfig.toml.TomlParser;
 import io.micronaut.context.annotation.Context;
 import jakarta.inject.Inject;
 import lib.kasuga.core.resource.pack.ScopedPackResources;
-import lib.kasuga.scripting.ScriptEngine;
 import lib.kasuga.scripting.ScriptEngineRegistry;
 import lib.kasuga.scripting.ScriptEngineType;
+import lib.kasuga.structure.Pair;
 import lombok.Getter;
-import net.minecraft.client.gui.screens.ErrorScreen;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -31,6 +30,13 @@ public class PackageSystem {
 
     protected final Set<String> engineMissing = new HashSet<>();
 
+
+    public void init() {
+        loadingErrors.clear();
+        engineErrors.clear();
+        engineMissing.clear();
+    }
+
     public boolean hasLoadingErrors() {
         synchronized (loadingErrors) {
             return !loadingErrors.isEmpty();
@@ -49,8 +55,17 @@ public class PackageSystem {
         }
     }
 
-    public boolean resolve(ScopedPackResources packResource) {
-        return true;
+    public List<ScriptPackage> resolve(ScopedPackResources packResource, List<ScriptEngineType<?>> engines) {
+        List<ScriptPackage> packages = new ArrayList<>();
+        for (ScriptEngineType<?> engine : engines) {
+            ScriptPackage root = new ScriptPackage();
+            // List<ScriptPackage> enginePackageList = engine.resolver.resolvePackage(packResource);
+//            for (ScriptPackage scriptPackage : enginePackageList) {
+//                root.addChild(scriptPackage);
+//            }
+            packages.add(root);
+        }
+        return packages;
     }
 
     public ScriptMetadata readMetadata(ScopedPackResources spr) {
@@ -70,6 +85,29 @@ public class PackageSystem {
         );
     }
 
+//    public PackageInfo readPackageInfo(ScopedPa1ckResources spr) {
+//        if (!spr.exists("scripts", "package.toml"))
+//            return null;
+//        CommentedConfig config;
+//        try {
+//            config = scriptInfoParser.parse(new InputStreamReader(spr.open("scripts", "package.toml")));
+//        } catch (IOException e) {
+//            throw new PackageLoadingError(e);
+//        }
+//
+//        return new PackageInfo(
+//                config.get("name"),
+//                config.get("engine"),
+//                config.get("description"),
+//                formatEngineObj(config.get("workspaces")),
+//                new PackageInfo.EntryConfig(
+//                        formatEngineObj(config.get("entry.server")),
+//                        formatEngineObj(config.get("entry.client")),
+//                        formatEngineObj(config.get("entry.common"))
+//                )
+//        );
+//    }
+
     protected static List<String> formatEngineObj(Object origin) {
         if(origin == null)
             return List.of();
@@ -81,7 +119,8 @@ public class PackageSystem {
         return List.of(origin.toString());
     }
 
-    public void ensureEngineRequirement(ScriptMetadata metadata) {
+    public List<ScriptEngineType<?>> ensureEngineRequirement(ScriptMetadata metadata) {
+        List<ScriptEngineType<?>> engines = new ArrayList<>();
         for (String requiredEngine : metadata.requiredEngines()) {
             ScriptEngineType<?> engineType = engineRegistry.resolve(requiredEngine, true);
             if (engineType == null) {
@@ -94,12 +133,13 @@ public class PackageSystem {
             if(!engineType.loadingIssues.isEmpty()) {
                 engineErrors.put(requiredEngine, List.copyOf(engineType.loadingIssues));
                 engineMissing.add(requiredEngine);
+                continue;
             }
+
+            engines.add(engineType);
+
         }
-    }
-
-    public void finalizeStateCheck() {
-
+        return engines;
     }
 
     public Set<String> getMissingEngines() {
@@ -107,5 +147,4 @@ public class PackageSystem {
             return Set.copyOf(engineMissing);
         }
     }
-
 }

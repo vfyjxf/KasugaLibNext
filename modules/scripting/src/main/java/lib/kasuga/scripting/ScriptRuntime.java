@@ -13,6 +13,8 @@ import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ScriptRuntime implements ScopedResourcePackListener {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -32,8 +34,19 @@ public class ScriptRuntime implements ScopedResourcePackListener {
     @Override
     public void onReloaded(ScopedResourceManager resourceManager) {
         threadGroup.interrupt();
-        // while(threadGroup.activeCount() > 0) {}
+        
+//        while(threadGroup.activeCount() > 0) {
+//            threadGroup.interrupt();
+//        }
+        
+        packageSystem.init();
+
+        ScriptPackage rootPackage = new ScriptPackage();
+
         for (ScopedPackResources packResource : resourceManager.getPackResources()) {
+
+            ScriptPackage packagePackRoot = new ScriptPackage();
+
             if(packageSystem.hasLoadingErrors())
                 continue;
 
@@ -43,13 +56,22 @@ public class ScriptRuntime implements ScopedResourcePackListener {
                 if(metadata == null)
                     continue;
 
-                packageSystem.ensureEngineRequirement(metadata);
-                packageSystem.resolve(packResource);
+                List<ScriptEngineType<?>> engines = packageSystem.ensureEngineRequirement(metadata);
+
+                List<ScriptPackage> enginePackages = packageSystem.resolve(packResource, engines);
+
+                enginePackages.forEach(packagePackRoot::addChild);
+
+                rootPackage.addChild(packagePackRoot);
             }catch (PackageLoadingError error) {
                 packageSystem.addLoadingError(error);
                 LOGGER.error("Failed to load script package from resource pack: " + packResource.getName(), error);
                 throw error;
             }
+
+            rootPackage.assemble();
+
+            // rootPackage.start(threadGroup);
         }
     }
 

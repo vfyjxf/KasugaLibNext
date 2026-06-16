@@ -10,15 +10,13 @@ import lib.kasuga.scripting.client.ScriptEngineErrorScreen;
 import lib.kasuga.scripting.client.ScriptEngineMissingScreen;
 import lib.kasuga.scripting.discovery.PackageSystem;
 import net.minecraft.client.Minecraft;
-import net.minecraft.server.MinecraftServer;
-import net.neoforged.bus.api.Event;
 import net.neoforged.bus.api.IEventBus;
 
 import java.util.Set;
 
 @Context()
 @BeanOnlyIn.Client
-public class ScriptClientApplication {
+public class ScriptingClientApplication {
 
     @Inject() @Named("forgeEventBus")
     IEventBus eventBus;
@@ -49,6 +47,4 @@ public class ScriptClientApplication {
             ));
         }
     }
-
-
 }

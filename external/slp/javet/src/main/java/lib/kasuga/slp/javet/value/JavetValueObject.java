@@ -49,14 +49,16 @@ public class JavetValueObject<T extends V8ValueObject> extends JavetValue<T> imp
     public ScriptValue setMember(ScriptValue key, ScriptValue member) throws ScriptException {
         assertNotClosing();
         IV8Value convertedKey = null;
+        IV8Value convertedMember = null;
         try{
             convertedKey = this.delegate.getV8Runtime().getConverter().toV8Value(this.delegate.getV8Runtime(), key);
-            delegate.set(key, member);
+            convertedMember = this.delegate.getV8Runtime().getConverter().toV8Value(this.delegate.getV8Runtime(), member);
+            delegate.set(convertedKey, convertedMember);
             return member;
         } catch (JavetException e) {
             throw new ScriptException(e);
         } finally {
-            JavetResourceUtils.safeClose(convertedKey);
+            JavetResourceUtils.safeClose(convertedKey, convertedMember);
         }
     }
 
@@ -89,10 +91,14 @@ public class JavetValueObject<T extends V8ValueObject> extends JavetValue<T> imp
     @Override
     public void remove(ScriptValue key) throws ScriptException {
         assertNotClosing();
+        IV8Value convertedKey = null;
         try{
-            delegate.delete(key);
+            convertedKey = this.delegate.getV8Runtime().getConverter().toV8Value(this.delegate.getV8Runtime(), key);
+            delegate.delete(convertedKey);
         } catch (JavetException e) {
             throw new ScriptException(e);
+        } finally {
+            JavetResourceUtils.safeClose(convertedKey);
         }
     }
 

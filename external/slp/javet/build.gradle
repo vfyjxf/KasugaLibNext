@@ -124,6 +124,13 @@ dependencies {
     compileOnly project(":modules:modelling")
     compileOnly project(":modules:scripting")
 
+    testImplementation (project(":modules:library")) {
+        transitive = false
+        attributes {
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
+        }
+    }
+
     runtimeOnly (project(":modules:library")) {
         transitive = false
         attributes {
