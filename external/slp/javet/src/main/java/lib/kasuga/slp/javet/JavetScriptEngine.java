@@ -10,8 +10,14 @@ import lib.kasuga.scripting.ScriptConsole;
 import lib.kasuga.scripting.ScriptEngine;
 import lib.kasuga.scripting.ScriptEngineType;
 import lib.kasuga.scripting.ScriptException;
+import lib.kasuga.scripting.feature.EngineFeature;
+import lib.kasuga.scripting.feature.EngineFeatureType;
+import lib.kasuga.scripting.module.BuiltinModuleRegistry;
 import lib.kasuga.scripting.module.ResolvedScript;
+import lib.kasuga.scripting.module.ScriptModule;
 import lib.kasuga.scripting.module.ScriptModuleHandle;
+import lib.kasuga.scripting.security.SecurityEngineFeature;
+import lib.kasuga.scripting.security.SecurityEngineFeatureType;
 import lib.kasuga.scripting.value.ScriptValue;
 import lib.kasuga.slp.javet.converter.FastJavetClassConverter;
 import lib.kasuga.slp.javet.module.JavetModuleHandle;
@@ -22,7 +28,6 @@ import lombok.Setter;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,21 +36,18 @@ import java.util.Map;
 public class JavetScriptEngine implements ScriptEngine {
     @Getter V8Runtime runtime;
     private FastJavetClassConverter converter;
-    private ScriptEngineType<?> type;
     @Setter
     private RequireResolver requireResolver;
     private final Map<String, ScriptModuleHandle> loadedModules = new HashMap<>();
+    private final Map<String, ScriptModule> scriptModules = new HashMap<>();
+    private Map<EngineFeatureType<?>, EngineFeature> features = Map.of();
     private int gcTicks = 0;
 
     public JavetScriptEngine() {}
 
-    public void setType(ScriptEngineType<?> type) {
-        this.type = type;
-    }
-
     @Override
     public ScriptEngineType<?> getType() {
-        return type;
+        return KasugaLibJavet.ENGINE_TYPE;
     }
 
     @Override
@@ -55,15 +57,74 @@ public class JavetScriptEngine implements ScriptEngine {
             KasugaJavetConsoleInterceptor consoleInterceptor = new KasugaJavetConsoleInterceptor(runtime, console);
             consoleInterceptor.register(runtime.getGlobalObject());
             this.converter = new FastJavetClassConverter(runtime);
+            converter.setEngine(this);
+            SecurityEngineFeature securityFeature = getFeature(SecurityEngineFeatureType.INSTANCE);
+            if (securityFeature != null) {
+                converter.setSecurityFeature(securityFeature);
+            }
             runtime.setConverter(converter);
             runtime.setPromiseRejectCallback((event, promise, value)->{
                 if(event.getCode() == 0){
                     console.error("Unhandled Promise Rejection: " + com.caoccao.javet.utils.V8ValueUtils.asString(value));
                 }
             });
+
+            BuiltinModuleRegistry registry = lib.kasuga.KasugaLib.getBean(BuiltinModuleRegistry.class);
+            Map<String, ScriptModule> modules = registry.createModules(this);
+            scriptModules.putAll(modules);
+            for (ScriptModule module : scriptModules.values()) {
+                module.init();
+            }
+
+            setupRequireResolver();
         } catch (JavetException e) {
             throw new ScriptException(e);
         }
+    }
+
+    private void setupRequireResolver() {
+        this.requireResolver = (moduleName, fromSourcePath) -> {
+            ScriptModule module = scriptModules.get(moduleName);
+            if(module != null) {
+                try {
+                    return wrapAsModuleHandle(moduleName, module);
+                } catch (JavetException e) {
+                    throw new ScriptException(e);
+                }
+            }
+            try {
+                BuiltinModuleRegistry builtinRegistry = lib.kasuga.KasugaLib.getBean(BuiltinModuleRegistry.class);
+                Object builtin = builtinRegistry.resolve(moduleName);
+                if(builtin != null) {
+                    try {
+                        return wrapAsModuleHandle(moduleName, builtin);
+                    } catch (JavetException e) {
+                        throw new ScriptException(e);
+                    }
+                }
+            } catch (ScriptException e) {
+                throw e;
+            } catch (Exception ignored) {}
+            return null;
+        };
+    }
+
+    private ScriptModuleHandle wrapAsModuleHandle(String name, Object object) throws JavetException {
+        V8Value v8Value = converter.toV8Value(runtime, object);
+        Map<String, ScriptValue> exportMap = new HashMap<>();
+        exportMap.put("default", JavetValueBridge.wrap(v8Value));
+        return new JavetModuleHandle(exportMap, name, getType());
+    }
+
+    @Override
+    public void setFeatures(Map<EngineFeatureType<?>, EngineFeature> features) {
+        this.features = features;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <F extends EngineFeature> F getFeature(EngineFeatureType<F> type) {
+        return (F) features.get(type);
     }
 
     public ScriptValue execute(String evaluateString) throws ScriptException {
@@ -104,8 +165,7 @@ public class JavetScriptEngine implements ScriptEngine {
             V8ValueObject exportsObj = runtime.createV8ValueObject();
             moduleObj.set("exports", exportsObj);
 
-            String fromSourcePath = sourcePath;
-            V8Value requireFunc = createRequireFunc(fromSourcePath);
+            V8Value requireFunc = createRequireFunc(sourcePath);
 
             try {
                 moduleFunc.callVoid(null, requireFunc, exportsObj, moduleObj);
@@ -113,21 +173,31 @@ public class JavetScriptEngine implements ScriptEngine {
                 V8Value resultExports = moduleObj.get("exports");
 
                 Map<String, ScriptValue> exports = new HashMap<>();
-                if (resultExports instanceof V8ValueObject resultObj) {
-                    var propNames = resultObj.getOwnPropertyNames();
-                    int len = propNames.getLength();
-                    for (int i = 0; i < len; i++) {
-                        String key = propNames.getString(i);
-                        V8Value val = resultObj.get(key);
-                        exports.put(key, JavetValueBridge.wrap(val));
+                try {
+                    if (resultExports instanceof V8ValueObject resultObj) {
+                        var propNames = resultObj.getOwnPropertyNames();
+                        try {
+                            int len = propNames.getLength();
+                            for (int i = 0; i < len; i++) {
+                                String key = propNames.getString(i);
+                                V8Value val = resultObj.get(key);
+                                exports.put(key, JavetValueBridge.wrap(val));
+                            }
+                        } finally {
+                            propNames.close();
+                        }
                     }
+                } finally {
+                    resultExports.close();
                 }
 
-                JavetModuleHandle handle = new JavetModuleHandle(exports, sourcePath, type);
+                JavetModuleHandle handle = new JavetModuleHandle(exports, sourcePath, getType());
                 loadedModules.put(sourcePath, handle);
                 return handle;
             } finally {
                 requireFunc.close();
+                exportsObj.close();
+                moduleFunc.close();
                 moduleObj.close();
             }
         } catch (JavetException e) {
@@ -159,6 +229,8 @@ public class JavetScriptEngine implements ScriptEngine {
                 moduleFunc.callVoid(null, requireFunc, exportsObj, moduleObj);
             } finally {
                 requireFunc.close();
+                exportsObj.close();
+                moduleFunc.close();
                 moduleObj.close();
             }
         } catch (JavetException e) {
@@ -168,14 +240,31 @@ public class JavetScriptEngine implements ScriptEngine {
 
     @Override
     public void tick() {
+        for (ScriptModule module : scriptModules.values()) {
+            module.tick();
+        }
         if (gcTicks++ > 20) {
             runtime.lowMemoryNotification();
             gcTicks = 0;
         }
     }
 
+    @Override
+    public void registerGlobal(String name, Object api) {
+        try {
+            V8ValueObject v8Obj = (V8ValueObject) converter.toV8Value(runtime, api);
+            runtime.getGlobalObject().set(name, v8Obj);
+        } catch (JavetException e) {
+            throw new RuntimeException("Failed to register global API: " + name, e);
+        }
+    }
+
     public void close() {
         loadedModules.clear();
+        for (ScriptModule module : scriptModules.values()) {
+            try { module.close(); } catch (Exception ignored) {}
+        }
+        scriptModules.clear();
 
         if(runtime != null){
             try {
@@ -202,7 +291,6 @@ public class JavetScriptEngine implements ScriptEngine {
                     if (handle == null) {
                         throw new RuntimeException("Module not found: " + moduleName);
                     }
-                    // Convert handle exports to a V8 object
                     try {
                         V8ValueObject exports = runtime.createV8ValueObject();
                         for (String key : handle.getExportNames()) {
@@ -230,14 +318,8 @@ public class JavetScriptEngine implements ScriptEngine {
     }
 
     private String readSource(InputStream is) throws ScriptException {
-        try (var reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
-            StringBuilder sb = new StringBuilder();
-            char[] buf = new char[4096];
-            int n;
-            while ((n = reader.read(buf)) != -1) {
-                sb.append(buf, 0, n);
-            }
-            return sb.toString();
+        try {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new ScriptException(e);
         }

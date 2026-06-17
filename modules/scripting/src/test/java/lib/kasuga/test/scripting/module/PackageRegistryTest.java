@@ -3,6 +3,7 @@ package lib.kasuga.test.scripting.module;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.scripting.ScriptEngineType;
 import lib.kasuga.scripting.discovery.PackageInfo;
+import lib.kasuga.scripting.module.DuplicatePackageException;
 import lib.kasuga.scripting.module.PackageRegistry;
 import lib.kasuga.scripting.module.ResolvedPackage;
 import lib.kasuga.test.scripting.MockModuleResolver;
@@ -51,7 +52,7 @@ public class PackageRegistryTest {
     @Test
     public void shouldRegisterAndLookupWithCorrectValues(MinecraftServer server) {
         ResolvedPackage pkg = createPackage("@test/math", "mock", "2.0.0", "index", "scripts");
-        assertNull(registry.register(pkg));
+        registry.register(pkg);
 
         ResolvedPackage found = registry.lookup("@test/math");
         assertNotNull(found);
@@ -68,10 +69,10 @@ public class PackageRegistryTest {
         ResolvedPackage pkg1 = createPackage("@test/math", "mock", "1.0.0", "index", "scripts");
         ResolvedPackage pkg2 = createPackage("@test/math", "mock", "2.0.0", "main", "scripts/other");
 
-        assertNull(registry.register(pkg1));
-        String error = registry.register(pkg2);
-        assertNotNull(error);
-        assertEquals("Duplicate package name: @test/math (already registered from test-pack)", error);
+        registry.register(pkg1);
+        DuplicatePackageException ex = assertThrows(DuplicatePackageException.class, () -> registry.register(pkg2));
+        assertEquals("@test/math", ex.getPackageName());
+        assertEquals("test-pack", ex.getExistingSource());
 
         // First package should still be registered
         ResolvedPackage found = registry.lookup("@test/math");

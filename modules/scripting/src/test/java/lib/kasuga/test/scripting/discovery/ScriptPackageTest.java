@@ -54,7 +54,7 @@ public class ScriptPackageTest {
 
         // Root is anonymous
         assertNull(root.info());
-        assertNull(root.resolved());
+        assertNull(root.getResolved());
         assertNull(root.engine());
 
         // Children have correct names
@@ -72,15 +72,15 @@ public class ScriptPackageTest {
         assertEquals("1.0.0", pkg.info().version());
         assertEquals("index", pkg.info().main());
         assertEquals("mock", pkg.engine().scriptType);
-        assertEquals("scripts", pkg.resolved().packRelativeRoot());
+        assertEquals("scripts", pkg.getResolved().packRelativeRoot());
     }
 
     @Test
     public void shouldHandleAnonymousPackageWithNullFields() {
         ScriptPackage pkg = new ScriptPackage();
+        assertNull(pkg.getResolved());
         assertNull(pkg.info());
         assertNull(pkg.engine());
-        assertNull(pkg.resolved());
         assertTrue(pkg.children().isEmpty());
     }
 

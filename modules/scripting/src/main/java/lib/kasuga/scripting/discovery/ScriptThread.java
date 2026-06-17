@@ -18,7 +18,7 @@ public class ScriptThread extends Thread {
     private final ScriptEngine engine;
     private final Queue<Runnable> pendingTasks = new ArrayDeque<>();
     private final AtomicBoolean shouldShutdown = new AtomicBoolean(false);
-    private final AtomicBoolean tickReady = new AtomicBoolean(false);
+    private volatile boolean tickReady = false;
     private final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
 
     ScriptThread(ScriptThreadGroup group, ScriptEngine engine, String entryName) {
@@ -41,10 +41,10 @@ public class ScriptThread extends Thread {
                     engine.tick();
 
                     synchronized (this) {
-                        while (!tickReady.get() && !shouldShutdown.get()) {
+                        while (!tickReady && !shouldShutdown.get()) {
                             this.wait();
                         }
-                        tickReady.set(false);
+                        tickReady = false;
                     }
                 } catch (InterruptedException e) {
                     if (shouldShutdown.get()) break;
@@ -60,8 +60,10 @@ public class ScriptThread extends Thread {
     }
 
     void dispatchTick() {
-        tickReady.set(true);
-        synchronized (this) { this.notifyAll(); }
+        synchronized (this) {
+            tickReady = true;
+            this.notify();
+        }
     }
 
     public void recordCall(Runnable task) {

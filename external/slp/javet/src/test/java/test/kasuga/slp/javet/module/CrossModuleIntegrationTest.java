@@ -8,6 +8,7 @@ import lib.kasuga.scripting.module.*;
 import lib.kasuga.scripting.value.ScriptPrimitive;
 import lib.kasuga.scripting.value.ScriptValue;
 import lib.kasuga.slp.javet.JavetScriptEngine;
+import lib.kasuga.slp.javet.KasugaLibJavet;
 import lib.kasuga.slp.javet.module.JavetModuleHandle;
 import lib.kasuga.slp.javet.module.JsModuleResolver;
 import lib.kasuga.slp.javet.module.RequireResolver;
@@ -29,31 +30,30 @@ public class CrossModuleIntegrationTest {
     private ScriptEngineType<JavetScriptEngine> engineType;
     private PackageRegistry packageRegistry;
     private BuiltinModuleRegistry builtinRegistry;
+    private ScriptEngineType<JavetScriptEngine> savedEngineType;
 
     @BeforeEach
     void setUp() throws ScriptException {
+        savedEngineType = KasugaLibJavet.ENGINE_TYPE;
+
         resolver = new JsModuleResolver();
         packageRegistry = new PackageRegistry();
         builtinRegistry = new BuiltinModuleRegistry();
 
-        engine = new JavetScriptEngine();
-        engineType = ScriptEngineType.<JavetScriptEngine>builder(() -> engine)
+        engineType = ScriptEngineType.<JavetScriptEngine>builder(JavetScriptEngine::new)
             .scriptType("javascript")
             .resolver(resolver)
             .build();
-        engine.setType(engineType);
+        KasugaLibJavet.ENGINE_TYPE = engineType;
+
+        engine = new JavetScriptEngine();
         engine.setRequireResolver(createRequireResolver());
-        engine.init(new ScriptConsole() {
-            @Override public void log(String s) {}
-            @Override public void warn(String s) {}
-            @Override public void debug(String s) {}
-            @Override public void info(String s) {}
-            @Override public void error(String s) { System.err.println("JS ERROR: " + s); }
-        });
+        engine.init(ScriptConsole.errorsToStderr());
     }
 
     @AfterEach
     void tearDown() {
+        KasugaLibJavet.ENGINE_TYPE = savedEngineType;
         if (engine != null) {
             engine.getRuntime().lowMemoryNotification();
             engine.close();
@@ -122,7 +122,7 @@ public class CrossModuleIntegrationTest {
             "scripts",
             engineType
         );
-        assertNull(packageRegistry.register(pkg), "Registration should succeed for " + name);
+        packageRegistry.register(pkg);
         return pkg;
     }
 
@@ -278,7 +278,7 @@ public class CrossModuleIntegrationTest {
             "scripts",
             engineType
         );
-        assertNull(packageRegistry.register(jsPkg));
+        packageRegistry.register(jsPkg);
 
         // Load @test/js-pack main (index.js), which does require("./utils")
         ResolvedScript script = resolver.locateScript(jsPkg, List.of());

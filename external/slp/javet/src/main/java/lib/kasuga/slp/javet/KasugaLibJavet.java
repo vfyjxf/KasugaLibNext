@@ -7,6 +7,9 @@ import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibStartupEvent;
 import lib.kasuga.scripting.ScriptEngineRegistry;
 import lib.kasuga.scripting.ScriptEngineType;
+import lib.kasuga.scripting.module.BuiltinModuleRegistry;
+import lib.kasuga.scripting.security.SecurityEngineFeatureType;
+import lib.kasuga.scripting.timer.TimerModule;
 import lib.kasuga.slp.javet.downloader.JavetDownloader;
 import lib.kasuga.slp.javet.module.JsModuleResolver;
 import net.minecraft.resources.ResourceLocation;
@@ -19,6 +22,8 @@ import java.util.List;
 
 @Mod(KasugaLibJavet.MODID)
 public class KasugaLibJavet {
+
+    public static ScriptEngineType<JavetScriptEngine> ENGINE_TYPE = null;
     public static final String MODID = "kasuga_lib_javet";
 
     public static final List<Throwable> ENGINE_RUNTIME_ISSUES = new ArrayList<>();
@@ -63,17 +68,19 @@ public class KasugaLibJavet {
 
         isRegistered = true;
 
-        JavetScriptEngine engineInstance = new JavetScriptEngine();
-        ScriptEngineType<JavetScriptEngine> engineType = ScriptEngineType.<JavetScriptEngine>builder(
-                () -> engineInstance
+        KasugaLib.getBean(BuiltinModuleRegistry.class).registerFactory(TimerModule.FACTORY);
+
+        ENGINE_TYPE = ScriptEngineType.<JavetScriptEngine>builder(
+                        JavetScriptEngine::new
         ).scriptType("javascript")
          .resolver(new JsModuleResolver())
+         .addFeature(SecurityEngineFeatureType.INSTANCE)
+         .addGlobalApi("ScriptingTestApi", ScriptingTestApi::new)
          .build();
-        engineInstance.setType(engineType);
 
-        engineType.loadingIssues.addAll(ENGINE_RUNTIME_ISSUES);
+        ENGINE_TYPE.loadingIssues.addAll(ENGINE_RUNTIME_ISSUES);
 
         KasugaLib.getBean(ScriptEngineRegistry.class)
-                .register(ResourceLocation.tryBuild(MODID, "javet"), List.of("javascript"), engineType, 0);
+                .register(ResourceLocation.tryBuild(MODID, "javet"), List.of("javascript"), ENGINE_TYPE, 0);
     }
 }

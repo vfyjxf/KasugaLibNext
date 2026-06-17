@@ -77,4 +77,9 @@ public class JavetValuePrimitiveObject extends JavetValueObject<V8ValueObject> i
             throw new ScriptException(e);
         }
     }
+
+    @Override
+    public JavetValuePrimitiveObject cloneValue() throws ScriptException {
+        return new JavetValuePrimitiveObject(cloneReference());
+    }
 }

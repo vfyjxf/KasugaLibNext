@@ -1,11 +1,14 @@
 package lib.kasuga.scripting;
 
 import io.micronaut.context.annotation.Context;
+import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.core.resource.ScopedResourceManager;
 import lib.kasuga.core.resource.ScopedResourceManagerConsumer;
 import net.minecraft.server.MinecraftServer;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.jetbrains.annotations.Nullable;
@@ -17,6 +20,15 @@ public class ScriptingSystem implements ScopedResourceManagerConsumer {
 
     HashMap<MinecraftServer, ScriptRuntime> serverRuntime = new HashMap<>();
     HashMap<ScopedResourceManager, ScriptRuntime> runtime = new HashMap<>();
+
+    @Inject() @Named("forgeEventBus")
+    IEventBus eventBus;
+
+    @PostConstruct()
+    void init() {
+        eventBus.addListener(this::onServerTick);
+        eventBus.addListener(this::onClientTick);
+    }
 
     @Override
     public void onResourceManagerAdded(@Nullable MinecraftServer server, ScopedResourceManager resourceManager) {

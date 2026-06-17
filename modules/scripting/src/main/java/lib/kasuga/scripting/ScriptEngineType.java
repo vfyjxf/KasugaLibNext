@@ -3,13 +3,8 @@ package lib.kasuga.scripting;
 import lib.kasuga.scripting.feature.EngineFeature;
 import lib.kasuga.scripting.feature.EngineFeatureType;
 import lib.kasuga.scripting.module.ModuleResolver;
-import net.minecraft.resources.ResourceLocation;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
+import java.util.*;
 import java.util.function.Supplier;
 
 public class ScriptEngineType<T extends ScriptEngine> {
@@ -18,17 +13,29 @@ public class ScriptEngineType<T extends ScriptEngine> {
     public final boolean multiThreadSupporting;
     public final int priority;
     public final List<Throwable> loadingIssues;
-    protected final Map<EngineFeatureType<?>, Function<T, ? extends EngineFeature>> features;
+    public final Set<EngineFeatureType<?>> featureTypes;
     public final ModuleResolver resolver;
+    public final List<GlobalApiEntry> globalApis;
 
-    public ScriptEngineType(String scriptType, Supplier<T> engineSupplier, ModuleResolver resolver, boolean multiThreadSupporting, int priority, Map<EngineFeatureType<?>, Function<T, ? extends EngineFeature>> features) {
+    public record GlobalApiEntry(String name, Supplier<Object> supplier) {}
+
+    public ScriptEngineType(
+            String scriptType,
+            Supplier<T> engineSupplier,
+            ModuleResolver resolver,
+            boolean multiThreadSupporting,
+            int priority,
+            Set<EngineFeatureType<?>> featureTypes,
+            List<GlobalApiEntry> globalApis
+    ) {
         this.scriptType = scriptType;
         this.engineSupplier = engineSupplier;
         this.resolver = resolver;
         this.multiThreadSupporting = multiThreadSupporting;
         this.priority = priority;
-        this.features = Map.copyOf(features);
+        this.featureTypes = Set.copyOf(featureTypes);
         this.loadingIssues = new ArrayList<>();
+        this.globalApis = List.copyOf(globalApis);
     }
 
     public void addLoadingIssue(Throwable issue) {
@@ -43,6 +50,20 @@ public class ScriptEngineType<T extends ScriptEngine> {
         return loadingIssues.isEmpty();
     }
 
+    public T create(ScriptConsole console) throws ScriptException {
+        T engine = engineSupplier.get();
+        Map<EngineFeatureType<?>, EngineFeature> features = new HashMap<>();
+        for (EngineFeatureType<?> featureType : featureTypes) {
+            features.put(featureType, featureType.build());
+        }
+        engine.setFeatures(features);
+        engine.init(console);
+        for (GlobalApiEntry entry : globalApis) {
+            engine.registerGlobal(entry.name(), entry.supplier().get());
+        }
+        return engine;
+    }
+
     public static class Builder<T extends ScriptEngine> {
 
         protected String scriptType;
@@ -50,8 +71,8 @@ public class ScriptEngineType<T extends ScriptEngine> {
         protected ModuleResolver resolver;
         protected boolean multiThreadSupporting = false;
         protected int priority = 0;
-        protected final Map<EngineFeatureType<?>, Function<T, ? extends EngineFeature>> features = new HashMap<>();
-
+        protected final Set<EngineFeatureType<?>> featureTypes = new HashSet<>();
+        protected final List<GlobalApiEntry> globalApis = new ArrayList<>();
 
         public Builder<T> scriptType(String scriptType) {
             this.scriptType = scriptType;
@@ -78,13 +99,18 @@ public class ScriptEngineType<T extends ScriptEngine> {
             return this;
         }
 
-        public <F extends EngineFeature> Builder<T> addFeature(EngineFeatureType<F> featureType, Function<T, F> featureFunction) {
-            this.features.put(featureType, featureFunction);
+        public Builder<T> addFeature(EngineFeatureType<?> featureType) {
+            this.featureTypes.add(featureType);
+            return this;
+        }
+
+        public Builder<T> addGlobalApi(String name, Supplier<Object> supplier) {
+            this.globalApis.add(new GlobalApiEntry(name, supplier));
             return this;
         }
 
         public ScriptEngineType<T> build() {
-            return new ScriptEngineType<>(scriptType, engineSupplier, resolver, multiThreadSupporting, priority, features);
+            return new ScriptEngineType<>(scriptType, engineSupplier, resolver, multiThreadSupporting, priority, featureTypes, globalApis);
         }
     }
 }

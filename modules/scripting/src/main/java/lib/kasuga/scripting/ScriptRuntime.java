@@ -9,7 +9,6 @@ import lib.kasuga.scripting.discovery.PackageLoadingError;
 import lib.kasuga.scripting.discovery.PackageSystem;
 import lib.kasuga.scripting.discovery.ScriptPackage;
 import lib.kasuga.scripting.discovery.ScriptThreadGroup;
-import lib.kasuga.scripting.module.EngineInstanceManager;
 import lib.kasuga.scripting.module.PackageRegistry;
 import lib.kasuga.scripting.module.ResolvedPackage;
 import net.minecraft.server.MinecraftServer;
@@ -17,7 +16,6 @@ import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 public class ScriptRuntime implements ScopedResourcePackListener {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -30,9 +28,6 @@ public class ScriptRuntime implements ScopedResourcePackListener {
 
     @Inject()
     PackageRegistry packageRegistry;
-
-    @Inject()
-    EngineInstanceManager instanceManager;
 
     public ScriptRuntime(@Nullable MinecraftServer server, ScopedResourceManager resourceManager) {
         this.resourceManager = resourceManager;
@@ -52,7 +47,6 @@ public class ScriptRuntime implements ScopedResourcePackListener {
 
         packageSystem.init();
         packageRegistry.clear();
-        instanceManager.clear();
 
         rootThreadGroup = new ScriptThreadGroup("ScriptRuntime", null);
         rootPackage = new ScriptPackage();
@@ -60,7 +54,9 @@ public class ScriptRuntime implements ScopedResourcePackListener {
         for (ScopedPackResources packResource : resourceManager.getPackResources()) {
             try {
                 List<ResolvedPackage> discovered = packageSystem.scan(packResource);
+                LOGGER.info("[ScriptRuntime] Scanned pack '{}': found {} packages", packResource.getName(), discovered.size());
                 for (ResolvedPackage pkg : discovered) {
+                    LOGGER.info("[ScriptRuntime] Discovered package '{}' (engine={})", pkg.info().name(), pkg.info().engine());
                     ScriptPackage scriptPkg = new ScriptPackage(pkg);
                     attachToParent(rootPackage, scriptPkg);
                 }
@@ -70,19 +66,19 @@ public class ScriptRuntime implements ScopedResourcePackListener {
             }
         }
 
-        rootPackage.start(rootThreadGroup, instanceManager);
+        rootPackage.start(rootThreadGroup);
     }
 
     private void attachToParent(ScriptPackage root, ScriptPackage candidate) {
-        if (candidate.resolved() == null) {
+        if (candidate.getResolved() == null) {
             root.addChild(candidate);
             return;
         }
 
-        String candidateRoot = candidate.resolved().packRelativeRoot();
+        String candidateRoot = candidate.getResolved().packRelativeRoot();
         for (ScriptPackage child : root.children()) {
-            if (child.resolved() == null) continue;
-            String childRoot = child.resolved().packRelativeRoot();
+            if (child.getResolved() == null) continue;
+            String childRoot = child.getResolved().packRelativeRoot();
             if (candidateRoot.startsWith(childRoot + "/")) {
                 attachToParent(child, candidate);
                 return;

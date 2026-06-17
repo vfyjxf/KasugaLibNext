@@ -2,6 +2,7 @@ package lib.kasuga.scripting.discovery;
 
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.toml.TomlParser;
+import com.mojang.logging.LogUtils;
 import io.micronaut.context.annotation.Context;
 import jakarta.annotation.Nullable;
 import jakarta.inject.Inject;
@@ -9,9 +10,11 @@ import lib.kasuga.core.resource.pack.HierarchicalScopedPackResources;
 import lib.kasuga.core.resource.pack.ScopedPackResources;
 import lib.kasuga.scripting.ScriptEngineRegistry;
 import lib.kasuga.scripting.ScriptEngineType;
+import lib.kasuga.scripting.module.DuplicatePackageException;
 import lib.kasuga.scripting.module.PackageRegistry;
 import lib.kasuga.scripting.module.ResolvedPackage;
 import lombok.Getter;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -20,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Context()
 public class PackageSystem {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     @Inject()
     ScriptEngineRegistry engineRegistry;
@@ -90,21 +95,11 @@ public class PackageSystem {
     public List<ResolvedPackage> scan(ScopedPackResources packResource) {
         List<ResolvedPackage> result = new ArrayList<>();
 
-        PackageInfo rootInfo = readPackageInfo(packResource, "scripts");
-        if (rootInfo == null) return result;
+        ResolvedPackage rootPkg = tryResolve(packResource, "scripts");
+        if (rootPkg == null) return result;
+        result.add(rootPkg);
 
-        ScriptEngineType<?> rootEngine = resolveEngine(rootInfo.engine());
-        if (rootEngine == null) return result;
-
-        ResolvedPackage rootPkg = new ResolvedPackage(rootInfo, packResource, "scripts", rootEngine);
-        String error = packageRegistry.register(rootPkg);
-        if (error != null) {
-            addLoadingError(new PackageLoadingError(error));
-        } else {
-            result.add(rootPkg);
-        }
-
-        for (String workspaceGlob : rootInfo.workspaces()) {
+        for (String workspaceGlob : rootPkg.info().workspaces()) {
             List<ResolvedPackage> subPackages = scanWorkspace(packResource, "scripts", workspaceGlob);
             result.addAll(subPackages);
         }
@@ -129,17 +124,8 @@ public class PackageSystem {
                 String subPath = globPattern + "/" + entry;
                 if (!hierarchical.isDirectory(prefix, subPath)) continue;
 
-                PackageInfo subInfo = readPackageInfo(packResource, prefix + "/" + subPath);
-                if (subInfo == null) continue;
-
-                ScriptEngineType<?> subEngine = resolveEngine(subInfo.engine());
-                if (subEngine == null) continue;
-
-                ResolvedPackage subPkg = new ResolvedPackage(subInfo, packResource, prefix + "/" + subPath, subEngine);
-                String error = packageRegistry.register(subPkg);
-                if (error != null) {
-                    addLoadingError(new PackageLoadingError(error));
-                } else {
+                ResolvedPackage subPkg = tryResolve(packResource, prefix + "/" + subPath);
+                if (subPkg != null) {
                     result.add(subPkg);
                 }
             }
@@ -148,6 +134,30 @@ public class PackageSystem {
         }
 
         return result;
+    }
+
+    @Nullable
+    private ResolvedPackage tryResolve(ScopedPackResources packResource, String packRelativeRoot) {
+        PackageInfo info = readPackageInfo(packResource, packRelativeRoot);
+        if (info == null) return null;
+
+        LOGGER.info("[PackageSystem] Resolving package at '{}': name={}, engine={}", packRelativeRoot, info.name(), info.engine());
+
+        ScriptEngineType<?> engine = resolveEngine(info.engine());
+        if (engine == null) {
+            LOGGER.warn("[PackageSystem] Engine '{}' not available for package at '{}'", info.engine(), packRelativeRoot);
+            return null;
+        }
+
+        ResolvedPackage pkg = new ResolvedPackage(info, packResource, packRelativeRoot, engine);
+        try {
+            packageRegistry.register(pkg);
+        } catch (DuplicatePackageException e) {
+            addLoadingError(new PackageLoadingError(e));
+            return null;
+        }
+        LOGGER.info("[PackageSystem] Resolved package '{}' at '{}'", info.name(), packRelativeRoot);
+        return pkg;
     }
 
     @Nullable
@@ -162,46 +172,6 @@ public class PackageSystem {
             return null;
         }
         return type;
-    }
-
-    public ScriptMetadata readMetadata(ScopedPackResources spr) {
-        if(!spr.exists("scripts", "script-info.toml"))
-            return null;
-        CommentedConfig metaConfig = null;
-        try {
-            metaConfig = scriptInfoParser.parse(new InputStreamReader(spr.open("scripts", "script-info.toml")));
-        } catch (IOException e) {
-            throw new PackageLoadingError(e);
-        }
-
-
-        return new ScriptMetadata(
-                formatEngineObj(metaConfig.get("engines.required")),
-                formatEngineObj(metaConfig.get("engines.recommended"))
-        );
-    }
-
-    public List<ScriptEngineType<?>> ensureEngineRequirement(ScriptMetadata metadata) {
-        List<ScriptEngineType<?>> engines = new ArrayList<>();
-        for (String requiredEngine : metadata.requiredEngines()) {
-            ScriptEngineType<?> engineType = engineRegistry.resolve(requiredEngine, true);
-            if (engineType == null) {
-                synchronized (engineMissing) {
-                    engineMissing.add(requiredEngine);
-                }
-                continue;
-            }
-
-            if(!engineType.loadingIssues.isEmpty()) {
-                engineErrors.put(requiredEngine, List.copyOf(engineType.loadingIssues));
-                engineMissing.add(requiredEngine);
-                continue;
-            }
-
-            engines.add(engineType);
-
-        }
-        return engines;
     }
 
     public Set<String> getMissingEngines() {

@@ -2,6 +2,8 @@ package lib.kasuga.test.scripting;
 
 import jakarta.annotation.Nullable;
 import lib.kasuga.scripting.*;
+import lib.kasuga.scripting.feature.EngineFeature;
+import lib.kasuga.scripting.feature.EngineFeatureType;
 import lib.kasuga.scripting.module.ResolvedScript;
 import lib.kasuga.scripting.module.ScriptModuleHandle;
 import lib.kasuga.scripting.value.ScriptValue;
@@ -14,6 +16,7 @@ import java.util.Set;
 public class MockScriptEngine implements ScriptEngine {
     private ScriptEngineType<?> type;
     private final Map<String, ScriptModuleHandle> loadedModules = new HashMap<>();
+    private Map<EngineFeatureType<?>, EngineFeature> features = Map.of();
     private ScriptConsole console;
 
     public MockScriptEngine() {
@@ -22,6 +25,17 @@ public class MockScriptEngine implements ScriptEngine {
     @Override
     public void init(ScriptConsole console) throws ScriptException {
         this.console = console;
+    }
+
+    @Override
+    public void setFeatures(Map<EngineFeatureType<?>, EngineFeature> features) {
+        this.features = features;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <F extends EngineFeature> F getFeature(EngineFeatureType<F> type) {
+        return (F) features.get(type);
     }
 
     @Override

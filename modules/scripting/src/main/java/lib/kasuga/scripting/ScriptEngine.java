@@ -1,14 +1,23 @@
 package lib.kasuga.scripting;
 
 import jakarta.annotation.Nullable;
+import lib.kasuga.scripting.feature.EngineFeature;
+import lib.kasuga.scripting.feature.EngineFeatureType;
 import lib.kasuga.scripting.module.ResolvedScript;
 import lib.kasuga.scripting.module.ScriptModuleHandle;
 import lib.kasuga.scripting.value.ScriptValue;
 
 import java.io.InputStream;
+import java.util.Map;
 
 public interface ScriptEngine {
     void init(ScriptConsole console) throws ScriptException;
+
+    void setFeatures(Map<EngineFeatureType<?>, EngineFeature> features);
+
+    @Nullable
+    <F extends EngineFeature> F getFeature(EngineFeatureType<F> type);
+
     ScriptValue createValue(Object object) throws ScriptException;
 
     ScriptEngineType<?> getType();
@@ -23,4 +32,6 @@ public interface ScriptEngine {
     void tick();
 
     void close();
+
+    default void registerGlobal(String name, Object api) {}
 }

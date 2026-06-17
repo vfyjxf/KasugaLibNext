@@ -54,7 +54,6 @@ public class ScriptThreadGroup {
         }
         threads.clear();
         children.clear();
-        threadGroup.interrupt();
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
     }
 

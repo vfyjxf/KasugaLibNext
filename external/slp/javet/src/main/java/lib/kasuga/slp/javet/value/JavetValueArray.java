@@ -30,4 +30,9 @@ public class JavetValueArray extends JavetValueObject<V8ValueArray> implements S
             throw new ScriptException(t);
         }
     }
+
+    @Override
+    public JavetValueArray cloneValue() throws ScriptException {
+        return new JavetValueArray(cloneReference());
+    }
 }
