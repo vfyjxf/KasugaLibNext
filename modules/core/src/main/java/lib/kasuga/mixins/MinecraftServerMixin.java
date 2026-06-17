@@ -4,7 +4,9 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import lib.kasuga.KasugaLib;
 import lib.kasuga.core.resource.ResourceSystem;
+import lib.kasuga.core.resource.ServerResourceReloadFinishEvent;
 import net.minecraft.server.MinecraftServer;
+import net.neoforged.neoforge.common.NeoForge;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
@@ -28,6 +30,8 @@ public class MinecraftServerMixin {
                     return;
                 KasugaLib.getBean(ResourceSystem.class)
                         .onServerReloading(server);
+
+                NeoForge.EVENT_BUS.post(new ServerResourceReloadFinishEvent());
             }
         }, executor);
     }

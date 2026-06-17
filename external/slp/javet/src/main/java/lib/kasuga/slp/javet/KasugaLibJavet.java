@@ -8,6 +8,7 @@ import lib.kasuga.KasugaLibStartupEvent;
 import lib.kasuga.scripting.ScriptEngineRegistry;
 import lib.kasuga.scripting.ScriptEngineType;
 import lib.kasuga.slp.javet.downloader.JavetDownloader;
+import lib.kasuga.slp.javet.module.JsModuleResolver;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -62,9 +63,13 @@ public class KasugaLibJavet {
 
         isRegistered = true;
 
+        JavetScriptEngine engineInstance = new JavetScriptEngine();
         ScriptEngineType<JavetScriptEngine> engineType = ScriptEngineType.<JavetScriptEngine>builder(
-                JavetScriptEngine::new
-        ).build();
+                () -> engineInstance
+        ).scriptType("javascript")
+         .resolver(new JsModuleResolver())
+         .build();
+        engineInstance.setType(engineType);
 
         engineType.loadingIssues.addAll(ENGINE_RUNTIME_ISSUES);
 

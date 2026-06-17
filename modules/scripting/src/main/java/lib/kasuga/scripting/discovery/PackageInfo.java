@@ -8,6 +8,8 @@ public record PackageInfo(
         @Nullable String name,
         @Nullable String engine,
         @Nullable String description,
+        @Nullable String version,
+        @Nullable String main,
         List<String> workspaces,
         EntryConfig entry
 ) {

@@ -1,0 +1,7 @@
+name = "@scope/beta"
+engine = "mock"
+version = "1.0.0"
+main = "index"
+
+[entry]
+common = ["index"]

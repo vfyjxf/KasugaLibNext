@@ -13,12 +13,22 @@ import net.neoforged.neoforgespi.language.IModInfo;
 
 public class ModApplicationContext {
     public static ApplicationContext create(Class<?> modMainClass) {
+        return create(modMainClass, null);
+    }
+
+    public static ApplicationContext create(Class<?> modMainClass, String... packages) {
         if(Envs.isDevEnvironment()) {
             ClassLoader classLoader = new CombinedClassLoader(
                     modMainClass.getClassLoader(),
                     ApplicationContext.class.getClassLoader()
             );
+            if(packages != null && packages.length > 0) {
+                return ApplicationContext.builder().mainClass(modMainClass).classLoader(classLoader).beanResolutionTrace(BeanResolutionTraceMode.STANDARD_OUT).packages(packages).build();
+            }
             return ApplicationContext.builder().mainClass(modMainClass).classLoader(classLoader).beanResolutionTrace(BeanResolutionTraceMode.STANDARD_OUT).build();
+        }
+        if(packages != null && packages.length > 0) {
+            return ApplicationContext.builder().mainClass(modMainClass).beanResolutionTrace(BeanResolutionTraceMode.STANDARD_OUT).packages(packages).build();
         }
         return ApplicationContext.builder().mainClass(modMainClass).beanResolutionTrace(BeanResolutionTraceMode.STANDARD_OUT).packages().build();
     }

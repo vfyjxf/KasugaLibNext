@@ -3,11 +3,14 @@ package lib.kasuga.scripting.discovery;
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.toml.TomlParser;
 import io.micronaut.context.annotation.Context;
+import jakarta.annotation.Nullable;
 import jakarta.inject.Inject;
+import lib.kasuga.core.resource.pack.HierarchicalScopedPackResources;
 import lib.kasuga.core.resource.pack.ScopedPackResources;
 import lib.kasuga.scripting.ScriptEngineRegistry;
 import lib.kasuga.scripting.ScriptEngineType;
-import lib.kasuga.structure.Pair;
+import lib.kasuga.scripting.module.PackageRegistry;
+import lib.kasuga.scripting.module.ResolvedPackage;
 import lombok.Getter;
 
 import java.io.IOException;
@@ -20,6 +23,9 @@ public class PackageSystem {
 
     @Inject()
     ScriptEngineRegistry engineRegistry;
+
+    @Inject()
+    PackageRegistry packageRegistry;
 
     protected final List<PackageLoadingError> loadingErrors = new ArrayList<>();
 
@@ -55,17 +61,107 @@ public class PackageSystem {
         }
     }
 
-    public List<ScriptPackage> resolve(ScopedPackResources packResource, List<ScriptEngineType<?>> engines) {
-        List<ScriptPackage> packages = new ArrayList<>();
-        for (ScriptEngineType<?> engine : engines) {
-            ScriptPackage root = new ScriptPackage();
-            // List<ScriptPackage> enginePackageList = engine.resolver.resolvePackage(packResource);
-//            for (ScriptPackage scriptPackage : enginePackageList) {
-//                root.addChild(scriptPackage);
-//            }
-            packages.add(root);
+    @Nullable
+    public PackageInfo readPackageInfo(ScopedPackResources spr, String packRelativeRoot) {
+        if (!spr.exists(packRelativeRoot, "package.toml"))
+            return null;
+        CommentedConfig config;
+        try {
+            config = scriptInfoParser.parse(new InputStreamReader(spr.open(packRelativeRoot, "package.toml")));
+        } catch (IOException e) {
+            throw new PackageLoadingError(e);
         }
-        return packages;
+
+        return new PackageInfo(
+                config.get("name"),
+                config.get("engine"),
+                config.get("description"),
+                config.get("version"),
+                config.get("main"),
+                formatEngineObj(config.get("workspaces")),
+                new PackageInfo.EntryConfig(
+                        formatEngineObj(config.get("entry.server")),
+                        formatEngineObj(config.get("entry.client")),
+                        formatEngineObj(config.get("entry.common"))
+                )
+        );
+    }
+
+    public List<ResolvedPackage> scan(ScopedPackResources packResource) {
+        List<ResolvedPackage> result = new ArrayList<>();
+
+        PackageInfo rootInfo = readPackageInfo(packResource, "scripts");
+        if (rootInfo == null) return result;
+
+        ScriptEngineType<?> rootEngine = resolveEngine(rootInfo.engine());
+        if (rootEngine == null) return result;
+
+        ResolvedPackage rootPkg = new ResolvedPackage(rootInfo, packResource, "scripts", rootEngine);
+        String error = packageRegistry.register(rootPkg);
+        if (error != null) {
+            addLoadingError(new PackageLoadingError(error));
+        } else {
+            result.add(rootPkg);
+        }
+
+        for (String workspaceGlob : rootInfo.workspaces()) {
+            List<ResolvedPackage> subPackages = scanWorkspace(packResource, "scripts", workspaceGlob);
+            result.addAll(subPackages);
+        }
+
+        return result;
+    }
+
+    private List<ResolvedPackage> scanWorkspace(ScopedPackResources packResource, String prefix, String workspaceGlob) {
+        List<ResolvedPackage> result = new ArrayList<>();
+
+        if (!(packResource instanceof HierarchicalScopedPackResources hierarchical)) {
+            return result;
+        }
+
+        String globPattern = workspaceGlob.endsWith("/*")
+            ? workspaceGlob.substring(0, workspaceGlob.length() - 2)
+            : workspaceGlob;
+
+        try {
+            List<String> entries = hierarchical.list(prefix, globPattern);
+            for (String entry : entries) {
+                String subPath = globPattern + "/" + entry;
+                if (!hierarchical.isDirectory(prefix, subPath)) continue;
+
+                PackageInfo subInfo = readPackageInfo(packResource, prefix + "/" + subPath);
+                if (subInfo == null) continue;
+
+                ScriptEngineType<?> subEngine = resolveEngine(subInfo.engine());
+                if (subEngine == null) continue;
+
+                ResolvedPackage subPkg = new ResolvedPackage(subInfo, packResource, prefix + "/" + subPath, subEngine);
+                String error = packageRegistry.register(subPkg);
+                if (error != null) {
+                    addLoadingError(new PackageLoadingError(error));
+                } else {
+                    result.add(subPkg);
+                }
+            }
+        } catch (IOException e) {
+            addLoadingError(new PackageLoadingError(e));
+        }
+
+        return result;
+    }
+
+    @Nullable
+    private ScriptEngineType<?> resolveEngine(@Nullable String engineName) {
+        if (engineName == null) return null;
+        ScriptEngineType<?> type = engineRegistry.resolve(engineName, true);
+        if (type == null) {
+            synchronized (engineMissing) { engineMissing.add(engineName); }
+        } else if (!type.loadingIssues.isEmpty()) {
+            engineErrors.put(engineName, List.copyOf(type.loadingIssues));
+            synchronized (engineMissing) { engineMissing.add(engineName); }
+            return null;
+        }
+        return type;
     }
 
     public ScriptMetadata readMetadata(ScopedPackResources spr) {
@@ -83,40 +179,6 @@ public class PackageSystem {
                 formatEngineObj(metaConfig.get("engines.required")),
                 formatEngineObj(metaConfig.get("engines.recommended"))
         );
-    }
-
-//    public PackageInfo readPackageInfo(ScopedPa1ckResources spr) {
-//        if (!spr.exists("scripts", "package.toml"))
-//            return null;
-//        CommentedConfig config;
-//        try {
-//            config = scriptInfoParser.parse(new InputStreamReader(spr.open("scripts", "package.toml")));
-//        } catch (IOException e) {
-//            throw new PackageLoadingError(e);
-//        }
-//
-//        return new PackageInfo(
-//                config.get("name"),
-//                config.get("engine"),
-//                config.get("description"),
-//                formatEngineObj(config.get("workspaces")),
-//                new PackageInfo.EntryConfig(
-//                        formatEngineObj(config.get("entry.server")),
-//                        formatEngineObj(config.get("entry.client")),
-//                        formatEngineObj(config.get("entry.common"))
-//                )
-//        );
-//    }
-
-    protected static List<String> formatEngineObj(Object origin) {
-        if(origin == null)
-            return List.of();
-        if(origin instanceof String str)
-            return List.of(str);
-        if(origin instanceof Collection<?> coll) {
-            return coll.stream().map(PackageSystem::formatEngineObj).flatMap(Collection::stream).toList();
-        }
-        return List.of(origin.toString());
     }
 
     public List<ScriptEngineType<?>> ensureEngineRequirement(ScriptMetadata metadata) {
@@ -146,5 +208,16 @@ public class PackageSystem {
         synchronized (engineMissing) {
             return Set.copyOf(engineMissing);
         }
+    }
+
+    protected static List<String> formatEngineObj(Object origin) {
+        if(origin == null)
+            return List.of();
+        if(origin instanceof String str)
+            return List.of(str);
+        if(origin instanceof Collection<?> coll) {
+            return coll.stream().map(PackageSystem::formatEngineObj).flatMap(Collection::stream).toList();
+        }
+        return List.of(origin.toString());
     }
 }
