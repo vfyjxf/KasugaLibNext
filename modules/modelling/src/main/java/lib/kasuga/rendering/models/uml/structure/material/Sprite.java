@@ -21,7 +21,7 @@ public class Sprite {
     @Getter
     private final SpriteData data;
 
-    public Vector4f color;
+    public Vector4f color, ambient, specular;
     public boolean shade;
     public boolean flipU, flipV;
     public boolean ambientOcclusion;
@@ -29,13 +29,15 @@ public class Sprite {
     public boolean emissive;
 
 
-    public Sprite(Texture texture, Vector2f uv0, Vector2f uv1, Vector2f uv2, Vector2f uv3, @Nullable Vector4f color, @Nullable SpriteData data) {
+    public Sprite(Texture texture, Vector2f uv0, Vector2f uv1, Vector2f uv2, Vector2f uv3, @Nullable Vector4f color, @Nullable Vector4f ambient, @Nullable Vector4f specular, @Nullable SpriteData data) {
         this.texture = texture;
         this.uv0 = uv0;
         this.uv1 = uv1;
         this.uv2 = uv2;
         this.uv3 = uv3;
         this.color = color != null ? color : new Vector4f(1, 1, 1, 1);
+        this.ambient = ambient != null ? ambient : new Vector4f(1, 1, 1, 1);
+        this.specular = specular != null ? specular : new Vector4f(1, 1, 1, 1);
         this.shade = true;
         this.flipU = false;
         this.flipV = false;

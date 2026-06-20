@@ -13,6 +13,8 @@ import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.structure.Pair;
+import lombok.Getter;
+import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
@@ -28,7 +30,12 @@ public class CubeVerticesMapper {
 
     private final HashMap<Direction, MCMeshBuilder> meshes;
 
+    @Getter
+    @Setter
+    private String boneName;
+
     public CubeVerticesMapper(Vector3f min, Vector3f size) {
+        boneName = null;
         vertexCluster = new HashMap<>();
         meshes = new HashMap<>();
         Vector3f max = new Vector3f(min).add(size);
@@ -70,7 +77,14 @@ public class CubeVerticesMapper {
         HashMap<Direction, Pair<Mesh, FaceInfo.VertexInfo[]>> builtMeshes = new HashMap<>();
         meshes.forEach((k, v) -> builtMeshes.put(k, v.build(vertexCluster)));
         HashMap<FaceInfo.VertexInfo, Vertex> builtVertices = new HashMap<>();
-        vertexCluster.forEach((k, v) -> builtVertices.put(k, v.build(loader)));
+
+        final String bName = boneName;
+        vertexCluster.forEach((k, v) -> {
+                    if (bName != null) {v.bone(bName);}
+                    builtVertices.put(k, v.build(loader));
+                }
+        );
+
         builtMeshes.forEach((k, v) -> {
                 Mesh mesh = v.getFirst();
                 FaceInfo.VertexInfo[] vertexInfos = v.getSecond();

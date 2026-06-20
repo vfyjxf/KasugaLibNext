@@ -14,6 +14,7 @@ import lib.kasuga.rendering.models.uml.bridge.Bridge;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.dynamic.SkeletonInstance;
 import lib.kasuga.rendering.models.uml.math.QuaternionHelper;
+import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lombok.Getter;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
@@ -26,6 +27,7 @@ import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.Objects;
@@ -67,8 +69,6 @@ public class MCBackend extends Backend<MCBridge, BackendInstance, MCBackendConte
         }
 
         BackendInstance instance = renderable.apply();
-        SkeletonInstance skeleton = renderable.getModelInstance().getSkeletonInstance();
-        skeleton.rotate(skeleton.getSkeleton().getRoot(), QuaternionHelper.fromXYZDegrees(0, 1f, 0));
         instance.updateLightData(lightData.packedLight(), overlay, lightData.brightness());
         instance.drawBuffer(poseStack.last(), RenderState.getRenderType(),
                 context.getModelViewMatrix(), context.getProjectionMatrix(),

@@ -1,6 +1,6 @@
 package lib.kasuga.rendering.models.uml.dynamic.morph;
 
-import lib.kasuga.rendering.models.uml.dynamic.morph.blender.BlenderType;
+import lib.kasuga.rendering.models.uml.dynamic.morph.holder.GroupMorph;
 import lib.kasuga.rendering.models.uml.dynamic.morph.types.*;
 import lib.kasuga.rendering.models.uml.structure.Model;
 import lib.kasuga.rendering.models.uml.structure.basic.Mesh;
@@ -8,116 +8,63 @@ import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lombok.Getter;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
+/**
+ * Static morph registry — holds {@link MorphType} definitions and
+ * {@link GroupMorph} holders. No dynamic state; pure data structure.
+ */
 @Getter
 public class Morph<IdType> {
 
     protected final Model model;
 
-    protected final Map<IdType, MorphType> morphs;
-
-    protected final Map<IdType, GroupMorph> groupMorphs;
-
-    protected final Map<Vertex, Set<VertexMorph>> vertexMorphs;
-
-    protected final Map<Bone, Set<BoneMorph>> boneMorphs;
-
-    protected final Map<Material, Set<MaterialMorph>> materialMorphs;
-
-    protected final Map<Mesh, Set<MeshMorph>> meshMorphs;
-
-    protected final List<BlenderType<Vertex>> vertexBlenders;
-
-    protected final List<BlenderType<Bone>> boneBlenders;
-
-    protected final List<BlenderType<Material>> materialBlenders;
-
-    protected final List<BlenderType<Mesh>> meshBlenders;
+    protected final Map<IdType, MorphType<?, ?, IdType>> morphMap;
+    protected final Map<IdType, GroupMorph<IdType>> groupMorphs;
+    protected final Map<Vertex, Set<MorphType<Vertex, ?, IdType>>> vertexMorphs;
+    protected final Map<Mesh, Set<MorphType<Mesh, ?, IdType>>> meshMorphs;
+    protected final Map<Bone, Set<MorphType<Bone, ?, IdType>>> boneMorphs;
+    protected final Map<Material, Set<MorphType<Material, ?, IdType>>> materialMorphs;
 
     public Morph(Model model) {
         this.model = model;
-        morphs = new HashMap<>();
-        groupMorphs = new HashMap<>();
-        vertexMorphs = new HashMap<>();
-        boneMorphs = new HashMap<>();
-        materialMorphs = new HashMap<>();
-        meshMorphs = new HashMap<>();
-        vertexBlenders = new ArrayList<>();
-        boneBlenders = new ArrayList<>();
-        materialBlenders = new ArrayList<>();
-        meshBlenders = new ArrayList<>();
+        this.morphMap = new HashMap<>();
+        this.groupMorphs = new HashMap<>();
+        this.vertexMorphs = new HashMap<>();
+        this.meshMorphs = new HashMap<>();
+        this.boneMorphs = new HashMap<>();
+        this.materialMorphs = new HashMap<>();
     }
 
-    public boolean addMorph(MorphType morph) {
-        IdType id = (IdType) morph.getIdentifier();
-        if (morphs.containsKey(id)) return false;
-        morphs.put(id, morph);
-        switch (morph) {
-            case GroupMorph<?> g -> {
-                groupMorphs.put(id, g);
-                return g.getMorphs().stream()
-                        .map(this::addMorph)
-                        .reduce(Boolean::logicalOr)
-                        .orElse(false);
-            }
-            case VertexMorph<?> v -> {
-                vertexMorphs.computeIfAbsent(v.getOriginal(), vert -> new HashSet<>())
-                        .add(v);
-            }
-            case BoneMorph b -> {
-                boneMorphs.computeIfAbsent(b.getOriginal(), bt -> new HashSet<>())
-                        .add(b);
-            }
-            case MaterialMorph m -> {
-                materialMorphs.computeIfAbsent(m.getOriginal(), mt -> new HashSet<>())
-                        .add(m);
-            }
-            case MeshMorph m -> {
-                meshMorphs.computeIfAbsent(m.getOriginal(), mt -> new HashSet<>())
-                        .add(m);
-            }
-            default -> {
-                return false;
-            }
-        }
-        return false;
+    @SuppressWarnings("unchecked")
+    public void addMorph(IdType id, MorphType<?, ?, IdType> morph) {
+        morphMap.put(id, morph);
+        Object original = morph instanceof FlipMorph<?> flip
+                ? flip.getReferenceMorph().getOriginal()
+                : morph.getOriginal();
+        registerByOriginal(original, morph);
     }
 
-    public MorphType getMorph(IdType id) {
-        return morphs.get(id);
+    @SuppressWarnings("unchecked")
+    private void registerByOriginal(Object original, MorphType<?, ?, IdType> morph) {
+        if (original instanceof Vertex v)
+            vertexMorphs.computeIfAbsent(v, k -> new HashSet<>())
+                    .add((MorphType<Vertex, ?, IdType>) morph);
+        else if (original instanceof Mesh m)
+            meshMorphs.computeIfAbsent(m, k -> new HashSet<>())
+                    .add((MorphType<Mesh, ?, IdType>) morph);
+        else if (original instanceof Bone b)
+            boneMorphs.computeIfAbsent(b, k -> new HashSet<>())
+                    .add((MorphType<Bone, ?, IdType>) morph);
+        else if (original instanceof Material mat)
+            materialMorphs.computeIfAbsent(mat, k -> new HashSet<>())
+                    .add((MorphType<Material, ?, IdType>) morph);
     }
 
-    public boolean hasMorph(IdType id) {
-        return morphs.containsKey(id);
-    }
+    public void addGroup(IdType id, GroupMorph<IdType> group) { groupMorphs.put(id, group); }
 
-    public boolean hasGroupMorph(IdType id) {
-        return groupMorphs.containsKey(id);
-    }
-
-    public int morphSize() {
-        return morphs.size();
-    }
-
-    public int vertexMorphSize() {
-        return vertexMorphs.size();
-    }
-
-    public int boneMorphSize() {
-        return boneMorphs.size();
-    }
-
-    public int materialMorphSize() {
-        return materialMorphs.size();
-    }
-
-    public int meshMorphSize() {
-        return meshMorphs.size();
-    }
-
-    public int groupMorphSize() {
-        return groupMorphs.size();
-    }
+    @Nullable public MorphType<?, ?, IdType> getMorph(IdType id) { return morphMap.get(id); }
+    @Nullable public GroupMorph<IdType> getGroup(IdType id)    { return groupMorphs.get(id); }
 }

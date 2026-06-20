@@ -18,6 +18,7 @@ import java.util.Map;
  * 管理模型的顶点属性展开列，支持 Morphing 系统每帧修改特定顶点属性。
  * 对于 CPU 蒙皮，基础数据从此类读取；对于 GPU 蒙皮，修改直接应用到最终缓冲区。
  */
+@Deprecated
 public class MorphProcessor {
 
 //    private final ModelInstance model;

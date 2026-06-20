@@ -56,6 +56,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
+@Deprecated
 public class KsgVertexBuffer implements AutoCloseable, VersionedBackendRenderable {
 
     public static int MULTI_THREADED_SKINNING_THRESHOLD = 10000;

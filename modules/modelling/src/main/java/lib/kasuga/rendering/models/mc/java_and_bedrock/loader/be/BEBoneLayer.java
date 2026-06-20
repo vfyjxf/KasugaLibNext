@@ -43,7 +43,7 @@ public class BEBoneLayer extends Layer<JsonObject> {
         RotHelper.rotation(transform, rotation);
 
         transformMap.put(name, Pair.of(transform, parent != null ?
-                transformMap.getOrDefault(parent, Pair.of(null, new Transform())).getSecond().copy().mul(transform) :
+                transformMap.getOrDefault(parent, Pair.of(null, new Transform())).getSecond().mul(transform) :
                 transform));
         if (input.has("cubes")) {
             JsonArray cubes = input.get("cubes").getAsJsonArray();

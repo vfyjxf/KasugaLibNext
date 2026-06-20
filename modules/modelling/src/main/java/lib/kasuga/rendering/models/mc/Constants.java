@@ -303,7 +303,7 @@ public class Constants {
     }
 
     private static void testModel() {
-        testMMD();
+//        testMMD();
 //        testUI();
 //        testObj();
 //        testBe();
@@ -346,7 +346,7 @@ public class Constants {
         if (MMD_PIPELINE.hasInstance(rl, instanceLoc)) {
 //            currentInstance.getSkeletonInstance().rotateRoot(QuaternionHelper.fromXYZAngle(0, 1f, 0, true));
             Bone rootBone = currentInstance.getSkeletonInstance().getSkeleton().getRoot();
-            currentInstance.getSkeletonInstance().rotate(rootBone, QuaternionHelper.fromXYZAngle(0, 1f, 0, true));
+//            currentInstance.getSkeletonInstance().rotate(rootBone, QuaternionHelper.fromXYZAngle(0, 1f, 0, true));
             return;
         }
         currentInstance = MMD_PIPELINE.createInstance(rl, instanceLoc, null, null, null);

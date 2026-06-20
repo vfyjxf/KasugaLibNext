@@ -57,13 +57,8 @@ public class SkeletonInstance {
         updateTransform();
     }
 
-    public Bone getBoneMorphed(Bone original) {
-        return modelInstance.getBone(original);
-    }
-
-    public Transform getTransformMorphed(Bone original) {
-        Bone b = getBoneMorphed(original);
-        return b.getTransform();
+    public void getMorphTransform(Bone original, Transform dest) {
+        modelInstance.getBoneTransform(original, dest);
     }
 
     public void updateTransform() {
@@ -78,7 +73,13 @@ public class SkeletonInstance {
         lastDirtyBones = lastFullUpdate ? Collections.emptySet() : updatedBones;
         dirtyBones.clear();
         fullUpdateRequested = false;
+        shouldUpdate = false;
         version++;
+    }
+
+    public boolean checkShouldUpdate() {
+        this.shouldUpdate = shouldUpdate || isMorphUpdated();
+        return this.shouldUpdate;
     }
 
     public void setShouldUpdate(boolean shouldUpdate) {
@@ -247,13 +248,15 @@ public class SkeletonInstance {
             Pair<Bone, Transform> boneTransformPair = updateQueue.poll();
             Bone bone = boneTransformPair.getFirst();
             Transform parentTransform = boneTransformPair.getSecond();
-            if (bone.getChildren() == null) continue;
-            for (Bone child : bone.getChildren()) {
+
+            Bone[] children = bone.getChildren();
+            if (children == null) continue;
+            for (Bone child : children) {
                 if (child == null) continue;
                 Transform transform = child.getTransform();
                 Transform result = parentTransform.copy().mul(transform);
                 Transform anim = transforms.get(child);
-                if (anim != null) result.mul(anim);
+                if (anim != null) {result.mul(anim);}
                 absoluteTransforms.put(child, result);
                 updateQueue.add(Pair.of(child, result));
             }
@@ -271,16 +274,27 @@ public class SkeletonInstance {
         dirtyBones.clear();
     }
 
+    public boolean isMorphUpdated() {
+        return !modelInstance.getMorph().getLastUpdatedBones().isEmpty();
+    }
+
     private Set<Bone> collectUpdatedBones() {
-        Map<Bone, Bone> newlyUpdatedBones = modelInstance.getMorph().getNewlyUpdatedBones();
+        BitSet lastUpdated = modelInstance.getMorph().getLastUpdatedBones();
+        Set<Bone> newlyUpdatedBones = new HashSet<>();
+        for (int i = lastUpdated.nextSetBit(0); i >= 0; i = lastUpdated.nextSetBit(i + 1)) {
+            newlyUpdatedBones.add(skeleton.getBones()[i]);
+        }
+        lastUpdated.clear();
+        Transform transformCache = new Transform();
         if (!newlyUpdatedBones.isEmpty()) {
-            for (Map.Entry<Bone, Bone> entry : newlyUpdatedBones.entrySet()) {
-                if (!getSkeleton().getBoneMap().containsValue(entry.getKey())) continue;
-                dirtyBones.add(entry.getKey());
-                Transform morphTransform = entry.getValue().getTransform();
-                Transform originalTransform = transforms.getOrDefault(entry.getKey(), new Transform());
-                Transform result = new Transform().mul(originalTransform).mul(morphTransform);
-                transforms.put(entry.getKey(), result);
+            for (Bone bone : newlyUpdatedBones) {
+                if (!getSkeleton().getBoneMap().containsValue(bone)) continue;
+                dirtyBones.add(bone);
+                transformCache.setIdentity();
+                getMorphTransform(bone, transformCache);
+                Transform originalTransform = transforms.getOrDefault(bone, new Transform());
+                Transform result = new Transform().mul(originalTransform).mul(transformCache);
+                transforms.put(bone, result);
             }
             newlyUpdatedBones.clear();
         }

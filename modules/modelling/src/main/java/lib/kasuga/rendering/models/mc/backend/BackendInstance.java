@@ -148,17 +148,12 @@ public class BackendInstance {
         ShaderInstance shader = null;
         if (context == null || buffer == null) return;
         try {
-            if (!cpuSkinning && tbo != null) {
-                if (tbo.getSkeleton().isShouldUpdate()) {
-                    tbo.getSkeleton().updateTransform();
-                    tbo.updateForVersion();
-                }
-            } else {
-                BitSet dirty = data.updateForVersion();
-                if (dirty != null) {
-                    buffer.updateGpuBuffer(dirty, false);
-                }
+            boolean updated = data.updateModel();
+            if (!cpuSkinning && tbo != null && updated) {
+                tbo.updateForVersion();
             }
+            buffer.updateGpuBuffer(data.getDirtyVertices(), false);
+            data.getDirtyVertices().clear();
             context.dispatchSkinning(data.vertexCount);
             if (isIrisEnabled()) {
                 modelViewMatrix = matrixCache.set(modelViewMatrix).mul(pose.pose());

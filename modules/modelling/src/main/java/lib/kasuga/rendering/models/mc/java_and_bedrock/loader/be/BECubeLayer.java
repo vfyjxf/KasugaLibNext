@@ -91,6 +91,8 @@ public class BECubeLayer extends Layer<JsonObject> {
         CubeVerticesMapper mapper = (CubeVerticesMapper) context.getTemp("mapper");
         Transform absTransform = (Transform) context.getTemp("abs_transform");
         Vector3f pivot = (Vector3f) context.getTemp("pivot");
+        String parent = (String) context.getData("bone_name");
+        mapper.setBoneName(parent);
         Pair<Collection<Mesh>, Collection<Vertex>> meshesAndVertices = mapper.build(context.getLoader());
         context.getLoader().getMeshes().addAll(meshesAndVertices.getFirst());
         for (Vertex vertex : meshesAndVertices.getSecond()) {

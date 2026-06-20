@@ -1,11 +1,11 @@
 package lib.kasuga.rendering.models.mc.backend;
 
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.SpriteHolder;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.dynamic.SkeletonInstance;
+import lib.kasuga.rendering.models.uml.dynamic.morph.MorphInstance;
 import lib.kasuga.rendering.models.uml.math.BoneContext;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.math.binding.BoneBindingFunc;
@@ -16,6 +16,7 @@ import lib.kasuga.rendering.models.uml.structure.basic.Vertex;
 import lib.kasuga.rendering.models.uml.structure.basic.data.mesh.ColorizedMeshData;
 import lib.kasuga.rendering.models.uml.structure.basic.data.vertex.SDEFBoneBindingData;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
+import lib.kasuga.rendering.models.uml.structure.material.MaterialSetInstance;
 import lib.kasuga.rendering.models.uml.structure.material.Sprite;
 import lib.kasuga.rendering.models.uml.structure.material.SpriteSet;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
@@ -23,14 +24,12 @@ import lib.kasuga.rendering.models.uml.util.MeshMode;
 import lib.kasuga.structure.Pair;
 import lombok.Getter;
 import net.minecraft.client.renderer.LightTexture;
-import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
-import org.lwjgl.opengl.GL15;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
@@ -38,7 +37,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.function.BiConsumer;
 
-public class FlatModelData {
+public class FlatModelData implements AutoCloseable {
 
     protected final ModelInstance model;
 
@@ -74,6 +73,8 @@ public class FlatModelData {
     private final Vertex[] vertices;           // fixed
     private final int[] vertexMaterials;       // fixed
     private final int[] vertexMeshes;          // fixed
+
+    @Getter
     private final BitSet dirtyVertices;        // dynamic
     private final BitSet allMorphedVertices;   // dynamic
 
@@ -110,7 +111,6 @@ public class FlatModelData {
     private final BitSet allMorphedBones;      // dynamic
 
     private final Material[] materials;        // fixed
-    private final int[] materialFrames;        // dynamic
     private final float[] materialUvBounds;    // dynamic
     private final float[] materialColors;      // dynamic
     private final BitSet dirtyMaterials;       // dynamic
@@ -169,13 +169,12 @@ public class FlatModelData {
         this.sdefCOffset = bufOffsets.getOrDefault(RenderState.SDEF_C, -1);
 
         this.materials = model.getModel().getMaterialSet().getMaterials();
-        this.materialFrames = new int[materials.length];
         this.materialUvBounds = new float[materials.length * 8];
         this.materialColors = new float[materials.length * 4];
         this.dirtyMaterials = new BitSet(materials.length);
         this.allMorphedMaterials = new BitSet(this.materials.length);
         for (int i = 0; i < materials.length; i++) {
-            resetMaterial(i, materialColorBlender);
+            setupMaterial(i, materialColorBlender);
         }
 
         int u1Off = -1, u2Off = -1;
@@ -197,6 +196,7 @@ public class FlatModelData {
         this.absTransforms = new Transform[bones.length];
         this.bindInverses =  new Transform[bones.length];
         SkeletonInstance skl = model.getSkeletonInstance();
+        if (skl.checkShouldUpdate()) skl.updateTransform();
         for (int i = 0; i < bones.length; i++) {
             Bone bone = bones[i];
             Transform absTransform = skl.getAbsoluteTransforms().get(bone);
@@ -303,14 +303,14 @@ public class FlatModelData {
                         computeIfAbsent(mat, m -> new ArrayList<>());
                 for (Vertex vertex : vertices) {
                     this.vertices[vertexPos] = vertex;
-                    vertexPosition.set(vertex.getPosition());
+                    model.getVertexPosition(vertex, vertexPosition);
                     setVertexPosition(vertexPos, vertexPosition);
-                    vertexNorm.set(vertex.getNormal(mesh));
+                    model.getVertexNormal(vertex, mesh, vertexNorm);
                     setVertexNormal(vertexPos, vertexNorm);
                     setVertexBasicOffset(vertexPos, sumPosOffset);
                     setVertexColor(vertexPos, vColor);
 
-                    vertexUv.set(vertex.getUV(mesh, mat));
+                    model.getVertexUv(vertex, mesh, mat, vertexUv);
                     setVertexUv(vertexPos, vertexUv);
                     vertexMaterials[vertexPos] = materialIndices.get(mat);
                     vertexMeshes[vertexPos] = i;
@@ -323,6 +323,12 @@ public class FlatModelData {
                         buildingBoneIndices.computeIfAbsent(
                                 weight.getFirst(), b -> new ArrayList<>()
                         ).add(vertexPos);
+                        Bone b = weight.getFirst();
+                        while ((b = b.getParent()) != null) {
+                            buildingBoneIndices.computeIfAbsent(
+                                    b, vb -> new ArrayList<>()
+                            ).add(vertexPos);
+                        }
                     }
 
                     currentMaterialIndices.add(vertexPos);
@@ -365,6 +371,37 @@ public class FlatModelData {
         buildupBuffer(cpuSkinning);
     }
 
+    public boolean updateModel() {
+        if (!model.checkForUpdate()) return false;
+        model.update();
+        updateMorphedMaterials();
+        MorphInstance morphInstance = model.getMorph();
+        BitSet dirtyVertices = morphInstance.getLastUpdatedVertices();
+        List<Integer[]> updatedVertices = new ArrayList<>();
+        if (!morphInstance.getDirtyVertices().isEmpty()) {
+            for (int i = dirtyVertices.nextSetBit(0); i >= 0; i = dirtyVertices.nextSetBit(i + 1)) {
+                updatedVertices.add(vertexByIndex.get(model.getModel().getVertices()[i]));
+            }
+        }
+        Vector3f pos = new Vector3f(),
+                normal = new Vector3f();
+        for (Integer[] vertices : updatedVertices) {
+            for (int i : vertices) {
+                Vertex vertex = this.vertices[i];
+                Mesh mesh = meshes[vertexMeshes[i]];
+                model.getVertexPosition(vertex, pos);
+                setVertexPosition(i, pos);
+                model.getVertexNormal(vertex, mesh, normal);
+                setVertexNormal(i, normal);
+                this.dirtyVertices.set(i);
+            }
+        }
+        updatedVertices.clear();
+        updateForVersion();
+        model.getMorph().clearLastChanged();
+        return true;
+    }
+
     /**
      * B: Brightness
      * O: Overlay
@@ -382,11 +419,31 @@ public class FlatModelData {
         this.needToUpdateAll = false;
     }
 
-    public @Nullable BitSet updateForVersion() {
-        if (!cpuSkinning) return null;
+    public void updateMorphedMaterials() {
+        if (model.getMaterialInstance() == null) return;
+        if (!model.getMaterialInstance().isDirty()) return;
+        MaterialSetInstance instance = model.getMaterialInstance();
+        List<Integer> materialIndices = new ArrayList<>();
+        BitSet dirtyMaterials = instance.getDirtyMaterials();
+        BitSet dirtySprites = instance.getDirtySprites();
+        for (int i = dirtyMaterials.nextSetBit(0); i >= 0; i = dirtyMaterials.nextSetBit(i + 1)) {
+            materialIndices.add(i);
+        }
+        for (int i = dirtySprites.nextSetBit(0); i >= 0; i = dirtySprites.nextSetBit(i + 1)) {
+            int matIndex = instance.getMaterials().getMaterialBySprites()[i];
+            materialIndices.add(matIndex);
+        }
+        for (Integer materialIndex : materialIndices) {
+            setupMaterial(materialIndex, materialColorBlender);
+        }
+        instance.clearDirty();
+    }
+
+    public void updateForVersion() {
+        if (!cpuSkinning) return;
         SkeletonInstance skeletonInstance = model.getSkeletonInstance();
-        if (skeletonInstance.isShouldUpdate()) skeletonInstance.updateTransform();
-        if (this.skeletonVersion == skeletonInstance.getVersion()) return null;
+        if (skeletonInstance.checkShouldUpdate()) skeletonInstance.updateTransform();
+        if (this.skeletonVersion == skeletonInstance.getVersion()) return;
         this.skeletonVersion = skeletonInstance.getVersion();
 
         Transform neoTransform;
@@ -394,7 +451,7 @@ public class FlatModelData {
             neoTransform = skeletonInstance.getAbsoluteTransforms().get(bones[i]);
             if (!Objects.equals(neoTransform, absTransforms[i])) {
                 absTransforms[i] = neoTransform;
-                markBoneDirty(bones[i], dirtyPositions);
+                markBoneDirty(bones[i], dirtyPositions, dirtyVertices);
             }
         }
 
@@ -402,10 +459,9 @@ public class FlatModelData {
         int maxMergeGap = 64;
         if (count * 4 > vertexCount * 3) {
             buildupBuffer(true);
-            return dirtyPositions;
+            return;
         }
 
-        Vector2f v2fCache = new Vector2f();
         ArrayList<BoneContext> cacheList = new ArrayList<BoneContext>();
         Vector3f posCache = new Vector3f(),
                 posCache2 = new Vector3f(),
@@ -434,14 +490,45 @@ public class FlatModelData {
             }
             start = next;
         }
-        return dirtyPositions;
     }
 
-    public void markBoneDirty(Bone bone, BitSet vertexBitset) {
+    public void markBoneDirty(Bone bone, BitSet... vertexBitsets) {
         Integer[] dirtyVertices = vertexByBone.get(bone);
         if (dirtyVertices == null) return;
         for (int i : dirtyVertices) {
-            vertexBitset.set(i);
+            for (BitSet bs : vertexBitsets) {
+                bs.set(i);
+            }
+        }
+    }
+
+    public void markMeshDirty(Mesh mesh, BitSet... vertexBitsets) {
+        Integer[] dirtyVertices = vertexByMesh.get(mesh);
+        if (dirtyVertices == null) return;
+        for (int i : dirtyVertices) {
+            for (BitSet bs : vertexBitsets) {
+                bs.set(i);
+            }
+        }
+    }
+
+    public void markMaterialDirty(Material mat, BitSet... vertexBitsets) {
+        Integer[] dirtyVertices = vertexByMaterials.get(mat);
+        if (dirtyVertices == null) return;
+        for (int i : dirtyVertices) {
+            for (BitSet bs :  vertexBitsets) {
+                bs.set(i);
+            }
+        }
+    }
+
+    public void markVertexDirty(Vertex vertex, BitSet... vertexBitsets) {
+        Integer[] dirtyIndices = vertexByIndex.get(vertex);
+        if (dirtyIndices == null) return;
+        for (int i : dirtyIndices) {
+            for (BitSet bs : vertexBitsets) {
+                bs.set(i);
+            }
         }
     }
 
@@ -513,12 +600,11 @@ public class FlatModelData {
         allMorphedBones.clear(boneIndex);
     }
 
-    protected void resetMaterial(int materialIndex, BiConsumer<Sprite, Vector4f> consumer) {
+    protected void setupMaterial(int materialIndex, BiConsumer<Sprite, Vector4f> consumer) {
         Vector4f matColor = new Vector4f(1f, 1f, 1f, 1f);
         Material materialCache = materials[materialIndex];
-        setMaterialUvBounds(materialIndex, 0, materialCache);
-        materialFrames[materialIndex] = 0;
-        calculateMaterialColor(0, materialCache, matColor, consumer);
+        setMaterialUvBounds(materialIndex, materialCache);
+        calculateMaterialColor(materialCache, matColor, consumer);
         setMaterialColor(materialIndex, matColor);
         dirtyMaterials.set(materialIndex);
         allMorphedMaterials.clear(materialIndex);
@@ -871,13 +957,12 @@ public class FlatModelData {
         }
     }
 
-    protected void calculateMaterialColor(int frame,
-                                    Material org, Vector4f colorCache,
+    protected void calculateMaterialColor(Material org, Vector4f colorCache,
                                     @Nullable BiConsumer<Sprite, Vector4f> biConsumer) {
         colorCache.set(1, 1, 1, 1);
         if (biConsumer == null) return;
-        SpriteSet spriteSet = model.getMaterialFrame(org);
-        Sprite sprite = spriteSet.getSprite(frame);
+        Sprite sprite = model.getMaterialSprite(org);
+        model.getMaterialColor(org, sprite, colorCache);
         biConsumer.accept(sprite, colorCache);
     }
 
@@ -897,10 +982,8 @@ public class FlatModelData {
         );
     }
 
-    public void setMaterialUvBounds(int index, int frame, Material org) {
-        SpriteSet sprites = model.getMaterialFrame(org);
-        frame = Math.clamp(frame, 0, sprites.spriteSize());
-        Sprite umlSprite = sprites.getSprite(frame);
+    public void setMaterialUvBounds(int index, Material org) {
+        Sprite umlSprite = model.getMaterialSprite(org);
         boolean flipU = umlSprite.flipU;
         boolean flipV = umlSprite.flipV;
 
@@ -1228,5 +1311,10 @@ public class FlatModelData {
             offset += element.byteSize();
         }
         return map;
+    }
+
+    @Override
+    public void close() throws Exception {
+        MemoryUtil.memFree(buffer);
     }
 }

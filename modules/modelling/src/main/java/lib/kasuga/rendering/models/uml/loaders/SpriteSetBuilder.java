@@ -24,7 +24,7 @@ public class SpriteSetBuilder<TextureIdentifier> {
     private boolean ambientOcclusion;
     private boolean culled;
     private boolean emissive;
-    private Vector4f color;
+    private Vector4f color, ambient, specular;
 
     private SpriteData currentSpriteData;
 
@@ -55,11 +55,13 @@ public class SpriteSetBuilder<TextureIdentifier> {
         uv2 = new Vector2f(1, 1);
         uv3 = new Vector2f(0, 1);
         color = new Vector4f(1, 1, 1, 1);
+        ambient = new Vector4f(1, 1, 1, 1);
+        specular = new Vector4f(1, 1, 1, 1);
         currentSpriteData = null;
     }
 
     public SpriteSetBuilder<TextureIdentifier> endSprite() {
-        Sprite sprite = new Sprite(builder.getTexture(textureId), uv0, uv1, uv2, uv3, color, currentSpriteData);
+        Sprite sprite = new Sprite(builder.getTexture(textureId), uv0, uv1, uv2, uv3, color, ambient, specular, currentSpriteData);
         sprite.shade = shade;
         sprite.flipU = flipU;
         sprite.flipV = flipV;
@@ -154,6 +156,16 @@ public class SpriteSetBuilder<TextureIdentifier> {
 
     public SpriteSetBuilder<TextureIdentifier> color(Vector4f color) {
         this.color = color;
+        return this;
+    }
+
+    public SpriteSetBuilder<TextureIdentifier> ambient(Vector4f ambient) {
+        this.ambient = ambient;
+        return this;
+    }
+
+    public SpriteSetBuilder<TextureIdentifier> specular(Vector4f specular) {
+        this.specular = specular;
         return this;
     }
 

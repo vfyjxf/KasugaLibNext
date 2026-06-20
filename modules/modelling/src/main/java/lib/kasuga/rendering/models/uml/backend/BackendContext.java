@@ -35,6 +35,7 @@ public abstract class BackendContext<
     }
 
     @SuppressWarnings("unchecked")
+//    @SuppressWarnings("unchecked")
     public BackendRenderableType apply() {
 //        SkeletonInstance skeleton = modelInstance.getSkeletonInstance();
 //        long tickStart = ModelProfiler.start();
@@ -59,8 +60,8 @@ public abstract class BackendContext<
 //        }
 //        closeCache();
 //        long buildStart = ModelProfiler.start();
-        if (cache != null) return cache;
-        cache = (BackendRenderableType) bridge.apply(modelInstance);
+        if (cache == null)
+            cache = (BackendRenderableType) bridge.apply(modelInstance);
 //        if (ModelProfiler.enabled()) {
 //            ModelProfiler.record("backend.buildRenderable", buildStart,
 //                    "version=" + currentVersion);

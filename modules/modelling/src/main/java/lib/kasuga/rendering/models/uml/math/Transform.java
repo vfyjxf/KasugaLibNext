@@ -3,6 +3,7 @@ package lib.kasuga.rendering.models.uml.math;
 import org.joml.*;
 
 import java.lang.Math;
+import java.util.Objects;
 
 public class Transform {
 
@@ -49,9 +50,9 @@ public class Transform {
     }
 
     public Transform mul(Transform other) {
-        Matrix4f newTransform = new Matrix4f(transform).mul(other.transform);
-        Matrix3f newNormal = new Matrix3f(normal).mul(other.normal);
-        return new Transform(newTransform, newNormal);
+        transform.mul(other.transform);
+        normal.mul(other.normal);
+        return this;
     }
 
     public Transform translate(float x, float y, float z) {
@@ -163,5 +164,17 @@ public class Transform {
 
     public DualQuaternion toDualQuaternion() {
         return new DualQuaternion(this.transform);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof Transform trans)) return false;
+        return Objects.equals(trans.transform, this.transform) &&
+                Objects.equals(trans.normal, this.normal);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(transform, normal);
     }
 }
