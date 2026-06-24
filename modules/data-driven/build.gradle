@@ -1,0 +1,146 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.107'
+    id 'idea'
+    id 'builder.kasuga.monorepo'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = 'kasuga-data-driven'
+}
+
+useModProject(project(":modules:core"))
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+test {
+    useJUnitPlatform()
+}
+
+sourceSets {
+    contentTesting {
+        java {
+            srcDir 'src/contentTesting/java'
+        }
+        resources {
+            srcDir 'src/contentTesting/resources'
+        }
+
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+
+    test {
+        compileClasspath += sourceSets.contentTesting.output
+        runtimeClasspath += sourceSets.contentTesting.output
+    }
+}
+
+tasks.named('processContentTestingResources', ProcessResources) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+            sourceSet(sourceSets.contentTesting)
+        }
+    }
+
+    unitTest {
+        enable()
+        testedMod = mods.named(mod_id)
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    implementation("io.micronaut:micronaut-inject:4.9.10") {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
+    additionalRuntimeClasspath("io.micronaut:micronaut-inject:4.9.10") {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
+    additionalRuntimeClasspath("io.micronaut:micronaut-aop:4.9.10") {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+    }
+    implementation project(":modules:inject")
+
+    additionalRuntimeClasspath 'org.jgrapht:jgrapht-core:1.5.2'
+    additionalRuntimeClasspath 'com.google.zxing:core:3.5.3'
+
+    annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
+
+    contentTestingAnnotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
+
+    testImplementation project(":modules:core")
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "net.neoforged:testframework:${project.neo_version}"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes(
+                'FMLModType': "GAMELIBRARY"
+        )
+    }
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}

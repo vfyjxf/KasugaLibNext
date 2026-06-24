@@ -1,4 +1,4 @@
-package test.kasuga.core.data_driven;
+package test.kasuga.data_driven;
 
 import io.micronaut.context.annotation.Context;
 import lib.kasuga.registration.Reg;
@@ -11,10 +11,10 @@ import lib.kasuga.registration.minecraft.item.ItemReg;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
-import test.kasuga.core.data_driven.block.BEBlock;
-import test.kasuga.core.data_driven.block.OccludingTestBlock;
-import test.kasuga.core.data_driven.block.SimpleTestBlock;
-import test.kasuga.core.data_driven.block_entity.TestBlockEntity;
+import test.kasuga.data_driven.block.BEBlock;
+import test.kasuga.data_driven.block.OccludingTestBlock;
+import test.kasuga.data_driven.block.SimpleTestBlock;
+import test.kasuga.data_driven.block_entity.TestBlockEntity;
 
 import java.util.Arrays;
 import java.util.Collection;

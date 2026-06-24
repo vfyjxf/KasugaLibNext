@@ -1,4 +1,4 @@
-package test.kasuga.core.data_driven.block;
+package test.kasuga.data_driven.block;
 
 import net.minecraft.world.level.block.Block;
 

@@ -1,4 +1,4 @@
-package test.kasuga.core.data_driven.block;
+package test.kasuga.data_driven.block;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -6,7 +6,7 @@ import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import test.kasuga.core.data_driven.block_entity.TestBlockEntity;
+import test.kasuga.data_driven.block_entity.TestBlockEntity;
 
 public class BEBlock extends SimpleTestBlock implements EntityBlock {
 

@@ -1,4 +1,4 @@
-package test.kasuga.core.data_driven.block_entity;
+package test.kasuga.data_driven.block_entity;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;

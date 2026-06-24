@@ -1,4 +1,4 @@
-package test.kasuga.core.data_driven;
+package test.kasuga.data_driven;
 
 import io.micronaut.context.annotation.Context;
 import lib.kasuga.registration.minecraft.creative_tab.CreativeTabReg;
