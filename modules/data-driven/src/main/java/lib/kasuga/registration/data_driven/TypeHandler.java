@@ -1,6 +1,7 @@
 package lib.kasuga.registration.data_driven;
 
 import com.google.gson.JsonObject;
+import lib.kasuga.registration.data_driven.context.BuildContext;
 
 import java.util.List;
 

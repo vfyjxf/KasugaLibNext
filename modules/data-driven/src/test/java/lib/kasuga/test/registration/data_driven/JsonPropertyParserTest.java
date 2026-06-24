@@ -3,7 +3,7 @@ package lib.kasuga.test.registration.data_driven;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.kasuga.registration.core.Modifier;
-import lib.kasuga.registration.data_driven.JsonPropertyParser;
+import lib.kasuga.registration.data_driven.property.JsonPropertyParser;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import org.junit.jupiter.api.Test;
 

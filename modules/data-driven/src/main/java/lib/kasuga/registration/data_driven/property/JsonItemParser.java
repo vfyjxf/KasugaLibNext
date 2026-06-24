@@ -1,4 +1,4 @@
-package lib.kasuga.registration.data_driven;
+package lib.kasuga.registration.data_driven.property;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

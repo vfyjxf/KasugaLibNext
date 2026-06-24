@@ -1,11 +1,11 @@
-package lib.kasuga.registration.data_driven;
+package lib.kasuga.registration.data_driven.property;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import lib.kasuga.registration.core.Modifier;
-import lib.kasuga.registration.data_driven.compiler.ModifierCompiler;
-import lib.kasuga.registration.data_driven.compiler.RLCompiler;
+import lib.kasuga.registration.data_driven.property.compiler.ModifierCompiler;
+import lib.kasuga.registration.data_driven.property.compiler.RLCompiler;
 import lib.kasuga.registration.minecraft.block.BlockRegModifiers;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.DyeColor;

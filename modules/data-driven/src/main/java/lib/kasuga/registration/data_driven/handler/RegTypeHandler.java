@@ -1,8 +1,12 @@
-package lib.kasuga.registration.data_driven;
+package lib.kasuga.registration.data_driven.handler;
 
 import com.google.gson.JsonObject;
 import lib.kasuga.registration.Reg;
 import lib.kasuga.registration.core.ResourceLocationModifiers;
+import lib.kasuga.registration.data_driven.TypeHandler;
+import lib.kasuga.registration.data_driven.context.BuildContext;
+import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
+import lib.kasuga.registration.data_driven.context.RegBuildContext;
 import lib.kasuga.registration.minecraft.item.ItemRegModifiers;
 import net.minecraft.resources.ResourceLocation;
 

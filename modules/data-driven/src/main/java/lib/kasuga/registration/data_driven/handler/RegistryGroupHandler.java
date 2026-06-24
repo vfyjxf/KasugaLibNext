@@ -2,11 +2,10 @@ package lib.kasuga.registration.data_driven.handler;
 
 import com.google.gson.JsonObject;
 import lib.kasuga.registration.core.Modifier;
-import lib.kasuga.registration.data_driven.BuildContext;
-import lib.kasuga.registration.data_driven.JsonPropertyParser;
-import lib.kasuga.registration.data_driven.JsonRegistryGroup;
-import lib.kasuga.registration.data_driven.MetaTypeHandler;
-import lib.kasuga.registration.data_driven.RegBuildContext;
+import lib.kasuga.registration.data_driven.context.BuildContext;
+import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
+import lib.kasuga.registration.data_driven.context.RegBuildContext;
+import lib.kasuga.registration.data_driven.property.JsonPropertyParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 

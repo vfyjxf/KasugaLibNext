@@ -5,6 +5,8 @@ import io.micronaut.context.annotation.Context;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import lib.kasuga.registration.core.RegisterContextRegistry;
+import lib.kasuga.registration.data_driven.builder.JsonTreeBuilder;
+import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
 import org.slf4j.Logger;
 
 @Context

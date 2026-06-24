@@ -1,4 +1,4 @@
-package lib.kasuga.registration.data_driven;
+package lib.kasuga.registration.data_driven.context;
 
 import lib.kasuga.registration.RegistryGroup;
 

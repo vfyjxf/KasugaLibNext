@@ -1,10 +1,15 @@
-package lib.kasuga.registration.data_driven;
+package lib.kasuga.registration.data_driven.builder;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import lib.kasuga.registration.core.ResourceLocationModifiers;
+import lib.kasuga.registration.data_driven.TypeHandler;
+import lib.kasuga.registration.data_driven.TypeHandlerRegistry;
+import lib.kasuga.registration.data_driven.context.BuildContext;
+import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
+import lib.kasuga.registration.data_driven.context.RegBuildContext;
 import lib.kasuga.registration.data_driven.handler.BlockEntityTypeHandler;
 import lib.kasuga.registration.data_driven.handler.BlockTypeHandler;
 import lib.kasuga.registration.data_driven.handler.RegistryGroupHandler;
