@@ -64,17 +64,17 @@ src/main/resources/data/<modid>/kasugalib/<任意文件名>.json
 
 ```json
 {
-  "groups": [ ... ],       // (可选) Group 定义数组
-  "blocks": [ ... ],       // (可选) Block 定义数组
-  "items": [ ... ]         // (可选) 独立 Item 定义数组（不依附于 Block）
+  "registry_groups": [ ... ],  // (可选) Group 定义数组
+  "blocks": [ ... ],           // (可选) Block 定义数组
+  "items": [ ... ]             // (可选) 独立 Item 定义数组（不依附于 Block）
 }
 ```
 
 Block 通过 `block_entity` 字段引用方块实体，不需要独立的顶层 `block_entities` 数组。
 
-### Groups（组）
+### Registry Groups（组）
 
-组用于定义共用的属性集和层级结构，支持嵌套（通过 `parent` 字段）。
+组用于定义共用的属性集和层级结构，支持嵌套（通过 `parent` 字段）。JSON 顶层 key 为 `registry_groups`。
 
 ```json
 {
@@ -98,7 +98,7 @@ Block 通过 `block_entity` 字段引用方块实体，不需要独立的顶层 
 {
   "id": "kuayue:22_floor",
   "type": "slab",
-  "group": "kuayue:c22_panels",
+  "registry_group": "kuayue:c22_panels",
   "properties": { ... },
   "item_properties": { ... },
   "model": "kuayue:models/block/22_floor",
@@ -117,7 +117,7 @@ Block 通过 `block_entity` 字段引用方块实体，不需要独立的顶层 
 |------|------|------|------|
 | `id` | string | 是 | 注册名，格式 `namespace:path` |
 | `type` | string | 是 | 工厂类型，需在 `FactoryRegistry` 中注册 |
-| `group` | string | 否 | 挂载的组 id |
+| `registry_group` | string | 否 | 挂载的组 id |
 | `properties` | object | 否 | 方块属性 |
 | `item_properties` | object | 否 | 物品属性（如创造标签页） |
 | `model` | string | 否 | 模型路径 |
@@ -137,7 +137,7 @@ Block 通过 `block_entity` 字段引用方块实体，不需要独立的顶层 
     {
       "id": "kuayue:steel_ingot",
       "type": "basic_item",
-      "group": "kuayue:materials",
+      "registry_group": "kuayue:materials",
       "properties": {
         "stacks_to": 64,
         "rarity": "uncommon"
@@ -151,7 +151,7 @@ Block 通过 `block_entity` 字段引用方块实体，不需要独立的顶层 
 |------|------|------|------|
 | `id` | string | 是 | 注册名，格式 `namespace:path` |
 | `type` | string | 是 | 工厂类型，需在 `FactoryRegistry` 中注册为 `ItemFactory` |
-| `group` | string | 否 | 挂载的组 id（继承 group 的 `item_properties`） |
+| `registry_group` | string | 否 | 挂载的组 id（继承 group 的 `item_properties`） |
 | `properties` | object | 否 | 物品属性 |
 
 **Block Items**：由 Block 工厂自行负责创建。`JsonTreeBuilder` 不会自动为 Block 添加 `BlockItem`，因此工厂必须在返回 `Reg` 前调用 `withDefaultBlockItem()`。例如：
