@@ -18,8 +18,8 @@ JSON 文件 (data/<modid>/kasugalib/*.json)
         ▼
 JsonTreeBuilder          — 扫描目录、解析 JSON、构建 RawData
         │
-        ├──▶ JsonPropertyParser   — 将 JSON 属性转换为 Modifier<BlockBehaviour.Properties>
-        ├──▶ JsonItemParser       — 将 JSON 属性转换为 Modifier<Item.Properties>
+        ├──▶ JsonPropertyParser   — 将 JSON 属性转换为 Consumer<BlockBehaviour.Properties>
+        ├──▶ JsonItemParser       — 将 JSON 属性转换为 Consumer<Item.Properties>
         │
         ▼
 FactoryRegistry          — 根据 type 字符串创建对应的 Reg 实例
@@ -29,8 +29,7 @@ JsonRegistryGroup        — 虚拟注册组，挂载到主注册树
         │
         ▼
 RegisterEvent 分发       — 复用现有事件链，tab 通过
-                            ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER
-                            以 Modifier 形式内联注入
+                            ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER 注入
 ```
 
 ### 集成时机
@@ -282,12 +281,75 @@ JSON 中支持的方块属性通过 `JsonPropertyParser` 解析，映射到 `Blo
 | 属性 | JSON 类型 | 说明 |
 |------|-----------|------|
 | `stacks_to` | number | 最大堆叠数 |
-| `rarity` | string | 稀有度：`common`、`uncommon`、`rare`、`epic` |
+| `rarity` | string | 稀有度：`common`、`uncommon`、`rare`、`epic`，无效值会 warn 并跳过 |
 | `fire_resistant` | boolean | 防火（不会被岩浆/火焰烧毁） |
 | `durability` | number | 最大耐久度 |
 | `no_repair` | boolean | 禁止铁砧修复 |
 
-`tab` 字段也可以写在独立 Item 的 `properties` 中，效果与写在 `item_properties` 中相同（均通过 `ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER` 注册）。
+`tab` 字段也可以写在独立 Item 的 `properties` 中，效果与写在 `item_properties` 中相同。
+
+---
+
+## 自定义属性扩展
+
+第三方 mod 可以通过 `JsonItemParser.registerParser()` 和 `JsonPropertyParser.registerCompiler()` 注册自定义属性解析器，无需修改 KasugaLib 源码。
+
+### 物品属性扩展
+
+```java
+// 注册自定义物品属性解析器
+JsonItemParser.INSTANCE.registerParser("my_custom_property", (key, value) -> {
+    // 解析 JSON 值
+    String data = value.getAsString();
+    // 返回 Consumer<Item.Properties>，直接调用原版 API
+    return props -> {
+        // 自定义逻辑
+    };
+});
+```
+
+注册后即可在 JSON 中使用：
+
+```json
+{
+  "id": "mymod:my_item",
+  "type": "basic_item",
+  "properties": {
+    "my_custom_property": "some_value"
+  }
+}
+```
+
+### 方块属性扩展
+
+```java
+// 方式 1：使用 registerCompiler（基于 ResourceLocation 匹配）
+JsonPropertyParser.getInstance().registerCompiler("mymod:custom_prop", (key, value) -> {
+    int data = value.getAsInt();
+    return props -> props.strength(data);
+});
+
+// 方式 2：使用 registerCompiler(ModifierCompiler)（自定义匹配逻辑）
+JsonPropertyParser.getInstance().registerCompiler(new ModifierCompiler(
+    (key, value) -> key.startsWith("mymod:"),  // 自定义 key 匹配
+    (key, value) -> {
+        // 自定义解析逻辑
+        return props -> { };
+    }
+));
+```
+
+注册后即可在 JSON 中使用：
+
+```json
+{
+  "id": "mymod:my_block",
+  "type": "simple_block",
+  "properties": {
+    "mymod:custom_prop": 10
+  }
+}
+```
 
 ---
 
@@ -385,5 +447,5 @@ public class MyFactory {
 - [x] **Block Entity 注册** — 已实现 block 的 `block_entity` 字段引用和 `BlockEntityFactory` 工厂机制
 - [x] **循环依赖检测** — 已使用 `GraphCycleDetector.topologicalSort()` 实现 Group parent 链检测
 - [ ] **模型状态绑定**：`state_machine` 字段已解析但尚未在运行时消费
-- [ ] **Item 属性扩展**：`JsonItemParser` 当前支持基础属性，food 属性、component 等尚未添加
+- [ ] **Item 属性扩展**：`JsonItemParser` 当前支持基础属性，food 属性、component 等尚未添加（可通过 `registerParser` 扩展）
 - [ ] **BE data_type**：Block Entity 的 `data_type`（DataFixer 类型）尚未支持从 JSON 配置
