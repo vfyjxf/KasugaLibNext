@@ -1,20 +1,19 @@
 package lib.kasuga.registration.data_driven.property.compiler;
 
 import com.google.gson.JsonElement;
-import lib.kasuga.registration.core.Modifier;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 
 public class RLCompiler extends ModifierCompiler {
 
     protected final ResourceLocation id;
 
-    public RLCompiler(ResourceLocation location, BiFunction<String, JsonElement, Modifier<BlockBehaviour.Properties>> supplier) {
+    public RLCompiler(ResourceLocation location, BiFunction<String, JsonElement, Consumer<BlockBehaviour.Properties>> supplier) {
         super((s, element) -> {
             ResourceLocation inputLoc = ResourceLocation.tryParse(s.toLowerCase(Locale.ROOT));
             if (inputLoc == null) {

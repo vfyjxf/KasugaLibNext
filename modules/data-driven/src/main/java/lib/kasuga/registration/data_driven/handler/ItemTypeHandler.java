@@ -2,13 +2,13 @@ package lib.kasuga.registration.data_driven.handler;
 
 import com.google.gson.JsonObject;
 import lib.kasuga.registration.Reg;
-import lib.kasuga.registration.core.Modifier;
 import lib.kasuga.registration.data_driven.property.JsonItemParser;
 import lib.kasuga.registration.factory.FactoryRegistry;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class ItemTypeHandler extends RegTypeHandler<ItemDef> {
 
@@ -54,12 +54,13 @@ public class ItemTypeHandler extends RegTypeHandler<ItemDef> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void configureTypeSpecific(ItemDef definition, Reg<?, ?> reg) {
         if (definition.properties() != null) {
-            List<Modifier<Item.Properties>> mods =
+            List<Consumer<Item.Properties>> mods =
                 JsonItemParser.INSTANCE.parseItemProperties(definition.properties());
-            for (Modifier<Item.Properties> m : mods) {
-                reg.configure(m);
+            for (Consumer<Item.Properties> m : mods) {
+                ((Reg) reg).configure(m);
             }
         }
     }

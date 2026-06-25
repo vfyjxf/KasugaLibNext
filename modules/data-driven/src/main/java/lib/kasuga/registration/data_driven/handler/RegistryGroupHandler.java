@@ -1,7 +1,7 @@
 package lib.kasuga.registration.data_driven.handler;
 
 import com.google.gson.JsonObject;
-import lib.kasuga.registration.core.Modifier;
+import lib.kasuga.registration.Reg;
 import lib.kasuga.registration.data_driven.context.BuildContext;
 import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
 import lib.kasuga.registration.data_driven.context.RegBuildContext;
@@ -10,6 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class RegistryGroupHandler extends MetaTypeHandler<RegistryGroupDef> {
 
@@ -34,6 +35,7 @@ public class RegistryGroupHandler extends MetaTypeHandler<RegistryGroupDef> {
         store(definition, (RegBuildContext) context);
     }
 
+    @SuppressWarnings("unchecked")
     private void store(RegistryGroupDef definition, RegBuildContext context) {
         JsonRegistryGroup group = new JsonRegistryGroup(definition.id());
 
@@ -45,10 +47,10 @@ public class RegistryGroupHandler extends MetaTypeHandler<RegistryGroupDef> {
         }
 
         if (definition.properties() != null) {
-            List<Modifier<BlockBehaviour.Properties>> mods =
+            List<Consumer<BlockBehaviour.Properties>> mods =
                 JsonPropertyParser.getInstance().parseBlockProperties(definition.properties());
-            for (Modifier<BlockBehaviour.Properties> m : mods) {
-                group.configure(m);
+            for (Consumer<BlockBehaviour.Properties> m : mods) {
+                ((Reg) group).configure(m);
             }
         }
 

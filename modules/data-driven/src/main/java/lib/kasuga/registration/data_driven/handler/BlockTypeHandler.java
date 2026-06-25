@@ -2,7 +2,6 @@ package lib.kasuga.registration.data_driven.handler;
 
 import com.google.gson.JsonObject;
 import lib.kasuga.registration.Reg;
-import lib.kasuga.registration.core.Modifier;
 import lib.kasuga.registration.data_driven.property.JsonPropertyParser;
 import lib.kasuga.registration.factory.FactoryRegistry;
 import net.minecraft.resources.ResourceLocation;
@@ -10,6 +9,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
 
@@ -56,12 +56,13 @@ public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void configureTypeSpecific(BlockDef definition, Reg<?, ?> reg) {
         if (definition.properties() != null) {
-            List<Modifier<BlockBehaviour.Properties>> mods =
+            List<Consumer<BlockBehaviour.Properties>> mods =
                 JsonPropertyParser.getInstance().parseBlockProperties(definition.properties());
-            for (Modifier<BlockBehaviour.Properties> m : mods) {
-                reg.configure(m);
+            for (Consumer<BlockBehaviour.Properties> m : mods) {
+                ((Reg) reg).configure(m);
             }
         }
     }

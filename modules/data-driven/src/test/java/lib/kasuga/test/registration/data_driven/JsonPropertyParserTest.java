@@ -2,12 +2,12 @@ package lib.kasuga.test.registration.data_driven;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import lib.kasuga.registration.core.Modifier;
 import lib.kasuga.registration.data_driven.property.JsonPropertyParser;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,21 +15,22 @@ class JsonPropertyParserTest {
 
     private final JsonPropertyParser parser = JsonPropertyParser.getInstance();
 
-    private Modifier<BlockBehaviour.Properties> parseSingle(String key, Object value) {
+    private Consumer<BlockBehaviour.Properties> parseSingle(String key, Object value) {
         JsonObject json = new JsonObject();
         if (value instanceof Boolean b) json.addProperty(key, b);
         else if (value instanceof Number n) json.addProperty(key, n);
         else if (value instanceof String s) json.addProperty(key, s);
-        List<Modifier<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertEquals(1, mods.size(), "Expected exactly 1 modifier for key '" + key + "'");
         return mods.get(0);
     }
 
     private void assertModifierApplies(String key, Object value) {
-        Modifier<BlockBehaviour.Properties> mod = parseSingle(key, value);
+        Consumer<BlockBehaviour.Properties> mod = parseSingle(key, value);
         assertNotNull(mod, "Modifier for '" + key + "' should not be null");
-        BlockBehaviour.Properties result = mod.transform(BlockBehaviour.Properties.of());
-        assertNotNull(result, "Transform should return non-null Properties");
+        BlockBehaviour.Properties props = BlockBehaviour.Properties.of();
+        mod.accept(props);
+        assertNotNull(props, "Consumer should not crash");
     }
 
     // --- Boolean properties ---
@@ -85,9 +86,11 @@ class JsonPropertyParserTest {
         arr.add(1.5);
         arr.add(3.0);
         json.add("strength", arr);
-        List<Modifier<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertEquals(1, mods.size());
-        assertNotNull(mods.get(0).transform(BlockBehaviour.Properties.of()));
+        BlockBehaviour.Properties props = BlockBehaviour.Properties.of();
+        mods.get(0).accept(props);
+        assertNotNull(props);
     }
 
     // --- Float properties ---
@@ -126,7 +129,7 @@ class JsonPropertyParserTest {
 
     @Test
     void nullInputReturnsEmptyList() {
-        List<Modifier<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(null);
+        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(null);
         assertNotNull(mods);
         assertTrue(mods.isEmpty());
     }
@@ -135,7 +138,7 @@ class JsonPropertyParserTest {
     void unknownPropertyReturnsEmpty() {
         JsonObject json = new JsonObject();
         json.addProperty("nonexistent_property", true);
-        List<Modifier<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertTrue(mods.isEmpty());
     }
 
@@ -145,13 +148,13 @@ class JsonPropertyParserTest {
         json.addProperty("no_occlusion", true);
         json.addProperty("destroy_time", 2.0f);
         json.addProperty("friction", 0.9f);
-        List<Modifier<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertEquals(3, mods.size());
     }
 
     @Test
     void emptyJsonObjectReturnsEmptyList() {
-        List<Modifier<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(new JsonObject());
+        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(new JsonObject());
         assertTrue(mods.isEmpty());
     }
 }
