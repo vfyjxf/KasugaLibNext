@@ -37,34 +37,41 @@ public class BlockEntityTypeHandler implements TypeHandler<BlockEntityDef> {
     public BlockEntityDef parse(JsonObject json) {
         return new BlockEntityDef(
             json.get("type").getAsString(),
-            json.get("_parent_block").getAsString()
+            json.get("_parent_block").getAsString(),
+            json.has("params") ? json.getAsJsonObject("params") : null
         );
     }
 
     @Override
     public void apply(BlockEntityDef definition, BuildContext baseContext) {
         RegBuildContext context = (RegBuildContext) baseContext;
-        Reg<?, Block> blockReg = context.getBlockReg(definition.parentBlockId());
+        String parentBlockId = definition.parentBlockId();
+
+        Reg<?, Block> blockReg = context.getBlockReg(parentBlockId);
         if (blockReg == null) {
-            LOGGER.warn("Block '{}' not found for block entity association", definition.parentBlockId());
+            LOGGER.warn("Block '{}' not found for block entity association", parentBlockId);
             return;
         }
-
-        if (!FactoryRegistry.containsBlockEntity(definition.beType())) {
-            LOGGER.warn("Unknown block entity type '{}' for block '{}', registered types: {}",
-                definition.beType(), definition.parentBlockId(), FactoryRegistry.getBlockEntityTypes());
-            return;
-        }
-
-        String beName = definition.parentBlockId().split(":", 2).length > 1
-            ? definition.parentBlockId().split(":", 2)[1] + "_be"
-            : definition.parentBlockId() + "_be";
 
         FactoryRegistry.BlockEntityFactory factory = FactoryRegistry.getBlockEntityFactory(definition.beType());
-        Reg<?, ?> beReg = factory.create(beName, () -> new Block[]{blockReg.getEntry()});
-        blockReg.addChild(beReg);
-        context.putReg("block_entities", definition.parentBlockId(), beReg);
+        if (factory == null) {
+            LOGGER.warn("Unknown block entity type '{}' for block '{}', registered types: {}",
+                definition.beType(), parentBlockId, FactoryRegistry.getBlockEntityTypes());
+            return;
+        }
 
-        LOGGER.info("[BlockEntityHandler] BE '{}' attached to block '{}'", beName, definition.parentBlockId());
+        String[] parts = parentBlockId.split(":", 2);
+        String beName = parts.length > 1 ? parts[1] + "_be" : parentBlockId + "_be";
+
+        try {
+            Reg<?, ?> beReg = factory.create(beName, () -> new Block[]{blockReg.getEntry()}, definition.params());
+            blockReg.addChild(beReg);
+            context.putReg("block_entities", parentBlockId, beReg);
+            LOGGER.info("[BlockEntityHandler] BE '{}' attached to block '{}'", beName, parentBlockId);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to apply block entity for '{}': {}",
+                parentBlockId, e.getMessage());
+            LOGGER.debug("Full stacktrace:", e);
+        }
     }
 }

@@ -26,7 +26,8 @@ public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
             json.get("type").getAsString(),
             json.has("registry_group") ? json.get("registry_group").getAsString() : null,
             json.has("properties") ? json.getAsJsonObject("properties") : null,
-            json.has("item_properties") ? json.getAsJsonObject("item_properties") : null
+            json.has("item_properties") ? json.getAsJsonObject("item_properties") : null,
+            json.has("params") ? json.getAsJsonObject("params") : null
         );
     }
 
@@ -50,9 +51,9 @@ public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
 
     @Override
     protected Reg<?, ?> createRegistration(BlockDef definition, String path) {
-        if (!FactoryRegistry.contains(definition.type())) return null;
         FactoryRegistry.BlockFactory factory = FactoryRegistry.get(definition.type());
-        return factory.create(path);
+        if (factory == null) return null;
+        return factory.create(path, definition.params());
     }
 
     @Override

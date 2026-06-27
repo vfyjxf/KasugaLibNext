@@ -24,7 +24,8 @@ public class ItemTypeHandler extends RegTypeHandler<ItemDef> {
             json.get("id").getAsString(),
             json.get("type").getAsString(),
             json.has("registry_group") ? json.get("registry_group").getAsString() : null,
-            json.has("properties") ? json.getAsJsonObject("properties") : null
+            json.has("properties") ? json.getAsJsonObject("properties") : null,
+            json.has("params") ? json.getAsJsonObject("params") : null
         );
     }
 
@@ -48,9 +49,9 @@ public class ItemTypeHandler extends RegTypeHandler<ItemDef> {
 
     @Override
     protected Reg<?, ?> createRegistration(ItemDef definition, String path) {
-        if (!FactoryRegistry.containsItem(definition.type())) return null;
         FactoryRegistry.ItemFactory factory = FactoryRegistry.getItemFactory(definition.type());
-        return factory.create(path);
+        if (factory == null) return null;
+        return factory.create(path, definition.params());
     }
 
     @Override

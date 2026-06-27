@@ -1,6 +1,7 @@
 package lib.kasuga.registration.data_driven.handler;
 
 import com.google.gson.JsonObject;
+import com.mojang.logging.LogUtils;
 import lib.kasuga.registration.Reg;
 import lib.kasuga.registration.core.ResourceLocationModifiers;
 import lib.kasuga.registration.data_driven.TypeHandler;
@@ -9,8 +10,11 @@ import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
 import lib.kasuga.registration.data_driven.context.RegBuildContext;
 import lib.kasuga.registration.minecraft.item.ItemRegModifiers;
 import net.minecraft.resources.ResourceLocation;
+import org.slf4j.Logger;
 
 public abstract class RegTypeHandler<T> implements TypeHandler<T> {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     protected abstract String resolveRawId(T definition);
 
@@ -36,38 +40,44 @@ public abstract class RegTypeHandler<T> implements TypeHandler<T> {
 
     @Override
     public void apply(T definition, BuildContext baseContext) {
-        RegBuildContext context = (RegBuildContext) baseContext;
-        String rawId = resolveRawId(definition);
-        String path = resolvePath(rawId);
-        String namespace = resolveNamespace(rawId);
+        try {
+            RegBuildContext context = (RegBuildContext) baseContext;
+            String rawId = resolveRawId(definition);
+            String path = resolvePath(rawId);
+            String namespace = resolveNamespace(rawId);
 
-        Reg<?, ?> reg = createRegistration(definition, path);
-        if (reg == null) return;
+            Reg<?, ?> reg = createRegistration(definition, path);
+            if (reg == null) return;
 
-        if (!namespace.equals("minecraft")) {
-            reg.configure(ResourceLocationModifiers.withNamespace(namespace));
-        }
-
-        String registryGroupId = resolveRegistryGroup(definition);
-        if (registryGroupId != null) {
-            JsonRegistryGroup group = context.getRegistryGroup(registryGroupId);
-            reg.setParent(group != null ? group : context.getRootGroup());
-        } else {
-            reg.setParent(context.getRootGroup());
-        }
-
-        ResourceLocation tab = resolveCreativeTab(definition);
-        if (tab != null) {
-            reg.configure(ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER.apply(() -> tab));
-        } else if (registryGroupId != null) {
-            ResourceLocation groupTab = context.getRegistryGroupCreativeTab(registryGroupId);
-            if (groupTab != null) {
-                reg.configure(ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER.apply(() -> groupTab));
+            if (!namespace.equals("minecraft")) {
+                reg.configure(ResourceLocationModifiers.withNamespace(namespace));
             }
+
+            String registryGroupId = resolveRegistryGroup(definition);
+            if (registryGroupId != null) {
+                JsonRegistryGroup group = context.getRegistryGroup(registryGroupId);
+                reg.setParent(group != null ? group : context.getRootGroup());
+            } else {
+                reg.setParent(context.getRootGroup());
+            }
+
+            ResourceLocation tab = resolveCreativeTab(definition);
+            if (tab != null) {
+                reg.configure(ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER.apply(() -> tab));
+            } else if (registryGroupId != null) {
+                ResourceLocation groupTab = context.getRegistryGroupCreativeTab(registryGroupId);
+                if (groupTab != null) {
+                    reg.configure(ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER.apply(() -> groupTab));
+                }
+            }
+
+            configureTypeSpecific(definition, reg);
+
+            context.putReg(getTypeName(), rawId, reg);
+        } catch (Exception e) {
+            LOGGER.warn("Failed to apply registration for '{}': {}",
+                resolveRawId(definition), e.getMessage());
+            LOGGER.debug("Full stacktrace:", e);
         }
-
-        configureTypeSpecific(definition, reg);
-
-        context.putReg(getTypeName(), rawId, reg);
     }
 }

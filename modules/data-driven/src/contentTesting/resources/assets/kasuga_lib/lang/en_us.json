@@ -5,6 +5,8 @@
   "block.kasuga_lib.detail_slab": "Detail Slab",
   "block.kasuga_lib.standalone_block": "Standalone Block",
   "block.kasuga_lib.be_test_block": "BE Test Block",
+  "block.kasuga_lib.occluding_by_params": "Occluding by Params",
+  "block.kasuga_lib.simple_by_params": "Simple by Params",
   "block.kasuga_lib.inherited_block": "Inherited Block",
   "block.kasuga_lib.overridden_block": "Overridden Block",
 

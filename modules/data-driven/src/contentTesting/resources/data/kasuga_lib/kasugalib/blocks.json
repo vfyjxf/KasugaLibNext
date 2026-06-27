@@ -17,6 +17,18 @@
       "id": "kasuga_lib:standalone_block",
       "type": "simple_block",
       "registry_group": "kasuga_lib:data_driven_group"
+    },
+    {
+      "id": "kasuga_lib:occluding_by_params",
+      "type": "params_block",
+      "registry_group": "kasuga_lib:data_driven_group",
+      "params": { "occluding": true }
+    },
+    {
+      "id": "kasuga_lib:simple_by_params",
+      "type": "params_block",
+      "registry_group": "kasuga_lib:data_driven_group",
+      "params": { "occluding": false }
     }
   ]
 }

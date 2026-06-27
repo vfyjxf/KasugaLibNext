@@ -1,3 +1,7 @@
 package lib.kasuga.registration.data_driven.handler;
 
-public record BlockEntityDef(String beType, String parentBlockId) {}
+import com.google.gson.JsonObject;
+
+import javax.annotation.Nullable;
+
+public record BlockEntityDef(String beType, String parentBlockId, @Nullable JsonObject params) {}

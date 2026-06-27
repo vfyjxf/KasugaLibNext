@@ -31,15 +31,23 @@ public class DataDrivenTestFactories {
 
     static {
         // Block factories — each factory is responsible for creating its own BlockItem
-        FactoryRegistry.register("simple_block", id -> blockWithItem(id, SimpleTestBlock::new));
-        FactoryRegistry.register("be_block", id -> blockWithItem(id, BEBlock::new));
-        FactoryRegistry.register("occluding_block", id -> blockWithItem(id, OccludingTestBlock::new));
+        FactoryRegistry.register("simple_block", (id, params) -> blockWithItem(id, SimpleTestBlock::new));
+        FactoryRegistry.register("be_block", (id, params) -> blockWithItem(id, BEBlock::new));
+        FactoryRegistry.register("occluding_block", (id, params) -> blockWithItem(id, OccludingTestBlock::new));
+
+        // Factory that exercises params: reads "occluding" boolean
+        FactoryRegistry.register("params_block", (id, params) -> {
+            if (params != null && params.has("occluding") && params.get("occluding").getAsBoolean()) {
+                return blockWithItem(id, OccludingTestBlock::new);
+            }
+            return blockWithItem(id, SimpleTestBlock::new);
+        });
 
         // Item factories
-        FactoryRegistry.registerItem("simple_item", id -> ItemReg.of(id, Item::new));
+        FactoryRegistry.registerItem("simple_item", (id, params) -> ItemReg.of(id, Item::new));
 
         // Block entity factories
-        FactoryRegistry.registerBlockEntity("test_be", (id, validBlocks) -> {
+        FactoryRegistry.registerBlockEntity("test_be", (id, validBlocks, params) -> {
             BlockEntityReg<TestBlockEntity> reg = new BlockEntityReg<>(id,
                     r -> (pos, state) -> new TestBlockEntity(r.getEntry(), pos, state));
             // Convert Supplier<Block[]> to Modifier<Collection<Block>>
