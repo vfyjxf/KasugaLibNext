@@ -61,7 +61,7 @@ public class ItemTypeHandler extends RegTypeHandler<ItemDef> {
             List<Consumer<Item.Properties>> mods =
                 JsonItemParser.INSTANCE.parseItemProperties(definition.properties());
             for (Consumer<Item.Properties> m : mods) {
-                ((Reg) reg).configure(m);
+                reg.withProperty(Item.Properties.class, m);
             }
         }
     }

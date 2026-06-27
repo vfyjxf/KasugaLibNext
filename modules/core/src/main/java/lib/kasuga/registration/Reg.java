@@ -11,6 +11,9 @@ import java.util.function.Consumer;
 public abstract class Reg<S extends Reg<?, ?>, T> implements TransformerProvider, EntrySupplier<T> {
     protected HashMap<ModifierType<?>, List<Modifier<?>>> modifiers = new HashMap<ModifierType<?>, List<Modifier<?>>>();
 
+    // Class-keyed property consumers, separate from Modifier/transform to avoid codegen coupling
+    protected Map<Class<?>, List<Consumer<?>>> propertyConsumers = new HashMap<>();
+
     protected Reg<?, ?> parent;
 
     protected Set<Reg<?, ?>> children = ConcurrentHashMap.newKeySet();
@@ -88,5 +91,24 @@ public abstract class Reg<S extends Reg<?, ?>, T> implements TransformerProvider
 
     public Set<Reg<?, ?>> getChildren() {
         return children;
+    }
+
+    public <P> S withProperty(Class<P> type, Consumer<P> modifier) {
+        propertyConsumers.computeIfAbsent(type, k -> new ArrayList<>()).add(modifier);
+        return self();
+    }
+
+    @SuppressWarnings("unchecked")
+    public <P> P applyProperties(Class<P> type, P value) {
+        if (parent != null) {
+            value = parent.applyProperties(type, value);
+        }
+        List<Consumer<?>> mods = propertyConsumers.get(type);
+        if (mods != null) {
+            for (Consumer<?> m : mods) {
+                ((Consumer<P>) m).accept(value);
+            }
+        }
+        return value;
     }
 }

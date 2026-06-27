@@ -85,6 +85,7 @@ public class BlockReg<T extends Block> extends MinecraftDeferRegistryReg<BlockRe
     @Override
     protected T createObject(ResourceLocation id) {
         BlockBehaviour.Properties properties = RegFacade.transformObject("BlockProperties", BlockBehaviour.Properties.of());
+        properties = this.applyProperties(BlockBehaviour.Properties.class, properties);
         return supplier.apply(this).apply(properties);
     }
 

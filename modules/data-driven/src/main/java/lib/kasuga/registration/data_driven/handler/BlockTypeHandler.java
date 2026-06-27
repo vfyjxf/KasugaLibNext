@@ -63,7 +63,7 @@ public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
             List<Consumer<BlockBehaviour.Properties>> mods =
                 JsonPropertyParser.getInstance().parseBlockProperties(definition.properties());
             for (Consumer<BlockBehaviour.Properties> m : mods) {
-                ((Reg) reg).configure(m);
+                reg.withProperty(BlockBehaviour.Properties.class, m);
             }
         }
     }

@@ -93,6 +93,7 @@ public final class ItemReg<T extends Item> extends MinecraftDeferRegistryReg<Ite
 
         }
         properties = RegFacade.transformObject("ItemPropertyModifiers", properties);
+        properties = this.applyProperties(Item.Properties.class, properties);
         return supplier.apply(this).apply(properties);
     }
 

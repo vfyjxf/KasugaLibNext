@@ -50,7 +50,7 @@ public class RegistryGroupHandler extends MetaTypeHandler<RegistryGroupDef> {
             List<Consumer<BlockBehaviour.Properties>> mods =
                 JsonPropertyParser.getInstance().parseBlockProperties(definition.properties());
             for (Consumer<BlockBehaviour.Properties> m : mods) {
-                ((Reg) group).configure(m);
+                group.withProperty(BlockBehaviour.Properties.class, m);
             }
         }
 
