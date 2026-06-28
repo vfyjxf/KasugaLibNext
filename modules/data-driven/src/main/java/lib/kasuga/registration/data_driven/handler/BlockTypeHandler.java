@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
 
@@ -60,9 +60,9 @@ public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
     @SuppressWarnings("unchecked")
     protected void configureTypeSpecific(BlockDef definition, Reg<?, ?> reg) {
         if (definition.properties() != null) {
-            List<Consumer<BlockBehaviour.Properties>> mods =
+            List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> mods =
                 JsonPropertyParser.getInstance().parseBlockProperties(definition.properties());
-            for (Consumer<BlockBehaviour.Properties> m : mods) {
+            for (Function<BlockBehaviour.Properties, BlockBehaviour.Properties> m : mods) {
                 reg.withProperty(BlockBehaviour.Properties.class, m);
             }
         }

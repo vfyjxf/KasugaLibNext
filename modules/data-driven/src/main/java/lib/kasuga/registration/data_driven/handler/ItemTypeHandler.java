@@ -8,7 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class ItemTypeHandler extends RegTypeHandler<ItemDef> {
 
@@ -58,9 +58,9 @@ public class ItemTypeHandler extends RegTypeHandler<ItemDef> {
     @SuppressWarnings("unchecked")
     protected void configureTypeSpecific(ItemDef definition, Reg<?, ?> reg) {
         if (definition.properties() != null) {
-            List<Consumer<Item.Properties>> mods =
+            List<Function<Item.Properties, Item.Properties>> mods =
                 JsonItemParser.INSTANCE.parseItemProperties(definition.properties());
-            for (Consumer<Item.Properties> m : mods) {
+            for (Function<Item.Properties, Item.Properties> m : mods) {
                 reg.withProperty(Item.Properties.class, m);
             }
         }

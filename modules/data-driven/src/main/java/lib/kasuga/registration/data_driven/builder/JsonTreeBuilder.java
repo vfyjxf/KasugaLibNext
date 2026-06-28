@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
-import lib.kasuga.registration.core.ResourceLocationModifiers;
 import lib.kasuga.registration.data_driven.TypeHandler;
 import lib.kasuga.registration.data_driven.TypeHandlerRegistry;
 import lib.kasuga.registration.data_driven.context.BuildContext;
@@ -14,6 +13,7 @@ import lib.kasuga.registration.data_driven.handler.BlockEntityTypeHandler;
 import lib.kasuga.registration.data_driven.handler.BlockTypeHandler;
 import lib.kasuga.registration.data_driven.handler.RegistryGroupHandler;
 import lib.kasuga.registration.data_driven.handler.ItemTypeHandler;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforgespi.language.IModFileInfo;
 import net.neoforged.neoforgespi.language.IModInfo;
@@ -50,7 +50,8 @@ public class JsonTreeBuilder {
         if (kasugalibDir == null) return null;
 
         JsonRegistryGroup rootGroup = new JsonRegistryGroup(modId + ":json_root");
-        rootGroup.configure(ResourceLocationModifiers.withNamespace(modId));
+        rootGroup.withProperty(ResourceLocation.class,
+            loc -> ResourceLocation.fromNamespaceAndPath(modId, loc.getPath()));
         RegBuildContext context = new RegBuildContext(modId, rootGroup);
 
         // Pass 1: parse all JSON files

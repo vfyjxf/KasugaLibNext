@@ -7,7 +7,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,22 +15,22 @@ class JsonPropertyParserTest {
 
     private final JsonPropertyParser parser = JsonPropertyParser.getInstance();
 
-    private Consumer<BlockBehaviour.Properties> parseSingle(String key, Object value) {
+    private Function<BlockBehaviour.Properties, BlockBehaviour.Properties> parseSingle(String key, Object value) {
         JsonObject json = new JsonObject();
         if (value instanceof Boolean b) json.addProperty(key, b);
         else if (value instanceof Number n) json.addProperty(key, n);
         else if (value instanceof String s) json.addProperty(key, s);
-        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertEquals(1, mods.size(), "Expected exactly 1 modifier for key '" + key + "'");
         return mods.get(0);
     }
 
     private void assertModifierApplies(String key, Object value) {
-        Consumer<BlockBehaviour.Properties> mod = parseSingle(key, value);
+        Function<BlockBehaviour.Properties, BlockBehaviour.Properties> mod = parseSingle(key, value);
         assertNotNull(mod, "Modifier for '" + key + "' should not be null");
         BlockBehaviour.Properties props = BlockBehaviour.Properties.of();
-        mod.accept(props);
-        assertNotNull(props, "Consumer should not crash");
+        mod.apply(props);
+        assertNotNull(props, "Function should not crash");
     }
 
     // --- Boolean properties ---
@@ -86,10 +86,10 @@ class JsonPropertyParserTest {
         arr.add(1.5);
         arr.add(3.0);
         json.add("strength", arr);
-        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertEquals(1, mods.size());
         BlockBehaviour.Properties props = BlockBehaviour.Properties.of();
-        mods.get(0).accept(props);
+        mods.get(0).apply(props);
         assertNotNull(props);
     }
 
@@ -129,7 +129,7 @@ class JsonPropertyParserTest {
 
     @Test
     void nullInputReturnsEmptyList() {
-        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(null);
+        List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> mods = parser.parseBlockProperties(null);
         assertNotNull(mods);
         assertTrue(mods.isEmpty());
     }
@@ -138,7 +138,7 @@ class JsonPropertyParserTest {
     void unknownPropertyReturnsEmpty() {
         JsonObject json = new JsonObject();
         json.addProperty("nonexistent_property", true);
-        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertTrue(mods.isEmpty());
     }
 
@@ -148,13 +148,13 @@ class JsonPropertyParserTest {
         json.addProperty("no_occlusion", true);
         json.addProperty("destroy_time", 2.0f);
         json.addProperty("friction", 0.9f);
-        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
+        List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> mods = parser.parseBlockProperties(json);
         assertEquals(3, mods.size());
     }
 
     @Test
     void emptyJsonObjectReturnsEmptyList() {
-        List<Consumer<BlockBehaviour.Properties>> mods = parser.parseBlockProperties(new JsonObject());
+        List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> mods = parser.parseBlockProperties(new JsonObject());
         assertTrue(mods.isEmpty());
     }
 }

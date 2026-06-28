@@ -7,13 +7,13 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
-public class RLCompiler extends ModifierCompiler {
+public class RLCompiler extends PropertyCompiler {
 
     protected final ResourceLocation id;
 
-    public RLCompiler(ResourceLocation location, BiFunction<String, JsonElement, Consumer<BlockBehaviour.Properties>> supplier) {
+    public RLCompiler(ResourceLocation location, BiFunction<String, JsonElement, Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> supplier) {
         super((s, element) -> {
             ResourceLocation inputLoc = ResourceLocation.tryParse(s.toLowerCase(Locale.ROOT));
             if (inputLoc == null) {

@@ -8,7 +8,7 @@ import net.minecraft.world.item.Rarity;
 import org.slf4j.Logger;
 
 import java.util.*;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class JsonItemParser {
 
@@ -20,26 +20,26 @@ public class JsonItemParser {
     private JsonItemParser() {
         parsers = new LinkedHashMap<>();
 
-        parsers.put("stacks_to", (k, v) -> props -> props.stacksTo(v.getAsInt()));
+        parsers.put("stacks_to", (k, v) -> props -> { props.stacksTo(v.getAsInt()); return props; });
         parsers.put("rarity", (k, v) -> {
             try {
                 Rarity rarity = Rarity.valueOf(v.getAsString().toUpperCase(Locale.ROOT));
-                return props -> props.rarity(rarity);
+                return props -> { props.rarity(rarity); return props; };
             } catch (IllegalArgumentException e) {
                 LOGGER.warn("Unknown rarity: {}", v.getAsString());
                 return null;
             }
         });
-        parsers.put("fire_resistant", (k, v) -> v.getAsBoolean() ? props -> props.fireResistant() : null);
-        parsers.put("durability", (k, v) -> props -> props.durability(v.getAsInt()));
-        parsers.put("no_repair", (k, v) -> v.getAsBoolean() ? props -> props.setNoRepair() : null);
+        parsers.put("fire_resistant", (k, v) -> v.getAsBoolean() ? props -> { props.fireResistant(); return props; } : null);
+        parsers.put("durability", (k, v) -> props -> { props.durability(v.getAsInt()); return props; });
+        parsers.put("no_repair", (k, v) -> v.getAsBoolean() ? props -> { props.setNoRepair(); return props; } : null);
     }
 
-    public List<Consumer<Item.Properties>> parseItemProperties(JsonObject json) {
+    public List<Function<Item.Properties, Item.Properties>> parseItemProperties(JsonObject json) {
         if (json == null) return List.of();
-        List<Consumer<Item.Properties>> result = new ArrayList<>();
+        List<Function<Item.Properties, Item.Properties>> result = new ArrayList<>();
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
-            Consumer<Item.Properties> mod = parseItemProperty(entry.getKey(), entry.getValue());
+            Function<Item.Properties, Item.Properties> mod = parseItemProperty(entry.getKey(), entry.getValue());
             if (mod != null) {
                 result.add(mod);
             }
@@ -47,7 +47,7 @@ public class JsonItemParser {
         return result;
     }
 
-    private Consumer<Item.Properties> parseItemProperty(String key, JsonElement value) {
+    private Function<Item.Properties, Item.Properties> parseItemProperty(String key, JsonElement value) {
         // Skip "tab" — handled separately by JsonTreeBuilder for creative tab registration
         if ("tab".equals(key)) return null;
 
@@ -70,6 +70,6 @@ public class JsonItemParser {
 
     @FunctionalInterface
     public interface ItemPropertyParser {
-        Consumer<Item.Properties> parse(String key, JsonElement value);
+        Function<Item.Properties, Item.Properties> parse(String key, JsonElement value);
     }
 }

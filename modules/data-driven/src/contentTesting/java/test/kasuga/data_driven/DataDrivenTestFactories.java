@@ -2,11 +2,9 @@ package test.kasuga.data_driven;
 
 import io.micronaut.context.annotation.Context;
 import lib.kasuga.registration.Reg;
-import lib.kasuga.registration.core.Modifier;
 import lib.kasuga.registration.factory.FactoryRegistry;
 import lib.kasuga.registration.minecraft.block.BlockReg;
 import lib.kasuga.registration.minecraft.block_entity.BlockEntityReg;
-import lib.kasuga.registration.minecraft.block_entity.BlockEntityRegModifiers;
 import lib.kasuga.registration.minecraft.item.ItemReg;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -50,14 +48,8 @@ public class DataDrivenTestFactories {
         FactoryRegistry.registerBlockEntity("test_be", (id, validBlocks, params) -> {
             BlockEntityReg<TestBlockEntity> reg = new BlockEntityReg<>(id,
                     r -> (pos, state) -> new TestBlockEntity(r.getEntry(), pos, state));
-            // Convert Supplier<Block[]> to Modifier<Collection<Block>>
-            Modifier<Collection<Block>> validBlocksModifier = BlockEntityRegModifiers.ValidBlocksType.of(
-                    "validBlocks", original -> {
-                        Block[] blocks = validBlocks.get();
-                        original.addAll(Arrays.asList(blocks));
-                        return original;
-                    });
-            reg.configure(validBlocksModifier);
+            reg.withProperty(Collection.class,
+                col -> { col.addAll(Arrays.asList(validBlocks.get())); return col; });
             return reg;
         });
     }

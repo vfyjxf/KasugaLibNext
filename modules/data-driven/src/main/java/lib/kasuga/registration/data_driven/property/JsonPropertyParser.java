@@ -3,7 +3,7 @@ package lib.kasuga.registration.data_driven.property;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
-import lib.kasuga.registration.data_driven.property.compiler.ModifierCompiler;
+import lib.kasuga.registration.data_driven.property.compiler.PropertyCompiler;
 import lib.kasuga.registration.data_driven.property.compiler.RLCompiler;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.DyeColor;
@@ -15,7 +15,7 @@ import org.slf4j.Logger;
 
 import java.util.*;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class JsonPropertyParser {
@@ -23,13 +23,13 @@ public class JsonPropertyParser {
     public static final JsonPropertyParser INSTANCE = new JsonPropertyParser();
     private static final Logger LOGGER = LogUtils.getLogger();
     private final Map<String, SoundType> soundTypes;
-    private final List<ModifierCompiler> compilers;
+    private final List<PropertyCompiler> compilers;
 
-    public List<Consumer<BlockBehaviour.Properties>> parseBlockProperties(JsonObject json) {
+    public List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> parseBlockProperties(JsonObject json) {
         if (json == null) return List.of();
-        List<Consumer<BlockBehaviour.Properties>> result = new ArrayList<>();
+        List<Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> result = new ArrayList<>();
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
-            Consumer<BlockBehaviour.Properties> mod = parseBlockProperty(entry.getKey(), entry.getValue());
+            Function<BlockBehaviour.Properties, BlockBehaviour.Properties> mod = parseBlockProperty(entry.getKey(), entry.getValue());
             if (mod != null) {
                 result.add(mod);
             }
@@ -37,10 +37,10 @@ public class JsonPropertyParser {
         return result;
     }
 
-    private Consumer<BlockBehaviour.Properties> parseBlockProperty(String key, JsonElement value) {
+    private Function<BlockBehaviour.Properties, BlockBehaviour.Properties> parseBlockProperty(String key, JsonElement value) {
         try {
-            Consumer<BlockBehaviour.Properties> mod = null;
-            for (ModifierCompiler compiler : compilers) {
+            Function<BlockBehaviour.Properties, BlockBehaviour.Properties> mod = null;
+            for (PropertyCompiler compiler : compilers) {
                 mod = compiler.parse(key, value);
                 if (mod != null) break;
             }
@@ -58,37 +58,37 @@ public class JsonPropertyParser {
         return value.getAsBoolean();
     }
 
-    private Consumer<BlockBehaviour.Properties> parseStrength(JsonElement value) {
+    private Function<BlockBehaviour.Properties, BlockBehaviour.Properties> parseStrength(JsonElement value) {
         if (value.isJsonArray()) {
             var arr = value.getAsJsonArray();
             if (arr.size() == 2) {
                 float destroyTime = arr.get(0).getAsFloat();
                 float explosionResistance = arr.get(1).getAsFloat();
-                return props -> props.strength(destroyTime, explosionResistance);
+                return props -> { props.strength(destroyTime, explosionResistance); return props; };
             }
         }
         float strength = value.getAsFloat();
-        return props -> props.strength(strength);
+        return props -> { props.strength(strength); return props; };
     }
 
-    private Consumer<BlockBehaviour.Properties> parseMapColor(JsonElement value) {
+    private Function<BlockBehaviour.Properties, BlockBehaviour.Properties> parseMapColor(JsonElement value) {
         String name = value.getAsString();
         DyeColor dye = DyeColor.byName(name, null);
         if (dye == null) {
             LOGGER.warn("Unknown map color: {}", name);
             return null;
         }
-        return props -> props.mapColor(dye);
+        return props -> { props.mapColor(dye); return props; };
     }
 
-    private Consumer<BlockBehaviour.Properties> parseSoundType(JsonElement value) {
+    private Function<BlockBehaviour.Properties, BlockBehaviour.Properties> parseSoundType(JsonElement value) {
         String name = value.getAsString();
         SoundType type = soundTypes.get(name);
         if (type == null) {
             LOGGER.warn("Unknown sound type: {}", name);
             return null;
         }
-        return props -> props.sound(type);
+        return props -> { props.sound(type); return props; };
     }
 
     private Map<String, SoundType> buildSoundTypeMap() {
@@ -142,38 +142,38 @@ public class JsonPropertyParser {
         return map;
     }
 
-    public List<ModifierCompiler> buildCompilers() {
-        List<ModifierCompiler> compilers = new ArrayList<>();
-        addCompiler(compilers, "no_occlusion", constructFunction(JsonPropertyParser::bool, props -> props.noOcclusion(), null));
-        addCompiler(compilers, "no_collision", constructFunction(JsonPropertyParser::bool, props -> props.noCollission(), null));
-        addCompiler(compilers, "no_collission", constructFunction(JsonPropertyParser::bool, props -> props.noCollission(), null));
-        addCompiler(compilers, "requires_correct_tool", constructFunction(JsonPropertyParser::bool, props -> props.requiresCorrectToolForDrops(), null));
-        addCompiler(compilers, "replaceable", constructFunction(JsonPropertyParser::bool, props -> props.replaceable(), null));
-        addCompiler(compilers, "dynamic_shape", constructFunction(JsonPropertyParser::bool, props -> props.dynamicShape(), null));
-        addCompiler(compilers, "random_ticks", constructFunction(JsonPropertyParser::bool, props -> props.randomTicks(), null));
-        addCompiler(compilers, "no_loot_table", constructFunction(JsonPropertyParser::bool, props -> props.noLootTable(), null));
-        addCompiler(compilers, "ignited_by_lava", constructFunction(JsonPropertyParser::bool, props -> props.ignitedByLava(), null));
-        addCompiler(compilers, "liquid", constructFunction(JsonPropertyParser::bool, props -> props.liquid(), null));
-        addCompiler(compilers, "force_solid_on", constructFunction(JsonPropertyParser::bool, props -> props.forceSolidOn(), null));
-        addCompiler(compilers, "air", constructFunction(JsonPropertyParser::bool, props -> props.air(), null));
-        addCompiler(compilers, "no_terrain_particles", constructFunction(JsonPropertyParser::bool, props -> props.noTerrainParticles(), null));
-        addCompiler(compilers, "friction", (k, v) -> { float f = v.getAsFloat(); return props -> props.friction(f); });
-        addCompiler(compilers, "speed_factor", (k, v) -> { float f = v.getAsFloat(); return props -> props.speedFactor(f); });
-        addCompiler(compilers, "jump_factor", (k, v) -> { float f = v.getAsFloat(); return props -> props.jumpFactor(f); });
-        addCompiler(compilers, "destroy_time", (k, v) -> { float f = v.getAsFloat(); return props -> props.destroyTime(f); });
-        addCompiler(compilers, "explosion_resistance", (k, v) -> { float f = v.getAsFloat(); return props -> props.explosionResistance(f); });
+    public List<PropertyCompiler> buildCompilers() {
+        List<PropertyCompiler> compilers = new ArrayList<>();
+        addCompiler(compilers, "no_occlusion", constructFunction(JsonPropertyParser::bool, props -> { props.noOcclusion(); return props; }, null));
+        addCompiler(compilers, "no_collision", constructFunction(JsonPropertyParser::bool, props -> { props.noCollission(); return props; }, null));
+        addCompiler(compilers, "no_collission", constructFunction(JsonPropertyParser::bool, props -> { props.noCollission(); return props; }, null));
+        addCompiler(compilers, "requires_correct_tool", constructFunction(JsonPropertyParser::bool, props -> { props.requiresCorrectToolForDrops(); return props; }, null));
+        addCompiler(compilers, "replaceable", constructFunction(JsonPropertyParser::bool, props -> { props.replaceable(); return props; }, null));
+        addCompiler(compilers, "dynamic_shape", constructFunction(JsonPropertyParser::bool, props -> { props.dynamicShape(); return props; }, null));
+        addCompiler(compilers, "random_ticks", constructFunction(JsonPropertyParser::bool, props -> { props.randomTicks(); return props; }, null));
+        addCompiler(compilers, "no_loot_table", constructFunction(JsonPropertyParser::bool, props -> { props.noLootTable(); return props; }, null));
+        addCompiler(compilers, "ignited_by_lava", constructFunction(JsonPropertyParser::bool, props -> { props.ignitedByLava(); return props; }, null));
+        addCompiler(compilers, "liquid", constructFunction(JsonPropertyParser::bool, props -> { props.liquid(); return props; }, null));
+        addCompiler(compilers, "force_solid_on", constructFunction(JsonPropertyParser::bool, props -> { props.forceSolidOn(); return props; }, null));
+        addCompiler(compilers, "air", constructFunction(JsonPropertyParser::bool, props -> { props.air(); return props; }, null));
+        addCompiler(compilers, "no_terrain_particles", constructFunction(JsonPropertyParser::bool, props -> { props.noTerrainParticles(); return props; }, null));
+        addCompiler(compilers, "friction", (k, v) -> { float f = v.getAsFloat(); return props -> { props.friction(f); return props; }; });
+        addCompiler(compilers, "speed_factor", (k, v) -> { float f = v.getAsFloat(); return props -> { props.speedFactor(f); return props; }; });
+        addCompiler(compilers, "jump_factor", (k, v) -> { float f = v.getAsFloat(); return props -> { props.jumpFactor(f); return props; }; });
+        addCompiler(compilers, "destroy_time", (k, v) -> { float f = v.getAsFloat(); return props -> { props.destroyTime(f); return props; }; });
+        addCompiler(compilers, "explosion_resistance", (k, v) -> { float f = v.getAsFloat(); return props -> { props.explosionResistance(f); return props; }; });
         addCompiler(compilers, "strength", (k, v) -> parseStrength(v));
         addCompiler(compilers, "map_color", (k, v) -> parseMapColor(v));
         addCompiler(compilers, "sound_type", (k, v) -> parseSoundType(v));
-        addCompiler(compilers, "light_emission", (k, v) -> { int level = v.getAsInt(); return props -> props.lightLevel(state -> level); });
+        addCompiler(compilers, "light_emission", (k, v) -> { int level = v.getAsInt(); return props -> { props.lightLevel(state -> level); return props; }; });
         // TODO: 这里应该加入一个事件，使得其他用户可以在这里加入自己的编译器类型
         return compilers;
     }
 
-    public static @NotNull BiFunction<String, JsonElement, Consumer<BlockBehaviour.Properties>> constructFunction(
+    public static @NotNull BiFunction<String, JsonElement, Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> constructFunction(
             @NotNull Predicate<JsonElement> predicate,
-            @NotNull Consumer<BlockBehaviour.Properties> prop,
-            @Nullable Consumer<BlockBehaviour.Properties> defaultProp) {
+            @NotNull Function<BlockBehaviour.Properties, BlockBehaviour.Properties> prop,
+            @Nullable Function<BlockBehaviour.Properties, BlockBehaviour.Properties> defaultProp) {
         return (k, v) -> predicate.test(v) ? prop : defaultProp;
     }
 
@@ -181,8 +181,8 @@ public class JsonPropertyParser {
         map.put(name, type);
     }
 
-    private static void addCompiler(List<ModifierCompiler> list, String name,
-                                    BiFunction<String, JsonElement, Consumer<BlockBehaviour.Properties>> supplier) {
+    private static void addCompiler(List<PropertyCompiler> list, String name,
+                                    BiFunction<String, JsonElement, Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> supplier) {
         list.add(new RLCompiler(ResourceLocation.tryParse(name.toLowerCase(Locale.ROOT)), supplier));
     }
 
@@ -191,11 +191,11 @@ public class JsonPropertyParser {
         soundTypes = buildSoundTypeMap();
     }
 
-    public void registerCompiler(ModifierCompiler compiler) {
+    public void registerCompiler(PropertyCompiler compiler) {
         compilers.add(compiler);
     }
 
-    public void registerCompiler(String key, BiFunction<String, JsonElement, Consumer<BlockBehaviour.Properties>> supplier) {
+    public void registerCompiler(String key, BiFunction<String, JsonElement, Function<BlockBehaviour.Properties, BlockBehaviour.Properties>> supplier) {
         addCompiler(compilers, key, supplier);
     }
 
@@ -203,7 +203,7 @@ public class JsonPropertyParser {
         compilers.clear();
     }
 
-    public void removeCompiler(ModifierCompiler compiler) {
+    public void removeCompiler(PropertyCompiler compiler) {
         compilers.remove(compiler);
     }
 
