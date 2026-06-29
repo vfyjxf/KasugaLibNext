@@ -1,0 +1,14 @@
+{
+  "itemGroup.kasuga_lib.data_driven_test": "KasugaLib 数据驱动测试",
+
+  "block.kasuga_lib.simple_panel": "简单面板",
+  "block.kasuga_lib.detail_slab": "细节板",
+  "block.kasuga_lib.standalone_block": "独立方块",
+  "block.kasuga_lib.be_test_block": "BE 测试方块",
+  "block.kasuga_lib.occluding_by_params": "参数遮挡方块",
+  "block.kasuga_lib.simple_by_params": "参数简单方块",
+  "block.kasuga_lib.inherited_block": "继承方块",
+  "block.kasuga_lib.overridden_block": "覆盖方块",
+
+  "item.kasuga_lib.test_material": "测试材料"
+}

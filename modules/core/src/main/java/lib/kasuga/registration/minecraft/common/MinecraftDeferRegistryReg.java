@@ -35,6 +35,7 @@ public abstract class MinecraftDeferRegistryReg<S extends Reg<S, T>, R, T extend
                     ResourceLocationModifiers.ID,
                     ResourceLocation.fromNamespaceAndPath("minecraft", name)
             );
+            id = applyProperties(ResourceLocation.class, id);
 
             this.resourceLocation = id;
 

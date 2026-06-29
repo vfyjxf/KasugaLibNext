@@ -97,6 +97,7 @@ public class BlockEntityReg<T extends BlockEntity> extends MinecraftDeferRegistr
     @Override
     protected BlockEntityType<T> createObject(ResourceLocation id) {
         Collection<Block> validBlocks = RegFacade.transformObject("ValidBlocksType", new ArrayList<>());
+        validBlocks = this.applyProperties(Collection.class, validBlocks);
         Type<?> dataType = RegFacade.transformObject("DataType", null);
         Block[] blocks = validBlocks.toArray(new Block[0]);
         return BlockEntityType.Builder.of(supplier.apply(this), blocks).build(dataType);
