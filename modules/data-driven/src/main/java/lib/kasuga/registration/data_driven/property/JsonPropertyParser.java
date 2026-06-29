@@ -39,12 +39,15 @@ public class JsonPropertyParser {
 
     private Function<BlockBehaviour.Properties, BlockBehaviour.Properties> parseBlockProperty(String key, JsonElement value) {
         try {
+            boolean matched = false;
             Function<BlockBehaviour.Properties, BlockBehaviour.Properties> mod = null;
             for (PropertyCompiler compiler : compilers) {
-                mod = compiler.parse(key, value);
-                if (mod != null) break;
+                if (!compiler.valid(key, value)) continue;
+                matched = true;
+                mod = compiler.getSupplier().apply(key, value);
+                break;
             }
-            if (mod == null) {
+            if (!matched) {
                 LOGGER.warn("Unknown block property: {}", key);
             }
             return mod;
