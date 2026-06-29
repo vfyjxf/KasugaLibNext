@@ -4,15 +4,13 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
+import lib.kasuga.content.graph.GraphCycleDetector;
 import lib.kasuga.registration.data_driven.TypeHandler;
 import lib.kasuga.registration.data_driven.TypeHandlerRegistry;
 import lib.kasuga.registration.data_driven.context.BuildContext;
 import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
 import lib.kasuga.registration.data_driven.context.RegBuildContext;
-import lib.kasuga.registration.data_driven.handler.BlockEntityTypeHandler;
-import lib.kasuga.registration.data_driven.handler.BlockTypeHandler;
-import lib.kasuga.registration.data_driven.handler.RegistryGroupHandler;
-import lib.kasuga.registration.data_driven.handler.ItemTypeHandler;
+import lib.kasuga.registration.data_driven.handler.*;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforgespi.language.IModFileInfo;
@@ -70,7 +68,7 @@ public class JsonTreeBuilder {
         LOGGER.info("Building JSON registration tree for mod '{}' with {} entries across {} types",
                 modId, totalEntries, parsed.size());
 
-        // Pass 2: apply by phase
+        // Pass 2: apply by phase, groups sorted by parent dependency
         List<TypeHandler<?>> ordered = TypeHandlerRegistry.all().stream()
             .sorted(Comparator.comparingInt(TypeHandler::getPhase))
             .toList();
@@ -80,6 +78,14 @@ public class JsonTreeBuilder {
             if (defs.isEmpty()) continue;
             LOGGER.info("[buildForMod] applying {} entries for type '{}' (phase {})",
                     defs.size(), handler.getTypeName(), handler.getPhase());
+
+            // Sort registry_groups by parent dependency so parents are applied before children
+            if (handler instanceof RegistryGroupHandler) {
+                @SuppressWarnings("unchecked")
+                List<RegistryGroupDef> groupDefs = (List<RegistryGroupDef>) defs;
+                defs = topoSortGroupDefs(groupDefs);
+            }
+
             for (Object def : defs) {
                 applyUnchecked(handler, def, context);
             }
@@ -183,4 +189,50 @@ public class JsonTreeBuilder {
     }
 
     private JsonTreeBuilder() {}
+
+    /**
+     * Sort group definitions so parents are applied before children.
+     * Uses {@link GraphCycleDetector#topologicalSort} — groups with cycles or missing
+     * parents stay in their original relative order (the existing fallback in
+     * {@link RegistryGroupHandler#store} attaches them to root).
+     */
+    private static List<RegistryGroupDef> topoSortGroupDefs(List<RegistryGroupDef> defs) {
+        Set<String> ids = new LinkedHashSet<>();
+        for (RegistryGroupDef def : defs) {
+            ids.add(def.id());
+        }
+
+        Set<String> allIds = new HashSet<>(ids);
+        GraphCycleDetector.GraphAdapter<String> adapter = id -> {
+            RegistryGroupDef def = defs.stream()
+                .filter(d -> d.id().equals(id)).findFirst().orElse(null);
+            if (def == null || def.parent() == null) return List.of();
+            return allIds.contains(def.parent()) ? List.of(def.parent()) : List.of();
+        };
+
+        GraphCycleDetector.TopoResult<String> result =
+            GraphCycleDetector.topologicalSort(new HashSet<>(ids), adapter);
+
+        if (result.hasCycle()) {
+            LOGGER.warn("Cycle detected in registry_groups: {}", result.getNodesNotSorted());
+        }
+
+        // Build sorted list: sorted nodes first, then unsorted (cycles) in original order
+        Map<String, RegistryGroupDef> byId = new LinkedHashMap<>();
+        for (RegistryGroupDef def : defs) {
+            byId.put(def.id(), def);
+        }
+
+        List<RegistryGroupDef> sorted = new ArrayList<>();
+        for (String id : result.getSorted()) {
+            RegistryGroupDef def = byId.get(id);
+            if (def != null) sorted.add(def);
+        }
+        for (RegistryGroupDef def : defs) {
+            if (!result.getSorted().contains(def.id())) {
+                sorted.add(def); // cycles or unreachable — fall back to original order
+            }
+        }
+        return sorted;
+    }
 }
