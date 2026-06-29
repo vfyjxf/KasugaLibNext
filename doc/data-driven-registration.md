@@ -18,8 +18,8 @@ JSON 文件 (data/<modid>/kasugalib/*.json)
         ▼
 JsonTreeBuilder          — 扫描目录、解析 JSON、构建 RawData
         │
-        ├──▶ JsonPropertyParser   — 将 JSON 属性转换为 Consumer<BlockBehaviour.Properties>
-        ├──▶ JsonItemParser       — 将 JSON 属性转换为 Consumer<Item.Properties>
+        ├──▶ JsonPropertyParser   — 将 JSON 属性转换为 Function<BlockBehaviour.Properties, BlockBehaviour.Properties>
+        ├──▶ JsonItemParser       — 将 JSON 属性转换为 Function<Item.Properties, Item.Properties>
         │
         ▼
 FactoryRegistry          — 根据 type 字符串创建对应的 Reg 实例
@@ -28,8 +28,7 @@ FactoryRegistry          — 根据 type 字符串创建对应的 Reg 实例
 JsonRegistryGroup        — 虚拟注册组，挂载到主注册树
         │
         ▼
-RegisterEvent 分发       — 复用现有事件链，tab 通过
-                            ItemRegModifiers.TAB_TO_BY_KEY_BY_SUPPLIER 注入
+RegisterEvent 分发       — 复用现有事件链，tab 通过 CreativeTabModifiers 注入
 ```
 
 ### 集成时机
@@ -443,9 +442,6 @@ public class MyFactory {
 - [ ] **FactoryRegistry**：目前仅有少数工厂类型，尚未覆盖所有 KuaYue block 变体
 - [x] **SlabReg.getEntry()** 返回 `null` — 已通过 `ChildrenUtils.traverseRI()` 递归子节点修复
 - [ ] **Group 属性继承**：子 block 的 tab 会从 group 继承，但其他 `item_properties` 字段的继承尚未完全覆盖
-- [x] **独立 Item 注册** — 已实现 `items` JSON 数组和 `ItemFactory` 工厂机制
-- [x] **Block Entity 注册** — 已实现 block 的 `block_entity` 字段引用和 `BlockEntityFactory` 工厂机制
-- [x] **循环依赖检测** — 已使用 `GraphCycleDetector.topologicalSort()` 实现 Group parent 链检测
-- [ ] **模型状态绑定**：`state_machine` 字段已解析但尚未在运行时消费
+- [ ] **循环依赖检测** — 计划使用 `GraphCycleDetector.topologicalSort()` 实现 Group parent 链检测
 - [ ] **Item 属性扩展**：`JsonItemParser` 当前支持基础属性，food 属性、component 等尚未添加（可通过 `registerParser` 扩展）
 - [ ] **BE data_type**：Block Entity 的 `data_type`（DataFixer 类型）尚未支持从 JSON 配置
