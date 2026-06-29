@@ -17,7 +17,7 @@ public class TypeHandlerRegistry {
     }
 
     public static Collection<TypeHandler<?>> all() {
-        return HANDLERS.values();
+        return java.util.Collections.unmodifiableCollection(HANDLERS.values());
     }
 
     public static TypeHandler<?> findByParent(String parentType) {
