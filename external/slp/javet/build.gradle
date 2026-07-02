@@ -124,6 +124,8 @@ dependencies {
     compileOnly project(":modules:modelling")
     compileOnly project(":modules:scripting")
 
+    testCompileOnly project(":modules:scripting")
+
     runtimeOnly (project(":modules:library")) {
         transitive = false
         attributes {
@@ -192,6 +194,10 @@ publishing {
             url "file://${project.projectDir}/repo"
         }
     }
+}
+
+shadowJar {
+    zip64 = true
 }
 
 tasks.withType(JavaCompile).configureEach {
