@@ -2,9 +2,11 @@ package lib.kasuga.registration.data_driven.handler;
 
 import com.google.gson.JsonObject;
 import lib.kasuga.registration.Reg;
+import lib.kasuga.registration.data_driven.property.JsonItemParser;
 import lib.kasuga.registration.data_driven.property.JsonPropertyParser;
 import lib.kasuga.registration.factory.FactoryRegistry;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
@@ -64,6 +66,18 @@ public class BlockTypeHandler extends RegTypeHandler<BlockDef> {
                 JsonPropertyParser.getInstance().parseBlockProperties(definition.properties());
             for (Function<BlockBehaviour.Properties, BlockBehaviour.Properties> m : mods) {
                 reg.withProperty(BlockBehaviour.Properties.class, m);
+            }
+        }
+
+        // Parse block-level item_properties and store on the BlockReg.
+        // When the child ItemReg calls applyProperties(Item.Properties.class, ...),
+        // these modifiers are picked up via the parent chain and naturally
+        // override group-level item properties from RegistryGroupHandler.
+        if (definition.itemProperties() != null) {
+            List<Function<Item.Properties, Item.Properties>> itemMods =
+                JsonItemParser.INSTANCE.parseItemProperties(definition.itemProperties());
+            for (Function<Item.Properties, Item.Properties> m : itemMods) {
+                reg.withProperty(Item.Properties.class, m);
             }
         }
     }
