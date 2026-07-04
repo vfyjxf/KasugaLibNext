@@ -124,7 +124,7 @@ dependencies {
     compileOnly project(":modules:modelling")
     compileOnly project(":modules:scripting")
 
-    testCompileOnly project(":modules:scripting")
+    testImplementation project(":modules:scripting")
 
     runtimeOnly (project(":modules:library")) {
         transitive = false
