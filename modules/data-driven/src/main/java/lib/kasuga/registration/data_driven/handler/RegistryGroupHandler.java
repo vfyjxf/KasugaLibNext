@@ -5,8 +5,10 @@ import lib.kasuga.registration.Reg;
 import lib.kasuga.registration.data_driven.context.BuildContext;
 import lib.kasuga.registration.data_driven.context.JsonRegistryGroup;
 import lib.kasuga.registration.data_driven.context.RegBuildContext;
+import lib.kasuga.registration.data_driven.property.JsonItemParser;
 import lib.kasuga.registration.data_driven.property.JsonPropertyParser;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 import java.util.List;
@@ -57,6 +59,17 @@ public class RegistryGroupHandler extends MetaTypeHandler<RegistryGroupDef> {
         if (definition.itemProperties() != null && definition.itemProperties().has("tab")) {
             String tabStr = definition.itemProperties().get("tab").getAsString();
             context.setRegistryGroupCreativeTab(definition.id(), ResourceLocation.parse(tabStr));
+        }
+
+        // Parse remaining item_properties into the group's property chain
+        // (tab is skipped by JsonItemParser). Block-level item_properties will
+        // naturally override group-level values via Reg.applyProperties parent-first order.
+        if (definition.itemProperties() != null) {
+            List<Function<Item.Properties, Item.Properties>> itemMods =
+                JsonItemParser.INSTANCE.parseItemProperties(definition.itemProperties());
+            for (Function<Item.Properties, Item.Properties> m : itemMods) {
+                group.withProperty(Item.Properties.class, m);
+            }
         }
 
         context.putRegistryGroup(definition.id(), group);

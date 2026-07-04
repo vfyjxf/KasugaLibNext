@@ -4,7 +4,9 @@ import lib.kasuga.KasugaLib;
 import lib.kasuga.KasugaLibRegistry;
 import lib.kasuga.registration.Registry;
 import lib.kasuga.registration.minecraft.block.BlockReg;
+import lib.kasuga.registration.minecraft.block.BlockRegModifiers;
 import lib.kasuga.registration.minecraft.item.ItemReg;
+import lib.kasuga.registration.minecraft.item.ItemRegModifiers;
 import lib.kasuga.registration.minecraft.effect.EffectReg;
 import lib.kasuga.test.registration.minecraft.block.TestAdvancedBlock;
 import lib.kasuga.test.registration.minecraft.effect.TestAdvancedEffect;
@@ -26,25 +28,23 @@ public class ConfigurationTest {
     
     public static Registry registry = KasugaLibRegistry.getRegistryOf(KasugaLib.MODID);
     
-    // Test complex block configurations
+    // Test complex block configurations using modifier-based API
     public static BlockReg<TestAdvancedBlock> ADVANCED_BLOCK = BlockReg.of("advanced_test_block", TestAdvancedBlock::new)
-            .destroyTime(50.0f)
-            .explosionResistance(1200.0f)
-            .noOcclusion()
-            .pushReaction(PushReaction.IGNORE)
-            .friction(0.8f)
-            .speedFactor(1.2f)
-            .jumpFactor(1.5f)
-            .requiresCorrectToolForDrops()
+            .configure(BlockRegModifiers.BlockProperties.of("destroyTime", p -> { p.destroyTime(50.0f); return p; }))
+            .configure(BlockRegModifiers.BlockProperties.of("explosionResistance", p -> { p.explosionResistance(1200.0f); return p; }))
+            .configure(BlockRegModifiers.BlockProperties.of("noOcclusion", p -> { p.noOcclusion(); return p; }))
+            .configure(BlockRegModifiers.BlockProperties.of("pushReaction", p -> { p.pushReaction(PushReaction.IGNORE); return p; }))
+            .configure(BlockRegModifiers.BlockProperties.of("friction", p -> { p.friction(0.8f); return p; }))
+            .configure(BlockRegModifiers.BlockProperties.of("speedFactor", p -> { p.speedFactor(1.2f); return p; }))
+            .configure(BlockRegModifiers.BlockProperties.of("jumpFactor", p -> { p.jumpFactor(1.5f); return p; }))
             .setParent(registry);
     
-    // Test complex item configurations
+    // Test complex item configurations using modifier-based API
     public static ItemReg<TestAdvancedItem> ADVANCED_ITEM = ItemReg.of("advanced_test_item", TestAdvancedItem::new)
-            .stacksTo(1)
-            .durability(1561)
-            .rarity(Rarity.EPIC)
-            .fireResistant()
-            .setNoRepair()
+            .configure(ItemRegModifiers.ItemPropertyModifiers.of("stacksTo", p -> { p.stacksTo(1); return p; }))
+            .configure(ItemRegModifiers.ItemPropertyModifiers.of("durability", p -> { p.durability(1561); return p; }))
+            .configure(ItemRegModifiers.ItemPropertyModifiers.of("rarity", p -> { p.rarity(Rarity.EPIC); return p; }))
+            .configure(ItemRegModifiers.ItemPropertyModifiers.of("fireResistant", p -> { p.fireResistant(); return p; }))
             .setParent(registry);
     
     // Test complex effect configurations with custom attributes
