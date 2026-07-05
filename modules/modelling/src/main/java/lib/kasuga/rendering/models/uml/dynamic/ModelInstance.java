@@ -130,6 +130,10 @@ public class ModelInstance implements AutoCloseable {
         morph.getMaterialSpecular(material, sprite, dest);
     }
 
+    public void getMaterialUv(Material material, Sprite sprite, Vector2f uv0, Vector2f uv1, Vector2f uv2, Vector2f uv3) {
+
+    }
+
     public void getMaterialColor(Material material, Sprite sprite, Vector4f dest) {
         morph.getMaterialColor(material, sprite, dest);
     }

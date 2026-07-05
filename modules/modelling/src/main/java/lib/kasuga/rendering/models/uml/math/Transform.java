@@ -55,6 +55,12 @@ public class Transform {
         return this;
     }
 
+    public Transform set(Transform other) {
+        transform.set(other.transform);
+        normal.set(other.normal);
+        return this;
+    }
+
     public Transform translate(float x, float y, float z) {
         transform.translate(x, y, z);
         return this;

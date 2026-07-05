@@ -3,6 +3,7 @@ package lib.kasuga.rendering.models.uml.dynamic.morph.results;
 import lib.kasuga.rendering.models.uml.dynamic.morph.BlendMode;
 import lib.kasuga.rendering.models.uml.structure.material.Material;
 import lombok.Getter;
+import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
@@ -26,9 +27,17 @@ public class MaterialResult implements IMorphResult<Material> {
     private Integer spriteFrame;
     private Integer spriteSetIndex;
     private Integer materialFrame;
+    private final Vector2f uv0Offset;
+    private final Vector2f uv1Offset;
+    private final Vector2f uv2Offset;
+    private final Vector2f uv3Offset;
 
     public MaterialResult(Material original) {
         this.original = original;
+        this.uv0Offset = new Vector2f();
+        this.uv1Offset = new Vector2f();
+        this.uv2Offset = new Vector2f();
+        this.uv3Offset = new Vector2f();
     }
 
     /** Multiply color multiplier (MULTIPLY mode stacks multiplicatively). */
@@ -54,8 +63,16 @@ public class MaterialResult implements IMorphResult<Material> {
     public void setSpriteFrame(int spriteSetIndex, int frameIndex) {
         this.spriteSetIndex = spriteSetIndex; this.spriteFrame = frameIndex;
     }
+
     public void setMaterialFrame(int frameIndex) {
         this.materialFrame = frameIndex;
+    }
+
+    public void offsetUv(Vector2f offset0, Vector2f offset1, Vector2f offset2, Vector2f offset3) {
+        this.uv0Offset.add(offset0);
+        this.uv1Offset.add(offset1);
+        this.uv2Offset.add(offset2);
+        this.uv3Offset.add(offset3);
     }
 
     @Override
@@ -66,11 +83,17 @@ public class MaterialResult implements IMorphResult<Material> {
         this.edgeColor = null; this.edgeColorBlendMode = null;
         this.spriteFrame = null; this.spriteSetIndex = null;
         this.materialFrame = null;
+        this.uv0Offset.set(0, 0);
+        this.uv1Offset.set(0, 0);
+        this.uv2Offset.set(0, 0);
+        this.uv3Offset.set(0, 0);
     }
 
     @Override
     public boolean isEmpty() {
         return color == null && specular == null && ambient == null
-                && edgeColor == null && spriteFrame == null && materialFrame == null;
+                && edgeColor == null && spriteFrame == null && materialFrame == null &&
+                uv0Offset.lengthSquared() == 0 && uv1Offset.lengthSquared() == 0 &&
+                uv2Offset.lengthSquared() == 0 && uv3Offset.lengthSquared() == 0;
     }
 }

@@ -58,7 +58,9 @@ public class SkeletonInstance {
     }
 
     public void getMorphTransform(Bone original, Transform dest) {
-        modelInstance.getBoneTransform(original, dest);
+        Transform t = modelInstance.getMorph().getCachedTransform(original);
+        if (t == null) return;
+        dest.mul(t);
     }
 
     public void updateTransform() {
@@ -66,6 +68,7 @@ public class SkeletonInstance {
         updateQueue.clear();
         Bone rootBone = skeleton.getRoot();
         Transform transform1 = transforms.getOrDefault(rootBone, new Transform());
+        getMorphTransform(rootBone, transform1);
         absoluteTransforms.put(rootBone, transform1);
         updateQueue.add(Pair.of(rootBone, transform1));
         recursiveUpdate();
@@ -244,6 +247,7 @@ public class SkeletonInstance {
     }
 
     private void recursiveUpdate() {
+        Transform cache = new Transform();
         while (!updateQueue.isEmpty()) {
             Pair<Bone, Transform> boneTransformPair = updateQueue.poll();
             Bone bone = boneTransformPair.getFirst();
@@ -253,12 +257,14 @@ public class SkeletonInstance {
             if (children == null) continue;
             for (Bone child : children) {
                 if (child == null) continue;
-                Transform transform = child.getTransform();
-                Transform result = parentTransform.copy().mul(transform);
+                cache.set(child.getTransform());
+                getMorphTransform(child, cache);
+                cache = parentTransform.copy().mul(cache);
                 Transform anim = transforms.get(child);
-                if (anim != null) {result.mul(anim);}
-                absoluteTransforms.put(child, result);
-                updateQueue.add(Pair.of(child, result));
+                if (anim != null) {cache.mul(anim);}
+                Transform t = cache.copy();
+                absoluteTransforms.put(child, t);
+                updateQueue.add(Pair.of(child, t));
             }
         }
     }
@@ -285,16 +291,10 @@ public class SkeletonInstance {
             newlyUpdatedBones.add(skeleton.getBones()[i]);
         }
         lastUpdated.clear();
-        Transform transformCache = new Transform();
         if (!newlyUpdatedBones.isEmpty()) {
             for (Bone bone : newlyUpdatedBones) {
                 if (!getSkeleton().getBoneMap().containsValue(bone)) continue;
                 dirtyBones.add(bone);
-                transformCache.setIdentity();
-                getMorphTransform(bone, transformCache);
-                Transform originalTransform = transforms.getOrDefault(bone, new Transform());
-                Transform result = new Transform().mul(originalTransform).mul(transformCache);
-                transforms.put(bone, result);
             }
             newlyUpdatedBones.clear();
         }

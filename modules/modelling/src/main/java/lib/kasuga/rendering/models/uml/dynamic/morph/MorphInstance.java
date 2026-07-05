@@ -60,6 +60,7 @@ public class MorphInstance<IdType> {
     protected final Map<Bone, BoneResult> boneResults;
     protected final Map<Mesh, MeshResult> meshResults;
     protected final Map<Material, MaterialResult> materialResults;
+    protected final Map<Bone, Transform> transformCache;
 
     @Setter
     protected byte resultMappingType;
@@ -67,6 +68,7 @@ public class MorphInstance<IdType> {
     public MorphInstance(Morph<IdType> morph) {
         this.morph = morph;
         this.activeFactors = new HashMap<>();
+        this.transformCache = new HashMap<>();
 
         Model model = morph.getModel();
         this.vertices = model.getVertices();
@@ -74,7 +76,10 @@ public class MorphInstance<IdType> {
         this.bones = model.getBones();
         this.materials = model.getMaterialSet().getMaterials();
 
-        int vc = vertices.length, mc = meshes.length, bc = bones.length, mac = materials.length;
+        int vc = vertices.length,
+                mc = meshes.length,
+                bc = bones.length,
+                mac = materials.length;
 
         this.vertexIndex = new HashMap<>(vc);
         for (int i = 0; i < vc; i++) vertexIndex.put(vertices[i], i);
@@ -194,6 +199,11 @@ public class MorphInstance<IdType> {
     @Nullable public BoneResult getBoneResult(Bone b) { return boneResults.get(b); }
     @Nullable public MeshResult getMeshResult(Mesh m) { return meshResults.get(m); }
     @Nullable public MaterialResult getMaterialResult(Material m) { return materialResults.get(m); }
+    @Nullable public Transform getCachedTransform(Bone b) { return transformCache.get(b); }
+
+    public void clearTransformCache() {
+        transformCache.clear();
+    }
 
     public boolean isVertexDirtyAt(int index) { return dirtyVertices.get(index); }
     public boolean isBoneDirtyAt(int index)    { return dirtyBones.get(index); }
@@ -305,6 +315,7 @@ public class MorphInstance<IdType> {
                 r.setTransform((Transform) mt.morph(b, val[0], val[1]));
             }
         }
+        transformCache.put(b, r.getTransform());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -341,6 +352,7 @@ public class MorphInstance<IdType> {
         boneResults.values().forEach(BoneResult::reset);
         meshResults.values().forEach(MeshResult::reset);
         materialResults.values().forEach(MaterialResult::reset);
+        transformCache.clear();
     }
 
     public void resetLastUpdated() {
@@ -446,6 +458,10 @@ public class MorphInstance<IdType> {
             return;
         }
         dest.set(sprite.ambient);
+    }
+
+    public void getMaterialUv(Material m, Vector2f uv0, Vector2f uv1, Vector2f uv2, Vector2f uv3) {
+
     }
 
 //    /** Material edge color: ADD → default + delta, MULTIPLY → default × delta. Falls back to default. */
