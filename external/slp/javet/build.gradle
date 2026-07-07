@@ -125,12 +125,7 @@ dependencies {
     compileOnly project(":modules:modelling")
     compileOnly project(":modules:scripting")
 
-    testImplementation (project(":modules:library")) {
-        transitive = false
-        attributes {
-            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.SHADOWED))
-        }
-    }
+    testCompileOnly project(":modules:scripting")
 
     runtimeOnly (project(":modules:library")) {
         transitive = false
@@ -201,6 +196,10 @@ publishing {
             url "file://${project.projectDir}/repo"
         }
     }
+}
+
+shadowJar {
+    zip64 = true
 }
 
 tasks.withType(JavaCompile).configureEach {
