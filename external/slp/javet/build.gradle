@@ -125,6 +125,7 @@ dependencies {
     compileOnly project(":modules:modelling")
     compileOnly project(":modules:scripting")
 
+    testCompileOnly project(":modules:core")
     testCompileOnly project(":modules:scripting")
 
     runtimeOnly (project(":modules:library")) {

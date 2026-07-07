@@ -45,6 +45,11 @@ public class MockScriptEngine implements ScriptEngine {
             public String asString() { return object.toString(); }
             @Override
             public void close() {}
+
+            @Override
+            public ScriptValue cloneValue() {
+                return this;
+            }
         };
     }
 
@@ -102,6 +107,11 @@ public class MockScriptEngine implements ScriptEngine {
                 public String asString() { return "mock:" + name; }
                 @Override
                 public void close() {}
+
+                @Override
+                public ScriptValue cloneValue() {
+                    return this;
+                }
             };
         }
 

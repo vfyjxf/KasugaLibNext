@@ -76,7 +76,9 @@ public class JavetScriptEngine implements ScriptEngine {
                 module.init();
             }
 
-            setupRequireResolver();
+            if (requireResolver == null) {
+                setupRequireResolver();
+            }
         } catch (JavetException e) {
             throw new ScriptException(e);
         }

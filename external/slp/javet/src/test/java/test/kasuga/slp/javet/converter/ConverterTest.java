@@ -79,6 +79,11 @@ public class ConverterTest {
             }
 
             @Override
+            public ScriptPrimitive cloneValue() throws ScriptException {
+                return this;
+            }
+
+            @Override
             public String asString() { return "Hello Javet"; }
             @Override
             public void close() { }
@@ -122,6 +127,11 @@ public class ConverterTest {
             @Override
             public Object getValue() throws ScriptException {
                 return asInt();
+            }
+
+            @Override
+            public ScriptPrimitive cloneValue() throws ScriptException {
+                return this;
             }
 
             @Override
@@ -186,6 +196,11 @@ public class ConverterTest {
                     @Override
                     public void executeVoid(ScriptValue... args) throws ScriptException {
                         resultContainer.set(args[0].asString());
+                    }
+
+                    @Override
+                    public ScriptFunction cloneValue() throws ScriptException {
+                        return this;
                     }
                 };
             }
