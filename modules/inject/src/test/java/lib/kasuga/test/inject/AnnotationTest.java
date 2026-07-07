@@ -1,22 +1,19 @@
 package lib.kasuga.test.inject;
 
 import io.micronaut.context.ApplicationContext;
-import io.micronaut.context.BeanResolutionTraceMode;
 import io.micronaut.context.exceptions.NoSuchBeanException;
 import io.micronaut.inject.qualifiers.Qualifiers;
-import net.minecraft.server.MinecraftServer;
-import net.neoforged.testframework.junit.EphemeralTestServerProvider;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import jakarta.inject.Inject;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
+@MicronautTest
+@EnabledIfSystemProperty(named = "kasuga.integration.tests", matches = "true")
 public class AnnotationTest {
-    // Note: These tests require a full NeoForge/Micronaut integration context.
-    // They are disabled in unit test mode — re-enable when running in integration test mode.
-    private ApplicationContext context;
+    @Inject ApplicationContext context;
 
-    @Disabled("Requires Micronaut annotation processing + proper bean context")
     @Test
     public void shouldBeanScanningWorks() {
         Assertions.assertDoesNotThrow(()->{
