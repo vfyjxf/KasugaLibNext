@@ -60,5 +60,8 @@ public class JavetValuePrimitive extends JavetValue<V8ValuePrimitive<?>> impleme
         return delegate.getValue();
     }
 
-
+    @Override
+    public JavetValuePrimitive cloneValue() throws ScriptException {
+        return new JavetValuePrimitive(cloneReference());
+    }
 }

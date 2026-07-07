@@ -25,10 +25,10 @@ public class ScriptEngineRegistry {
 
     protected Map<String, PriorityQueue<EngineNameWithPriority>> engineLanguages = new HashMap<>();
 
-    public ScriptEngineType<?> resolve(String requiredEngine, boolean allowLoadingIssue) {
+    public ScriptEngineType<?> resolve(String requiredEngine, boolean allowLoadingIssueWhenNoEnginePresent) {
         ResourceLocation location = ResourceLocation.tryParse(requiredEngine);
         if(location != null && scriptEngines.containsKey(location)) {
-            if(!allowLoadingIssue) {
+            if(!allowLoadingIssueWhenNoEnginePresent) {
                 ScriptEngineType<?> engineType = scriptEngines.get(location);
                 if(!engineType.loadingIssues.isEmpty()) {
                     return null;
@@ -50,7 +50,7 @@ public class ScriptEngineRegistry {
                 return engineType;
             }
         }
-        if(allowLoadingIssue && firstWithIssue != null) {
+        if(allowLoadingIssueWhenNoEnginePresent && firstWithIssue != null) {
             return firstWithIssue;
         }
         return null;

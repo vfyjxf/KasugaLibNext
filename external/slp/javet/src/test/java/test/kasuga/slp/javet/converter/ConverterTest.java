@@ -23,14 +23,7 @@ public class ConverterTest {
     @BeforeEach
     public void setUp() throws ScriptException {
         engine = new JavetScriptEngine();
-        // 初始化简单的 Console 以防止 NPE，如果有日志需求
-        engine.init(new ScriptConsole() {
-            public void log(String s) { System.out.println(s); }
-            public void warn(String s) { }
-            public void debug(String s) { }
-            public void info(String s) { }
-            public void error(String s) { }
-        });
+        engine.init(ScriptConsole.noop());
     }
 
     @AfterEach

@@ -1,0 +1,8 @@
+name = "@test/mock-pack"
+engine = "mock"
+version = "1.0.0"
+main = "index"
+workspaces = ["packages/*"]
+
+[entry]
+common = ["index"]

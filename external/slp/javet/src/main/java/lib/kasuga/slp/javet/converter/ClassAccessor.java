@@ -8,21 +8,34 @@ import com.caoccao.javet.interop.callback.JavetCallbackType;
 import com.caoccao.javet.interop.converters.IJavetConverter;
 import com.caoccao.javet.values.V8Value;
 import com.caoccao.javet.values.reference.V8ValueObject;
+import lib.kasuga.scripting.ScriptEngine;
 import lib.kasuga.scripting.security.Api;
+import lib.kasuga.scripting.security.SecurityEngineFeature;
 import lib.kasuga.scripting.value.ScriptValue;
 import lib.kasuga.slp.javet.value.JavetValueBridge;
+import lombok.Setter;
 
 import java.lang.reflect.*;
 import java.util.*;
 import java.util.function.Function;
 
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
+
 public class ClassAccessor {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private final V8Runtime runtime;
     private final IJavetConverter provider;
     private final Class<?> classType;
     Map<String, Function<V8Value[], V8Value>> quickAccessors = new HashMap<>();
     Map<String, MethodOverrideMap> methods = new HashMap<>();
     Map<String, Field> fields = new HashMap<>();
+    Map<String, Api> apiAnnotations = new HashMap<>();
+
+    @Setter
+    SecurityEngineFeature securityFeature;
+    @Setter
+    ScriptEngine engine;
 
     boolean isFunctionalInterface = false;
     String functionalMethodName;
@@ -43,11 +56,14 @@ public class ClassAccessor {
             String name,
             V8Value ...value
     ) throws InvocationTargetException, IllegalAccessException, JavetException {
+        checkSecurity(name);
+
         if(quickAccessors.containsKey(name)) {
             return quickAccessors.get(name).apply(value);
         }
 
         if(!methods.containsKey(name)) {
+            LOGGER.error("[ClassAccessor] invoke: method '{}' not found on {}. Available: {}", name, classType.getName(), methods.keySet());
             throw new RuntimeException("Illegal invocation");
         }
 
@@ -59,6 +75,7 @@ public class ClassAccessor {
 
         boolean varArgMethods = !overrideMap.varArgsMethods.isEmpty();
         if((convertMask == null || localMethods == null) && !varArgMethods) {
+            LOGGER.error("[ClassAccessor] invoke: no matching overload for {}.{} with {} args", classType.getSimpleName(), name, valueSize);
             throw new RuntimeException("Illegal invocation");
         }
 
@@ -128,7 +145,8 @@ public class ClassAccessor {
 
                 if(
                         parameterType == valueType ||
-                        parameterType.isAssignableFrom(valueType)
+                        parameterType.isAssignableFrom(valueType) ||
+                        isAutoboxingCompatible(parameterType, valueType)
                 ) {
                     parameters[incomeParameterIndex] = arrayParameters[incomeParameterIndex];
                     lastMatchVarargs = false;
@@ -180,6 +198,7 @@ public class ClassAccessor {
     }
 
     public Object get(Object object, String name) throws IllegalAccessException {
+        checkSecurity(name);
         return fields.get(name).get(object);
     }
 
@@ -188,6 +207,7 @@ public class ClassAccessor {
             String name,
             V8Value value
     ) throws JavetException, IllegalAccessException {
+        checkSecurity(name);
         Object nativeObject = provider.toObject(value);
         if(
                 !fields.get(name).getType().isAssignableFrom(nativeObject.getClass()) &&
@@ -199,7 +219,28 @@ public class ClassAccessor {
         return nativeObject;
     }
 
-    public void addMethod(String name, Method method){
+    private void checkSecurity(String name) {
+        Api api = apiAnnotations.get(name);
+        if (api != null && securityFeature != null && engine != null) {
+            if (!securityFeature.check(engine, api)) {
+                throw new RuntimeException("Security check denied: " + name);
+            }
+        }
+    }
+
+    private static boolean isAutoboxingCompatible(Class<?> parameterType, Class<?> valueType) {
+        if(parameterType == int.class) return valueType == Integer.class;
+        if(parameterType == long.class) return valueType == Long.class;
+        if(parameterType == double.class) return valueType == Double.class;
+        if(parameterType == float.class) return valueType == Float.class;
+        if(parameterType == boolean.class) return valueType == Boolean.class;
+        if(parameterType == byte.class) return valueType == Byte.class;
+        if(parameterType == short.class) return valueType == Short.class;
+        if(parameterType == char.class) return valueType == Character.class;
+        return false;
+    }
+
+    public void addMethod(String name, Method method, Api api){
         MethodOverrideMap overrideMap = methods.computeIfAbsent(name, (i)->new MethodOverrideMap());
         overrideMap.initIfAbsent(method.getParameterCount());
         overrideMap.methods.get(method.getParameterCount()).add(method);
@@ -219,11 +260,16 @@ public class ClassAccessor {
             overrideMap.varArgsMethods.add(method);
         }
 
-
+        if (api != null) {
+            apiAnnotations.put(name, api);
+        }
     }
 
-    public void addField(String name, Field field){
+    public void addField(String name, Field field, Api api){
         this.fields.put(name, field);
+        if (api != null) {
+            apiAnnotations.put(name, api);
+        }
     }
 
     public static ClassAccessor collect(
@@ -234,21 +280,26 @@ public class ClassAccessor {
         ClassAccessor accessor = new ClassAccessor(runtime, converter, classType);
         Method[] methods = classType.getMethods();
         HashSet<Method> filteredMethods = new HashSet<>();
+        Map<Method, Api> methodApis = new HashMap<>();
         for (Method method : methods) {
-            if(method.isAnnotationPresent(Api.class)){
+            Api api = method.getAnnotation(Api.class);
+            if(api != null && api.export()){
                 filteredMethods.add(method);
+                methodApis.put(method, api);
             }
         }
         Class<?>[] interfaces = classType.getInterfaces();
         Map<Method, Method> varArgsMethods = new HashMap<>();
         for (int i = 0; i < interfaces.length; i++) {
             Method[] interfaceMethods = interfaces[i].getDeclaredMethods();
+            boolean isFuncInterface = interfaces[i].isAnnotationPresent(FunctionalInterface.class);
             for (Method interfaceMethod : interfaceMethods) {
+                boolean isAbstract = Modifier.isAbstract(interfaceMethod.getModifiers());
                 for(Method method : methods){
+                    boolean paramMatch = Arrays.equals(method.getTypeParameters(), interfaceMethod.getTypeParameters());
+                    boolean returnMatch = method.getReturnType() == interfaceMethod.getReturnType();
                     if(
-                            Arrays.equals(method.getTypeParameters(), interfaceMethod.getTypeParameters()) &&
-                                    method.getReturnType() == interfaceMethod.getReturnType() &&
-                                    Modifier.isAbstract(interfaceMethod.getModifiers())
+                            paramMatch && returnMatch && isAbstract
                     ){
                         if(interfaces[i].isAnnotationPresent(FunctionalInterface.class)) {
                             filteredMethods.add(method);
@@ -261,20 +312,35 @@ public class ClassAccessor {
                     }
                 }
             }
+            // Lambda classes don't have the abstract method in getMethods() —
+            // detect @FunctionalInterface directly and register the abstract method
+            if(!accessor.isFunctionalInterface && isFuncInterface) {
+                for(Method interfaceMethod : interfaceMethods) {
+                    if(Modifier.isAbstract(interfaceMethod.getModifiers())) {
+                        interfaceMethod.setAccessible(true);
+                        accessor.addMethod(interfaceMethod.getName(), interfaceMethod, null);
+                        accessor.isFunctionalInterface = true;
+                        accessor.functionalMethodName = interfaceMethod.getName();
+                        break;
+                    }
+                }
+            }
         }
 
         for (Method filteredMethod : filteredMethods) {
+            Api api = methodApis.get(filteredMethod);
             if(varArgsMethods.containsKey(filteredMethod))
                 filteredMethod = varArgsMethods.get(filteredMethod);
             filteredMethod.setAccessible(true);
-            accessor.addMethod(filteredMethod.getName(), filteredMethod);
+            accessor.addMethod(filteredMethod.getName(), filteredMethod, api);
         }
 
         Field[] fields = classType.getFields();
 
         for (Field field : fields) {
-            if(field.isAnnotationPresent(Api.class)){
-                accessor.addField(field.getName(), field);
+            Api api = field.getAnnotation(Api.class);
+            if(api != null && api.export()){
+                accessor.addField(field.getName(), field, api);
             }
         }
 
@@ -302,7 +368,6 @@ public class ClassAccessor {
             String name,
             boolean voidReturn
     ) throws JavetException {
-        System.out.printf("BIND RUNTIME: %s \n", name);
         JavetCallbackContext context = NativeProxyAccessor.getCallbackContext(
                 runtime,
                 converter,
@@ -324,7 +389,6 @@ public class ClassAccessor {
             String name,
             boolean isReadOnly
     ) throws JavetException {
-        System.out.printf("BIND RUNTIME: %s \n", name);
         JavetCallbackContext readContext = NativeProxyAccessor.getCallbackContext(
                 runtime,
                 converter,

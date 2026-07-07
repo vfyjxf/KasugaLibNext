@@ -27,11 +27,10 @@ public class ScriptConverter  {
                 throw new JavetException(JavetError.ConverterFailure, e);
             }
         } else if(scriptValue instanceof ScriptObject originalObj) {
-            V8ValueObject object = null;
+            V8ValueObject object = v8Runtime.createV8ValueObject();
             try {
-                object = v8Runtime.createV8ValueObject();
                 for (ScriptValue objectKey : originalObj.getObjectKeys()) {
-                    V8ValueObject convertedKey = null, convertedValue = null;
+                    V8Value convertedKey = null, convertedValue = null;
                     ScriptValue value = null;
                     try{
                         convertedKey = root.toV8Value(v8Runtime, objectKey, depth + 1);
@@ -39,23 +38,21 @@ public class ScriptConverter  {
                         convertedValue = root.toV8Value(v8Runtime, value, depth + 1);
                         object.setProperty(convertedKey.toString(), convertedValue);
                     } finally {
-                        JavetResourceUtils.safeClose(objectKey, convertedValue);
+                        JavetResourceUtils.safeClose(convertedKey, convertedValue);
                         if(value != null) value.close();
                     }
                 }
             } catch (ScriptException e) {
-                throw new JavetException(JavetError.ConverterFailure, e);
-            } finally {
                 JavetResourceUtils.safeClose(object);
+                throw new JavetException(JavetError.ConverterFailure, e);
             }
+            return (T) object;
         } else if(scriptValue instanceof ScriptFunction function) {
             return root.toV8Value(v8Runtime, (V8ScriptFunctionProxy)(function::execute), depth + 1);
         } else if(scriptValue instanceof ScriptArray array) {
-            V8ValueArray object = null;
-            ScriptValue[] arrayUnpacked = null;
+            V8ValueArray object = v8Runtime.createV8ValueArray();
             try {
-                object = v8Runtime.createV8ValueArray();
-                arrayUnpacked = array.asArray();
+                ScriptValue[] arrayUnpacked = array.asArray();
                 for (int i = 0; i < arrayUnpacked.length; i++) {
                     V8Value convertedValue = null;
                     ScriptValue value = null;
@@ -69,10 +66,10 @@ public class ScriptConverter  {
                     }
                 }
             } catch (ScriptException e) {
+                JavetResourceUtils.safeClose(object);
                 throw new JavetException(JavetError.ConverterFailure, e);
-            } finally {
-                JavetResourceUtils.safeClose((Object) arrayUnpacked);
             }
+            return (T) object;
         }
         throw new JavetException(JavetError.ConverterFailure, new IllegalArgumentException("Unsupported ScriptValue type: " + scriptValue.getClass().getName()));
     }

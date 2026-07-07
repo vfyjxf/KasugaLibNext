@@ -33,3 +33,6 @@ repo
 
 hs_err_pid*.log
 replay_pid*.log
+
+.internal
+.docs

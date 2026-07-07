@@ -26,6 +26,7 @@ public class JavetValueFunction extends JavetValueObject<V8ValueFunction> implem
 
     @Override
     public void executeVoid(ScriptValue... arguments) throws ScriptException {
+        assertNotClosing();
         try{
             delegate.callVoid(caller == null ? this.delegate.getV8Runtime().createV8ValueNull() : caller.getDelegate(), (Object[]) arguments);
         }catch (JavetException exception) {
@@ -49,5 +50,10 @@ public class JavetValueFunction extends JavetValueObject<V8ValueFunction> implem
         super.close();
         if(this.caller != null)
             this.caller.removeBindReceiver(this);
+    }
+
+    @Override
+    public JavetValueFunction cloneValue() throws ScriptException {
+        return new JavetValueFunction(cloneReference());
     }
 }

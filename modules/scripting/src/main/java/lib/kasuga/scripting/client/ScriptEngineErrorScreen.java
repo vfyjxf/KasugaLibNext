@@ -44,7 +44,6 @@ public class ScriptEngineErrorScreen extends ErrorScreen {
 
     @Override
     protected void init() {
-
         int yOffset = 46;
 
         this.addRenderableWidget(new ExtendedButton(50, this.height - yOffset, this.width / 2 - 55, 20, Component.literal(FMLTranslations.parseMessage("fml.button.open.mods.folder", new Object[0])), (b) -> {

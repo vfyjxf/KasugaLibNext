@@ -10,4 +10,6 @@ public interface ScriptPrimitive extends ScriptValue {
     public byte asByte() throws ScriptException;
 
     public Object getValue() throws ScriptException;
+    @Override
+    ScriptPrimitive cloneValue() throws ScriptException;
 }

@@ -111,6 +111,11 @@ public class TestJavetModule {
                 public void executeVoid(ScriptValue... arguments) throws ScriptException {
                     execute(arguments);
                 }
+
+                @Override
+                public ScriptFunction cloneValue() throws ScriptException {
+                    return null;
+                }
             };
         }
 
