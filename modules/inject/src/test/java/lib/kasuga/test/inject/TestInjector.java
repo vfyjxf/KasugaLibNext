@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 @MicronautTest()
+@org.junit.jupiter.api.condition.EnabledIfSystemProperty(named = "kasuga.integration.tests", matches = "true")
 public class TestInjector {
     @Inject @Named("mustInject")
     Optional<TestBean> injected;
