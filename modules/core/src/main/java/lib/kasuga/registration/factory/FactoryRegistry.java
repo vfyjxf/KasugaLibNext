@@ -29,9 +29,15 @@ public class FactoryRegistry {
         Reg<?, ?> create(String id, Supplier<Block[]> validBlocks, @Nullable JsonObject params);
     }
 
+    @FunctionalInterface
+    public interface GenericFactory {
+        Reg<?, ?> create(String id, JsonObject params);
+    }
+
     private static final Map<String, BlockFactory> BLOCK_REGISTRY = new ConcurrentHashMap<>();
     private static final Map<String, ItemFactory> ITEM_REGISTRY = new ConcurrentHashMap<>();
     private static final Map<String, BlockEntityFactory> BLOCK_ENTITY_REGISTRY = new ConcurrentHashMap<>();
+    private static final Map<String, GenericFactory> GENERIC_REGISTRY = new ConcurrentHashMap<>();
 
     // --- Block ---
 
@@ -81,6 +87,14 @@ public class FactoryRegistry {
     public static Set<String> getBlockEntityTypes() {
         return BLOCK_ENTITY_REGISTRY.keySet();
     }
+
+    // --- Generic ---
+
+    public static void registerGeneric(String type, GenericFactory factory) { GENERIC_REGISTRY.put(type, factory); }
+
+    public static GenericFactory getGeneric(String type) { return GENERIC_REGISTRY.get(type); }
+
+    public static boolean containsGeneric(String type) { return GENERIC_REGISTRY.containsKey(type); }
 
     private FactoryRegistry() {}
 }
