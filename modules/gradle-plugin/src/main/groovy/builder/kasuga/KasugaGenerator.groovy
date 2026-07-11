@@ -32,6 +32,17 @@ public class KasugaGenerator {
         }
         var minecraftArtifacts = project.tasks.findByName("createMinecraftArtifacts");
 
+        String utilsMinecraftArtifactPath = null
+        File utilsArtifactsDir = null
+        def utilsProject = project.findProject(':modules:utils')
+        if (utilsProject != null) {
+            def utilsTask = utilsProject.tasks.findByName("createMinecraftArtifacts")
+            if (utilsTask != null) {
+                utilsMinecraftArtifactPath = utilsTask.path
+            }
+            utilsArtifactsDir = new File(utilsProject.buildDir, "moddev/artifacts")
+        }
+
         var runGenerator = project.tasks.register('runGenerator', JavaExec) {
 
             inputs.files(project.sourceSets.codeTemplate.allSource)
@@ -43,10 +54,23 @@ public class KasugaGenerator {
             mainClass = 'lib.kasuga.internal.generator.KasugaCodeGen'
             Provider<Set<FileSystemLocation>> provider = project.sourceSets.main.runtimeClasspath.getElements()
             Provider<Set<FileSystemLocation>> mainSource = project.sourceSets.main.output.getElements()
-            args(project.sourceSets.codeTemplate.java.srcDirs.first().absolutePath)
-            args("$project.buildDir/generated/sources/codegen/java/main")
+            def codeTemplateSrcDir = project.sourceSets.codeTemplate.java.srcDirs.first().absolutePath
+            def generatedDir = "$project.buildDir/generated/sources/codegen/java/main"
+            def buildDirPath = project.buildDir.absolutePath
+            def mainSrcDirs = project.sourceSets.main.java.srcDirs
+                    .findAll { !it.absolutePath.startsWith(buildDirPath) }
+            args(codeTemplateSrcDir)
+            args(generatedDir)
             doFirst{
-                args(provider.get().asFile.join(File.pathSeparator))
+                def allClasspath = mainSrcDirs.collect { it.absolutePath } + provider.get().asFile*.absolutePath
+                if (utilsArtifactsDir != null && utilsArtifactsDir.exists()) {
+                    utilsArtifactsDir.eachFile { f ->
+                        if (f.name.endsWith('.jar') && !f.name.endsWith('-sources.jar')) {
+                            allClasspath.add(f.absolutePath)
+                        }
+                    }
+                }
+                args(allClasspath.join(File.pathSeparator))
             }
 
             javaLauncher.set(project.javaToolchains.launcherFor {
@@ -55,6 +79,8 @@ public class KasugaGenerator {
 
             if(minecraftArtifacts != null)
                 dependsOn(minecraftArtifacts)
+            if(utilsMinecraftArtifactPath != null)
+                dependsOn(utilsMinecraftArtifactPath)
         }
         project.compileJava.dependsOn(runGenerator)
 
