@@ -32,8 +32,16 @@ public class KasugaGenerator {
         }
         var minecraftArtifacts = project.tasks.findByName("createMinecraftArtifacts");
 
+        String utilsMinecraftArtifactPath = null
+        File utilsArtifactsDir = null
         def utilsProject = project.findProject(':modules:utils')
-        def utilsMinecraftArtifacts = utilsProject?.tasks?.findByName("createMinecraftArtifacts")
+        if (utilsProject != null) {
+            def utilsTask = utilsProject.tasks.findByName("createMinecraftArtifacts")
+            if (utilsTask != null) {
+                utilsMinecraftArtifactPath = utilsTask.path
+            }
+            utilsArtifactsDir = new File(utilsProject.buildDir, "moddev/artifacts")
+        }
 
         var runGenerator = project.tasks.register('runGenerator', JavaExec) {
 
@@ -55,13 +63,10 @@ public class KasugaGenerator {
             args(generatedDir)
             doFirst{
                 def allClasspath = mainSrcDirs.collect { it.absolutePath } + provider.get().asFile*.absolutePath
-                if (utilsProject != null) {
-                    def artifactsDir = new File(utilsProject.buildDir, "moddev/artifacts")
-                    if (artifactsDir.exists()) {
-                        artifactsDir.eachFile { f ->
-                            if (f.name.endsWith('.jar') && !f.name.endsWith('-sources.jar')) {
-                                allClasspath.add(f.absolutePath)
-                            }
+                if (utilsArtifactsDir != null && utilsArtifactsDir.exists()) {
+                    utilsArtifactsDir.eachFile { f ->
+                        if (f.name.endsWith('.jar') && !f.name.endsWith('-sources.jar')) {
+                            allClasspath.add(f.absolutePath)
                         }
                     }
                 }
@@ -74,8 +79,8 @@ public class KasugaGenerator {
 
             if(minecraftArtifacts != null)
                 dependsOn(minecraftArtifacts)
-            if(utilsMinecraftArtifacts != null)
-                dependsOn(utilsMinecraftArtifacts)
+            if(utilsMinecraftArtifactPath != null)
+                dependsOn(utilsMinecraftArtifactPath)
         }
         project.compileJava.dependsOn(runGenerator)
 
