@@ -7,9 +7,13 @@ import lib.kasuga.registration.core.RegisterContext;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class Reg<S extends Reg<?, ?>, T> implements TransformerProvider, EntrySupplier<T> {
     protected HashMap<ModifierType<?>, List<Modifier<?>>> modifiers = new HashMap<ModifierType<?>, List<Modifier<?>>>();
+
+    // Class-keyed property functions, separate from Modifier/transform to avoid codegen coupling
+    protected Map<Class<?>, List<Function<?, ?>>> propertyFunctions = new HashMap<>();
 
     protected Reg<?, ?> parent;
 
@@ -88,5 +92,24 @@ public abstract class Reg<S extends Reg<?, ?>, T> implements TransformerProvider
 
     public Set<Reg<?, ?>> getChildren() {
         return children;
+    }
+
+    public <P> S withProperty(Class<P> type, Function<P, P> modifier) {
+        propertyFunctions.computeIfAbsent(type, k -> new ArrayList<>()).add(modifier);
+        return self();
+    }
+
+    @SuppressWarnings("unchecked")
+    public <P> P applyProperties(Class<P> type, P value) {
+        if (parent != null) {
+            value = parent.applyProperties(type, value);
+        }
+        List<Function<?, ?>> mods = propertyFunctions.get(type);
+        if (mods != null) {
+            for (Function<?, ?> m : mods) {
+                value = ((Function<P, P>) m).apply(value);
+            }
+        }
+        return value;
     }
 }

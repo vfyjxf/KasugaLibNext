@@ -1,0 +1,7 @@
+name = "@test/math"
+engine = "javascript"
+version = "2.1.0"
+main = "index"
+
+[entry]
+common = ["index"]

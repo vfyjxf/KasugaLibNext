@@ -42,7 +42,10 @@ public class RegCodeGen implements CodeGenerator {
                 onAnnotation(annotationExpr, annotationDeclaration, source, (n)->{
                     return getConf(source, n, units);
                 });
-            }catch (UnsolvedSymbolException ignored){}
+            }catch (UnsolvedSymbolException e){
+                System.err.println("[RegCodeGen] Failed to resolve annotation during generation phase:");
+                e.printStackTrace();
+            }
         });
 
         if(units.containsKey("Modifiers")) {
@@ -732,11 +735,7 @@ public class RegCodeGen implements CodeGenerator {
                             return;
                         var dType = dParam.getType();
                         var ciType = type.asClassOrInterfaceType();
-                        var cirType = ciType.resolve();
-                        if(
-                                !cirType.isReference() ||
-                                !Objects.equals(cirType.asReferenceType().getQualifiedName(), Function.class.getName())
-                        ){
+                        if(!ciType.getNameAsString().equals("Function")){
                             continue;
                         }
                         var tao = ciType.getTypeArguments();
@@ -747,7 +746,10 @@ public class RegCodeGen implements CodeGenerator {
                         shouldWrapThis = true;
                         break;
                     }
-                }catch (UnsolvedSymbolException ignored){}
+                }catch (UnsolvedSymbolException e){
+                    System.err.println("[RegCodeGen.onSelfReferenceAnnotation] Failed to resolve annotation or type:");
+                    e.printStackTrace();
+                }
             }
             shouldWrap.add(shouldWrapThis);
         }

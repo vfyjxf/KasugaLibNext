@@ -7,13 +7,14 @@ import com.caoccao.javet.values.IV8Value;
 import com.caoccao.javet.values.reference.*;
 import lib.kasuga.scripting.ScriptException;
 import lib.kasuga.scripting.value.ScriptObject;
+import lib.kasuga.scripting.value.ScriptReference;
 import lib.kasuga.scripting.value.ScriptValue;
 
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-public class JavetValueObject<T extends V8ValueObject> extends JavetValue<T> implements ScriptObject {
+public class JavetValueObject<T extends V8ValueObject> extends JavetValue<T> implements ScriptObject, ScriptReference {
     protected Set<IJavetBindReceiver> receivers = Collections.newSetFromMap(new WeakHashMap<>());
     private boolean closing = false;
     private boolean closed = false;
@@ -49,14 +50,16 @@ public class JavetValueObject<T extends V8ValueObject> extends JavetValue<T> imp
     public ScriptValue setMember(ScriptValue key, ScriptValue member) throws ScriptException {
         assertNotClosing();
         IV8Value convertedKey = null;
+        IV8Value convertedMember = null;
         try{
             convertedKey = this.delegate.getV8Runtime().getConverter().toV8Value(this.delegate.getV8Runtime(), key);
-            delegate.set(key, member);
+            convertedMember = this.delegate.getV8Runtime().getConverter().toV8Value(this.delegate.getV8Runtime(), member);
+            delegate.set(convertedKey, convertedMember);
             return member;
         } catch (JavetException e) {
             throw new ScriptException(e);
         } finally {
-            JavetResourceUtils.safeClose(convertedKey);
+            JavetResourceUtils.safeClose(convertedKey, convertedMember);
         }
     }
 
@@ -89,16 +92,25 @@ public class JavetValueObject<T extends V8ValueObject> extends JavetValue<T> imp
     @Override
     public void remove(ScriptValue key) throws ScriptException {
         assertNotClosing();
+        IV8Value convertedKey = null;
         try{
-            delegate.delete(key);
+            convertedKey = this.delegate.getV8Runtime().getConverter().toV8Value(this.delegate.getV8Runtime(), key);
+            delegate.delete(convertedKey);
         } catch (JavetException e) {
             throw new ScriptException(e);
+        } finally {
+            JavetResourceUtils.safeClose(convertedKey);
         }
     }
 
     @Override
     public void close() throws ScriptException {
         close(false);
+    }
+
+    @Override
+    public JavetValueObject<T> cloneValue() throws ScriptException {
+        return new JavetValueObject<>(cloneReference());
     }
 
     public void close(boolean forceAndCascade) throws ScriptException {
@@ -138,6 +150,24 @@ public class JavetValueObject<T extends V8ValueObject> extends JavetValue<T> imp
             closed = true;
             if(!this.delegate.isClosed())
                 super.close();
+        }
+    }
+
+    @Override
+    public void pin() throws ScriptException {
+        try {
+            this.delegate.clearWeak();
+        } catch (JavetException e) {
+            throw new ScriptException(e);
+        }
+    }
+
+    @Override
+    public void removePin() throws ScriptException {
+        try {
+            this.delegate.setWeak();
+        } catch (JavetException e) {
+            throw new ScriptException(e);
         }
     }
 }

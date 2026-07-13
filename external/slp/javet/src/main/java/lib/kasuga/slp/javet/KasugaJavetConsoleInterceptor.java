@@ -3,13 +3,13 @@ package lib.kasuga.slp.javet;
 import com.caoccao.javet.interception.logging.BaseJavetConsoleInterceptor;
 import com.caoccao.javet.interop.V8Runtime;
 import com.caoccao.javet.values.V8Value;
-import com.mojang.logging.LogUtils;
 import lib.kasuga.scripting.ScriptConsole;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class KasugaJavetConsoleInterceptor extends BaseJavetConsoleInterceptor {
     
-    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final Logger LOGGER = LoggerFactory.getLogger(KasugaJavetConsoleInterceptor.class);
     private final ScriptConsole console;
 
     public KasugaJavetConsoleInterceptor(V8Runtime v8Runtime, ScriptConsole console) {
