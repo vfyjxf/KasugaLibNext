@@ -34,7 +34,6 @@ import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipResource;
 import lib.kasuga.rendering.models.uml.dynamic.ModelInstance;
 import lib.kasuga.rendering.models.uml.dynamic.ModelPipeLine;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
-import lib.kasuga.rendering.models.uml.math.QuaternionHelper;
 import lib.kasuga.rendering.models.uml.math.Transform;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import net.minecraft.client.Camera;
@@ -51,6 +50,7 @@ import net.minecraft.server.packs.resources.ResourceProvider;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.RenderTypeGroup;
 import net.neoforged.neoforge.client.event.*;
 import org.joml.Matrix4f;
@@ -73,7 +73,7 @@ public class Constants {
     public static ModelInstance currentInstance;
 
     @SubscribeEvent
-    public static void onClientSetup(net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) {
+    public static void onClientSetup(FMLClientSetupEvent event) {
         if (UI_BACKEND == null) {
             UI_BACKEND = new UIBackend();
         }
@@ -303,7 +303,7 @@ public class Constants {
     }
 
     private static void testModel() {
-//        testMMD();
+        testMMD();
 //        testUI();
 //        testObj();
 //        testBe();
@@ -318,8 +318,8 @@ public class Constants {
         String name2 = "OL制服弱音盘发.pmx";
         String name3 = "OL制服弱音散发.pmx";
         String name4 = "tda bunny miku 2.0.pmx";
-        testMMD(fileName1, name, "test_mmd");
-//        testMMD(fileName3, name4, "test_mmd_4");
+        String name5 = "unfading_flowers_miku_black.pmx";
+        testMMD(fileName2, name5, "test_mmd");
     }
 
     public static void testUI() {

@@ -19,6 +19,10 @@ public class PmxBoneBinding implements BoneBindingData, SDEFBoneBindingData {
         BDEF, SDEF, QDEF, NONE
     }
 
+    public static final SDEFData EMPTY = new SDEFData(
+            new Vector3f(), new Vector3f(), new Vector3f()
+    );
+
     public final Map<Number, Float> boneWeights;
 
     public final BindingType type;
@@ -108,6 +112,6 @@ public class PmxBoneBinding implements BoneBindingData, SDEFBoneBindingData {
 
     @Override
     public SDEFData getSDEFData() {
-        return data;
+        return data != null ? data : EMPTY;
     }
 }

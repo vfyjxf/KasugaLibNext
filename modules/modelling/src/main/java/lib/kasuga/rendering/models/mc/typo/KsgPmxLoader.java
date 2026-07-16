@@ -225,9 +225,15 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
 
     @Override
     public Bone getBone(List<PmxBone> bones, PmxBone bone) {
-        bone.position.mul(modelScale);
-        if (bone.tailObject instanceof Vector3f v) v.mul(modelScale);
         return new Bone(bone.localBoneName, super.calculateBoneTransform(bones, bone), bone);
+    }
+
+    @Override
+    public void scaleBone(PmxBone bone) {
+        bone.position.mul(modelScale);
+        if (bone.tailObject instanceof Vector3f v) {
+            v.mul(modelScale);
+        }
     }
 
     @Override

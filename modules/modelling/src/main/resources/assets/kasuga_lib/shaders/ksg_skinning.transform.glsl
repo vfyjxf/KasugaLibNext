@@ -5,8 +5,9 @@
 in vec3 Position;
 in vec3 Normal;
 in vec4 Tangent;
-in float BoneBindingType;
-in vec4 BoneIndices;
+// BoneBindingType and BoneIndices are Type.INT in vertex format; must use integer types in GLSL
+in int BoneBindingType;
+in ivec4 BoneIndices;
 in vec4 BoneWeights;
 in vec3 sdefR0;
 in vec3 sdefR1;
@@ -96,6 +97,12 @@ vec3 quat_rotate(vec4 q, vec3 v) {
     return quat_mul(quat_mul(q, vQuat), qConj).xyz;
 }
 
+// Fix (Bug-GPU-1, equivalent to pmx_bugs.md CPU Bug #8):
+// BDEF normal must use the normal matrix of the composite skinning deformation
+// M = T_anim * T_bind^(-1), not just N(T_anim).
+// The boneNormal buffer (offset 6) stores N(T_anim), which is incorrect for skinning.
+// We compute composite3x3 = mat3(absTransform) * mat3(invTransform) and
+// use its inverse-transpose as the correct normal matrix.
 void ksg_applyBdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
     vec4 skinnedPosition = vec4(0.0);
     vec3 skinnedNormal = vec3(0.0);
@@ -106,14 +113,17 @@ void ksg_applyBdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 ta
         if (weight <= 0.0) {
             continue;
         }
-        int boneIndex = int(BoneIndices[i] + 0.5);
+        int boneIndex = BoneIndices[i];
         mat4 invTransform = ksg_readBoneInverseTransform(boneIndex);
         mat4 absTransform = ksg_readBoneAbsTransform(boneIndex);
-        mat3 boneNormal = ksg_readBoneNormalTransform(boneIndex);
         vec4 localPos = invTransform * vec4(position, 1.0);
         skinnedPosition += (absTransform * localPos) * weight;
-        skinnedNormal += (boneNormal * normal) * weight;
-        skinnedTangent += (boneNormal * tangent.xyz) * weight;
+
+        // Compute composite normal matrix: N(T_anim * T_bind^(-1))
+        mat3 composite3x3 = mat3(absTransform) * mat3(invTransform);
+        mat3 compositeNormal = transpose(inverse(composite3x3));
+        skinnedNormal += (compositeNormal * normal) * weight;
+        skinnedTangent += (compositeNormal * tangent.xyz) * weight;
         totalWeight += weight;
     }
     if (totalWeight > 0.0) {
@@ -123,27 +133,33 @@ void ksg_applyBdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 ta
     }
 }
 
+// Fix (Bug-GPU-2, equivalent to pmx_bugs.md CPU Bug #7):
+// Standard DQBS (Dual Quaternion Blend Skinning) formula:
+//   v' = DQ_blend(w_i, DQ(T_anim_i * T_bind_i^(-1))) · v
+// The DQ must be built from the composite skinning matrix M = T_anim * T_bind^(-1),
+// NOT from T_anim alone.
+// The previous code built DQ from absTransform only and blended local-space positions
+// separately, which does not produce correct results even at bind pose.
 void ksg_applyQdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
     vec4 blend_qr = vec4(0.0);
     vec4 blend_qd = vec4(0.0);
-    vec3 blendedLocalPosition = vec3(0.0);
     float totalWeight = 0.0;
     for (int i = 0; i < 4; i++) {
         float weight = BoneWeights[i];
         if (weight <= 0.0) continue;
-        int boneIndex = int(BoneIndices[i] + 0.5);
+        int boneIndex = BoneIndices[i];
         mat4 invTransform = ksg_readBoneInverseTransform(boneIndex);
         mat4 absTransform = ksg_readBoneAbsTransform(boneIndex);
-        vec3 localPosition = (invTransform * vec4(position, 1.0)).xyz;
-        vec4 qr = quat_from_mat3(mat3(absTransform));
-        vec3 t = absTransform[3].xyz;
+        // Build skinning composite M = T_anim * T_bind^(-1)
+        mat4 composite = absTransform * invTransform;
+        vec4 qr = quat_from_mat3(mat3(composite));
+        vec3 t = composite[3].xyz;
         vec4 qd = 0.5 * quat_mul(vec4(t, 0.0), qr);
         if (dot(blend_qr, qr) < 0.0) {
             weight = -weight;
         }
         blend_qr += qr * weight;
         blend_qd += qd * weight;
-        blendedLocalPosition += localPosition * weight;
         totalWeight += weight;
     }
     if (totalWeight <= 0.0) {
@@ -151,7 +167,8 @@ void ksg_applyQdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 ta
     }
     blend_qr = normalize(blend_qr);
     blend_qd -= dot(blend_qr, blend_qd) * blend_qr;
-    vec3 rotatedPos = quat_rotate(blend_qr, blendedLocalPosition / totalWeight);
+    // Apply blended DQ directly to model-space position
+    vec3 rotatedPos = quat_rotate(blend_qr, position);
     vec4 trans4 = 2.0 * quat_mul(blend_qd, quat_conj(blend_qr));
     position = rotatedPos + trans4.xyz;
     normal = normalize(quat_rotate(blend_qr, normal));
@@ -166,10 +183,9 @@ void ksg_applySdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 ta
     for (int i = 0; i < 4; i++) {
         float weight = BoneWeights[i];
         if (weight <= 0.0) continue;
-        int boneIndex = int(BoneIndices[i] + 0.5);
+        int boneIndex = BoneIndices[i];
         mat4 invBind = ksg_readBoneInverseTransform(boneIndex);
         mat4 anim = ksg_readBoneAbsTransform(boneIndex);
-        mat3 boneNormal = ksg_readBoneNormalTransform(boneIndex);
         mat3 invRotBind = mat3(invBind);
         vec3 localPos = (invBind * vec4(position, 1.0)).xyz;
         vec3 localC = (invBind * vec4(sdefC, 1.0)).xyz;
@@ -186,8 +202,13 @@ void ksg_applySdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 ta
         vec3 R2w = (anim * vec4(localR2, 0.0)).xyz;
         vec3 deformedPos = Cw + d0 * R0w + d1 * R1w + d2 * R2w;
         skinnedPos += vec4(deformedPos, 1.0) * weight;
-        skinnedNormal += (boneNormal * normal) * weight;
-        skinnedTangent += (boneNormal * tangent.xyz) * weight;
+
+        // Fix (Bug-GPU-3, same as BDEF normal fix):
+        // Use composite normal matrix N(T_anim * T_bind^(-1)) instead of N(T_anim)
+        mat3 composite3x3 = mat3(anim) * mat3(invBind);
+        mat3 compositeNormal = transpose(inverse(composite3x3));
+        skinnedNormal += (compositeNormal * normal) * weight;
+        skinnedTangent += (compositeNormal * tangent.xyz) * weight;
         totalWeight += weight;
     }
     if (totalWeight > 0.0) {
@@ -198,11 +219,10 @@ void ksg_applySdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 ta
 }
 
 void ksg_applyGpuSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
-    int type = int(BoneBindingType + 0.5);
-    if (type == 2) {
+    if (BoneBindingType == 2) {
         ksg_applyQdefSkinning(position, normal, tangent);
         return;
-    } else if (type == 1) {
+    } else if (BoneBindingType == 1) {
         ksg_applySdefSkinning(position, normal, tangent);
         return;
     }

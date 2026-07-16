@@ -215,6 +215,12 @@ public abstract class PMXLoader<InputType, OutputIdentifier, TextureIdentifier, 
         Bone rootBone = null;
         List<Bone> childOfRoot = new ArrayList<>();
         boolean hasMultiRootBone = false;
+
+        for (i = 0; i < bones.size(); i++) {
+            PmxBone bone = bones.get(i);
+            scaleBone(bone);
+        }
+
         for (i = 0; i < bones.size(); i++) {
             PmxBone b = bones.get(i);
             Bone bone = getBone(bones, b);
@@ -383,6 +389,8 @@ public abstract class PMXLoader<InputType, OutputIdentifier, TextureIdentifier, 
     public abstract Bone getBone(List<PmxBone> bones, PmxBone bone);
 
     public abstract @Nullable ModelData getModelData(PmxHeader header);
+
+    public void scaleBone(PmxBone bone) {}
 
     public TextLoader getTextLoader() {
         checkHeaderLoaded();

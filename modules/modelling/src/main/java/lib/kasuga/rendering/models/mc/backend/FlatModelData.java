@@ -776,11 +776,13 @@ public class FlatModelData implements AutoCloseable {
             position.add(scratchPosition.mul(weight));
 
             scratchNormal.set(normalX, normalY, normalZ);
+            bindInverse.normal().transform(scratchNormal);
             absTransform.normal().transform(scratchNormal);
             normal.add(scratchNormal.mul(weight));
 
             if (tangent != null) {
                 scratchTangent.set(tangentX, tangentY, tangentZ);
+                bindInverse.normal().transform(scratchTangent);
                 absTransform.normal().transform(scratchTangent);
                 tangent.x += scratchTangent.x() * weight;
                 tangent.y += scratchTangent.y() * weight;
