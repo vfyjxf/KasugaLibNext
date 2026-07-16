@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "id": "kasuga_lib:test_material",
+      "type": "simple_item",
+      "registry_group": "kasuga_lib:data_driven_group",
+      "properties": {
+        "stacks_to": 64
+      }
+    }
+  ]
+}

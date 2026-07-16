@@ -6,4 +6,6 @@ public interface ScriptValue {
     public String asString() throws ScriptException;
 
     public void close() throws ScriptException;
+
+    public ScriptValue cloneValue() throws ScriptException;
 }

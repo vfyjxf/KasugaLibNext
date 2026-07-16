@@ -1,0 +1,8 @@
+name = "@scope/alpha"
+engine = "mock"
+version = "1.0.0"
+main = "index"
+workspaces = ["lib/*"]
+
+[entry]
+common = ["index"]

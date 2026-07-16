@@ -22,6 +22,7 @@ import net.minecraft.world.item.JukeboxSong;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.level.ItemLike;
+import lib.kasuga.registration.core.CreativeTabModifiers;
 import template.lib.kasuga.registration.minecraft.creative_tab.CreativeTabReg;
 
 import java.util.List;
@@ -93,6 +94,7 @@ public final class ItemReg<T extends Item> extends MinecraftDeferRegistryReg<Ite
 
         }
         properties = RegFacade.transformObject("ItemPropertyModifiers", properties);
+        properties = this.applyProperties(Item.Properties.class, properties);
         return supplier.apply(this).apply(properties);
     }
 
@@ -145,8 +147,11 @@ public final class ItemReg<T extends Item> extends MinecraftDeferRegistryReg<Ite
             if(!this.tabIdCached) {
                 this.tabIdCached = true;
                 this.cachedTab = RegFacade.transformObject("TabsToModifiers", null);
+                if (this.cachedTab == null) {
+                    this.cachedTab = this.transform(CreativeTabModifiers.TYPE, null);
+                }
             }
-            if(ctx.getTabKey().location() == cachedTab) {
+            if (this.cachedTab != null && ctx.getTabKey().location().equals(cachedTab)) {
                 ctx.getEvent().accept(this.getEntry());
             }
         });

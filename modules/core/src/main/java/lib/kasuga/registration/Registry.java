@@ -18,8 +18,15 @@ import net.neoforged.neoforge.registries.RegisterEvent;
 
 public final class Registry extends RegistryGroup {
 
+    private final String modId;
+
     public Registry(String modId){
+        this.modId = modId;
         this.configure(ResourceLocationModifiers.withNamespace(modId));
+    }
+
+    public String getModId() {
+        return modId;
     }
 
     public void register(IEventBus modEventBus) {

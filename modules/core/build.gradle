@@ -53,6 +53,11 @@ sourceSets {
     }
 }
 
+
+tasks.named('processContentTestingResources', ProcessResources) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 sourceSets.main.java.srcDir("$buildDir/generated/sources/codegen/java/main")
 
 useGenerator()

@@ -1,8 +1,2 @@
 [engines]
 required = ["javascript"]
-
-[package]
-name = "KasugaLib Javascript JLP Core"
-workspaces = [
-    "./packages/**/*"
-]

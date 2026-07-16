@@ -32,6 +32,7 @@ useModProject(project(':modules:scripting'))
 useModProject(project(':modules:modelling'))
 useModProject(project(':modules:core'))
 useModProject(project(':modules:create'))
+useModProject(project(':modules:data-driven'))
 
 test {
     useJUnitPlatform()

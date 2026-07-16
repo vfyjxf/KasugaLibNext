@@ -77,7 +77,13 @@ neoForge {
         "${mod_id}" {
             // Inlcude the core subproject as a dependency.
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.test)
         }
+    }
+
+    unitTest {
+        enable()
+        testedMod = mods.named(mod_id)
     }
 }
 
@@ -103,11 +109,13 @@ dependencies {
 
     implementation project(":modules:inject")
     implementation project(":modules:utils")
+    testImplementation project(":modules:core")
 
     annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.10'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "net.neoforged:testframework:${project.neo_version}"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

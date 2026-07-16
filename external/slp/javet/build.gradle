@@ -96,6 +96,7 @@ neoForge {
 
     unitTest {
         enable()
+        testedMod = mods.named(mod_id)
     }
 }
 
@@ -124,6 +125,9 @@ dependencies {
     compileOnly project(":modules:modelling")
     compileOnly project(":modules:scripting")
 
+    testCompileOnly project(":modules:core")
+    testCompileOnly project(":modules:scripting")
+
     runtimeOnly (project(":modules:library")) {
         transitive = false
         attributes {
@@ -144,6 +148,7 @@ dependencies {
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // Here IS NO NEED for including the any package because the library are already imported
 
     compileOnly("org.projectlombok:lombok:1.18.42")
     annotationProcessor("org.projectlombok:lombok:1.18.42")
@@ -194,7 +199,10 @@ publishing {
     }
 }
 
+shadowJar {
+    zip64 = true
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
-

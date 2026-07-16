@@ -1,0 +1,7 @@
+name = "@test/js-pack"
+engine = "javascript"
+version = "1.0.0"
+main = "index"
+
+[entry]
+common = ["index"]

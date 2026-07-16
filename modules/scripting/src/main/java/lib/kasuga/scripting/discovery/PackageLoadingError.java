@@ -10,4 +10,8 @@ public class PackageLoadingError extends RuntimeException{
     public PackageLoadingError(String s) {
         super(s);
     }
+
+    public PackageLoadingError(Throwable cause) {
+        super(cause);
+    }
 }
