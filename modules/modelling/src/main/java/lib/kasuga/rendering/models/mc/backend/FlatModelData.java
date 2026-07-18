@@ -675,6 +675,14 @@ public class FlatModelData implements AutoCloseable {
         float x = uv0s[vertexIndex * 2];
         float y = uv0s[vertexIndex * 2 + 1];
 
+        // PMX textures use repeat addressing and frequently contain UVs well
+        // outside [0, 1]. The custom Kasuga shader can repeat in local texture
+        // space using its extra attributes, but Iris' NEW_ENTITY format only
+        // receives this final atlas coordinate. Repeat before atlas mapping so
+        // Iris cannot sample neighbouring sprites in the combined atlas.
+        x = x - (float) Math.floor(x);
+        y = y - (float) Math.floor(y);
+
         int matIndex = vertexMaterials[vertexIndex] * 8;
         float u0 = materialUvBounds[matIndex];
         float v0 = materialUvBounds[matIndex + 1];

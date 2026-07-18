@@ -159,6 +159,11 @@ dependencies {
 
     implementation("com.google.guava:guava:32.1.2-jre")
 
+    // Core's development-only runtime dependencies are not propagated through
+    // useModProject. The modelling client still executes core's QR model baking
+    // hooks, so ZXing must be present on this run configuration's classpath.
+    additionalRuntimeClasspath 'com.google.zxing:core:3.5.3'
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 

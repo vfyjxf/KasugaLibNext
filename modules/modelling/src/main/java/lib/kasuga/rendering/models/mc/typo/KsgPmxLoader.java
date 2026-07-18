@@ -6,6 +6,7 @@ import lib.kasuga.rendering.models.mc.backend.RenderState;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTexture;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
 import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
+import lib.kasuga.rendering.models.mc.source.texture.bake.PbrBakeProfile;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.KsgPmxContext;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipHelper;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipResource;
@@ -97,6 +98,14 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     public void buildMaterial(MaterialSetBuilder builder, PmxMaterial material) {
         boolean useInternalToon = material.usingInternalTexture;
         int index = material.textureIndex.intValue();
+        if (index >= 0 && index < loadedTextures.size()) {
+            Texture texture = loadedTextures.get(index).getSecond();
+            if (texture.getData() instanceof MCTextureData data
+                    && data.getIdentifier() instanceof Pair<?, ?> source
+                    && source.getSecond() instanceof BufferedImage image) {
+                Constants.TEXTURE_BASIC.requestPbrBake(data.getIdentifier(), image, PbrBakeProfile.from(material));
+            }
+        }
         final ResourceLocation rl = getDefaultTextureIdentifier(index, loadedTextures);
         ZipResource id = null;
         if (rl == null) {
@@ -384,4 +393,5 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
         duplicate.get(bytes);
         return bytes;
     }
+
 }
