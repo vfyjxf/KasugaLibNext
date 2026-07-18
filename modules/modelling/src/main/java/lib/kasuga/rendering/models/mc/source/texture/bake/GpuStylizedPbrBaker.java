@@ -14,8 +14,11 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 
 /** Render-thread, off-screen implementation of the stylized PBR baker. */
@@ -25,46 +28,10 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
     private static final int UPLOAD_STRIPE_ROWS = Math.max(0, Integer.getInteger(
             "kasuga.pbr.gpuUploadStripeRows", Minecraft.ON_OSX ? 256 : 0
     ));
-    private static final String VERTEX_SHADER = """
-            #version 150
-            out vec2 texCoord;
-            void main() {
-                vec2 positions[3] = vec2[3](
-                    vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)
-                );
-                vec2 position = positions[gl_VertexID];
-                texCoord = position * 0.5 + 0.5;
-                gl_Position = vec4(position, 0.0, 1.0);
-            }
-            """;
-
-    private static final String FRAGMENT_SHADER = """
-            #version 150
-            uniform sampler2D sourceTexture;
-            uniform float smoothness;
-            uniform float f0Code;
-            uniform float sssCode;
-            uniform float normalStrength;
-            uniform float emission;
-            in vec2 texCoord;
-            out vec4 normalOut;
-            out vec4 specularOut;
-
-            float luminance(vec3 color) {
-                return dot(color, vec3(0.2126, 0.7152, 0.0722));
-            }
-
-            void main() {
-                vec2 texel = 1.0 / vec2(textureSize(sourceTexture, 0));
-                float left = luminance(texture(sourceTexture, texCoord - vec2(texel.x, 0.0)).rgb);
-                float right = luminance(texture(sourceTexture, texCoord + vec2(texel.x, 0.0)).rgb);
-                float up = luminance(texture(sourceTexture, texCoord - vec2(0.0, texel.y)).rgb);
-                float down = luminance(texture(sourceTexture, texCoord + vec2(0.0, texel.y)).rgb);
-                vec2 normalXY = clamp(vec2(left - right, up - down) * normalStrength, -1.0, 1.0);
-                normalOut = vec4(normalXY * 0.5 + 0.5, 1.0, 1.0);
-                specularOut = vec4(smoothness, f0Code, sssCode, emission);
-            }
-            """;
+    private static final String VERTEX_SHADER_RESOURCE =
+            "/assets/kasuga_lib/shaders/pbr/stylized_bake.vsh";
+    private static final String FRAGMENT_SHADER_RESOURCE =
+            "/assets/kasuga_lib/shaders/pbr/stylized_bake.fsh";
 
     private int program;
     private int vertexArray;
@@ -221,9 +188,11 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
 
     private void ensureProgram() {
         if (program != 0) return;
-        int vertex = compile(GL20.GL_VERTEX_SHADER, VERTEX_SHADER);
-        int fragment = compile(GL20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER);
+        int vertex = 0;
+        int fragment = 0;
         try {
+            vertex = compile(GL20.GL_VERTEX_SHADER, loadShader(VERTEX_SHADER_RESOURCE));
+            fragment = compile(GL20.GL_FRAGMENT_SHADER, loadShader(FRAGMENT_SHADER_RESOURCE));
             program = GL20.glCreateProgram();
             GL20.glAttachShader(program, vertex);
             GL20.glAttachShader(program, fragment);
@@ -239,8 +208,19 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
             program = 0;
             throw exception;
         } finally {
-            GL20.glDeleteShader(vertex);
-            GL20.glDeleteShader(fragment);
+            if (vertex != 0) GL20.glDeleteShader(vertex);
+            if (fragment != 0) GL20.glDeleteShader(fragment);
+        }
+    }
+
+    private static String loadShader(String resourcePath) {
+        try (InputStream stream = GpuStylizedPbrBaker.class.getResourceAsStream(resourcePath)) {
+            if (stream == null) {
+                throw new IllegalStateException("Missing PBR shader resource: " + resourcePath);
+            }
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to read PBR shader resource: " + resourcePath, exception);
         }
     }
 

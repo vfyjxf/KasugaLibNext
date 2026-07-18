@@ -57,6 +57,7 @@ atlas 标识由“源纹理 + 最终 PBR 参数”共同决定：
 
 - 首选在渲染线程通过离屏 framebuffer 和 MRT 一次生成法线、specular 两个输出。
 - GPU shader 不可用时，本次会话自动切换到确定性的 CPU reference baker。
+- GPU baker 的 GLSL 位于 `assets/kasuga_lib/shaders/pbr/stylized_bake.vsh` 和 `stylized_bake.fsh`。
 - GPU baker 会显式保存、清零并恢复 `GL_PIXEL_PACK_BUFFER`、`GL_PIXEL_UNPACK_BUFFER` 以及 pack/unpack 的 row-length/skip 状态。
 
 ### 加载性能
