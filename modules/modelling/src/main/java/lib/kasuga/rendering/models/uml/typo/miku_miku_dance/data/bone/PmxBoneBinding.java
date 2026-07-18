@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,7 +53,10 @@ public class PmxBoneBinding implements BoneBindingData, SDEFBoneBindingData {
     }
 
     public static PmxBoneBinding SDEF(Number boneIndex1, Number boneIndex2, float weight, Vector3f c, Vector3f r0, Vector3f r1) {
-        return new PmxBoneBinding(BindingType.SDEF, Map.of(boneIndex1, weight, boneIndex2, 1f - weight), new SDEFData(c, r0, r1));
+        Map<Number, Float> weights = new LinkedHashMap<>();
+        weights.put(boneIndex1, weight);
+        weights.put(boneIndex2, 1f - weight);
+        return new PmxBoneBinding(BindingType.SDEF, weights, new SDEFData(c, r0, r1));
     }
 
     public static PmxBoneBinding BDEF_OR_QDEF(List<Number> boneIndices, List<Float> boneWeights, boolean isQDEF) {

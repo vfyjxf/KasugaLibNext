@@ -97,6 +97,22 @@ vec3 quat_rotate(vec4 q, vec3 v) {
     return quat_mul(quat_mul(q, vQuat), qConj).xyz;
 }
 
+vec4 quat_slerp(vec4 q0, vec4 q1, float t) {
+    q0 = normalize(q0);
+    q1 = normalize(q1);
+    float cosTheta = dot(q0, q1);
+    if (cosTheta < 0.0) {
+        q1 = -q1;
+        cosTheta = -cosTheta;
+    }
+    if (cosTheta > 0.9995) {
+        return normalize(mix(q0, q1, t));
+    }
+    float theta = acos(clamp(cosTheta, -1.0, 1.0));
+    float sinTheta = sin(theta);
+    return (sin((1.0 - t) * theta) * q0 + sin(t * theta) * q1) / sinTheta;
+}
+
 // Fix (Bug-GPU-1, equivalent to pmx_bugs.md CPU Bug #8):
 // BDEF normal must use the normal matrix of the composite skinning deformation
 // M = T_anim * T_bind^(-1), not just N(T_anim).
@@ -176,46 +192,29 @@ void ksg_applyQdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 ta
 }
 
 void ksg_applySdefSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {
-    vec4 skinnedPos = vec4(0.0);
-    vec3 skinnedNormal = vec3(0.0);
-    vec3 skinnedTangent = vec3(0.0);
-    float totalWeight = 0.0;
-    for (int i = 0; i < 4; i++) {
-        float weight = BoneWeights[i];
-        if (weight <= 0.0) continue;
-        int boneIndex = BoneIndices[i];
-        mat4 invBind = ksg_readBoneInverseTransform(boneIndex);
-        mat4 anim = ksg_readBoneAbsTransform(boneIndex);
-        mat3 invRotBind = mat3(invBind);
-        vec3 localPos = (invBind * vec4(position, 1.0)).xyz;
-        vec3 localC = (invBind * vec4(sdefC, 1.0)).xyz;
-        vec3 localR0 = invRotBind * sdefR0;
-        vec3 localR1 = invRotBind * sdefR1;
-        vec3 localR2 = cross(localR0, localR1);
-        vec3 delta = localPos - localC;
-        float d0 = dot(delta, localR0);
-        float d1 = dot(delta, localR1);
-        float d2 = dot(delta, localR2);
-        vec3 Cw = (anim * vec4(localC, 1.0)).xyz;
-        vec3 R0w = (anim * vec4(localR0, 0.0)).xyz;
-        vec3 R1w = (anim * vec4(localR1, 0.0)).xyz;
-        vec3 R2w = (anim * vec4(localR2, 0.0)).xyz;
-        vec3 deformedPos = Cw + d0 * R0w + d1 * R1w + d2 * R2w;
-        skinnedPos += vec4(deformedPos, 1.0) * weight;
+    float totalWeight = BoneWeights.x + BoneWeights.y;
+    if (totalWeight <= 0.0) return;
 
-        // Fix (Bug-GPU-3, same as BDEF normal fix):
-        // Use composite normal matrix N(T_anim * T_bind^(-1)) instead of N(T_anim)
-        mat3 composite3x3 = mat3(anim) * mat3(invBind);
-        mat3 compositeNormal = transpose(inverse(composite3x3));
-        skinnedNormal += (compositeNormal * normal) * weight;
-        skinnedTangent += (compositeNormal * tangent.xyz) * weight;
-        totalWeight += weight;
-    }
-    if (totalWeight > 0.0) {
-        position = skinnedPos.xyz / totalWeight;
-        normal = normalize(skinnedNormal);
-        tangent = vec4(normalize(skinnedTangent), tangent.w);
-    }
+    float w0 = BoneWeights.x / totalWeight;
+    float w1 = BoneWeights.y / totalWeight;
+    mat4 skin0 = ksg_readBoneAbsTransform(BoneIndices.x)
+            * ksg_readBoneInverseTransform(BoneIndices.x);
+    mat4 skin1 = ksg_readBoneAbsTransform(BoneIndices.y)
+            * ksg_readBoneInverseTransform(BoneIndices.y);
+
+    // PMX stores C/R0/R1 in model space. SDEF rotates the point around the
+    // weighted pivot with the spherical interpolation of both skin rotations.
+    vec4 q0 = normalize(quat_from_mat3(mat3(skin0)));
+    vec4 q1 = normalize(quat_from_mat3(mat3(skin1)));
+    vec4 rotation = quat_slerp(q0, q1, w1);
+    vec3 weightedR = sdefR0 * w0 + sdefR1 * w1;
+    vec3 pivot0 = (skin0 * vec4(sdefC + sdefR0, 1.0)).xyz;
+    vec3 pivot1 = (skin1 * vec4(sdefC + sdefR1, 1.0)).xyz;
+
+    position = quat_rotate(rotation, position - sdefC - weightedR)
+            + pivot0 * w0 + pivot1 * w1;
+    normal = normalize(quat_rotate(rotation, normal));
+    tangent.xyz = normalize(quat_rotate(rotation, tangent.xyz));
 }
 
 void ksg_applyGpuSkinning(inout vec3 position, inout vec3 normal, inout vec4 tangent) {

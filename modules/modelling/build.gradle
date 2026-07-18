@@ -34,6 +34,16 @@ test {
     useJUnitPlatform()
 }
 
+tasks.register('modelUnitTest', Test) {
+    description = 'Runs pure Java modelling tests without the NeoForge dedicated-server test launcher.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath.filter {
+        !it.name.startsWith('junit-fml-')
+    }
+    useJUnitPlatform()
+}
+
 sourceSets {
     contentTesting {
         java {
