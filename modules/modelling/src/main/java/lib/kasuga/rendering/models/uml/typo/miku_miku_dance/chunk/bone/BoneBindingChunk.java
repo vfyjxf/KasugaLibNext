@@ -62,7 +62,9 @@ public class BoneBindingChunk extends Chunk {
                 if (Objects.equals(bone1, bone2)) {
                     boneWeights = Map.of(bone1, 1.0f);
                 } else {
-                    boneWeights = Map.of(bone1, weight, bone2, 1.0f - weight);
+                    boneWeights = new LinkedHashMap<>();
+                    boneWeights.put(bone1, weight);
+                    boneWeights.put(bone2, 1.0f - weight);
                 }
                 yield new PmxBoneBinding(
                         Objects.equals(bone1, bone2) ?

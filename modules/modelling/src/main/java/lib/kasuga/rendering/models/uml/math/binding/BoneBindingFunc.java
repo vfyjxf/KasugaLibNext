@@ -51,103 +51,53 @@ public interface BoneBindingFunc {
         return new Vertex(vertex, posFinal, normalFinals);
     };
 
-    // Fix: SDEF 使用 C(球心)+R0/R1(轴) 的球面分解模型，3×3 基矩阵逆求解
     BoneBindingFunc SDEF = (vertex, context) -> {
         if (context.size() < 2) {
             return BDEF.apply(vertex, context);
         }
 
-        BoneContext boneCtx0 = context.get(0);
-        BoneContext boneCtx1 = context.get(1);
-
-        // 从 binding 读取 SDEF 参数 (bone0 局部空间)
+        BoneContext<BoneData> boneCtx0 = context.get(0);
+        BoneContext<BoneData> boneCtx1 = context.get(1);
         Object bd = vertex.getBinding().getData();
         if (!(bd instanceof SDEFBoneBindingData sdefData) || sdefData.getSDEFData() == null) {
             return BDEF.apply(vertex, context);
         }
         SDEFData sdef = sdefData.getSDEFData();
-        Vector3f C_b0  = new Vector3f(sdef.c());
-        Vector3f R0_b0 = new Vector3f(sdef.r0());
-        Vector3f R1_b0 = new Vector3f(sdef.r1());
-
-        // bone0 local → MODEL space
-        Vector3f C_m  = new Vector3f(C_b0);
-        boneCtx0.bindTransform().apply(C_m);
-        Vector3f R0_m = new Vector3f(R0_b0);
-        boneCtx0.bindTransform().applyDirection(R0_m);
-        Vector3f R1_m = new Vector3f(R1_b0);
-        boneCtx0.bindTransform().applyDirection(R1_m);
-
-        BoneContext[] ctxs = {boneCtx0, boneCtx1};
-        Vector3f[] deformed = new Vector3f[2];
-
-        for (int bi = 0; bi < 2; bi++) {
-            BoneContext ctx = ctxs[bi];
-
-            // MODEL → bone-local
-            Vector3f lC  = new Vector3f(C_m);
-            ctx.invTransform().apply(lC);
-            Vector3f lR0 = new Vector3f(R0_m);
-            ctx.invTransform().normal().transform(lR0);
-            Vector3f lR1 = new Vector3f(R1_m);
-            ctx.invTransform().normal().transform(lR1);
-            Vector3f lR2 = new Vector3f(lR0).cross(lR1);
-
-            // 顶点在 bone-local 空间
-            Vector3f lPos = new Vector3f(vertex.getPosition());
-            ctx.invTransform().apply(lPos);
-
-            // 3×3 基矩阵逆: E=[R0 R1 R2], coeff = E⁻¹·delta
-            float a=lR0.x(), b=lR1.x(), c=lR2.x();
-            float d=lR0.y(), e=lR1.y(), f=lR2.y();
-            float g=lR0.z(), h=lR1.z(), i=lR2.z();
-            float det = a*(e*i-f*h) - b*(d*i-f*g) + c*(d*h-e*g);
-            float dx=lPos.x()-lC.x(), dy=lPos.y()-lC.y(), dz=lPos.z()-lC.z();
-            float d0,d1,d2;
-            if (Math.abs(det) > 1e-10f) {
-                float inv = 1f/det;
-                d0 = inv*((e*i-f*h)*dx + (c*h-b*i)*dy + (b*f-c*e)*dz);
-                d1 = inv*((f*g-d*i)*dx + (a*i-c*g)*dy + (c*d-a*f)*dz);
-                d2 = inv*((d*h-e*g)*dx + (b*g-a*h)*dy + (a*e-b*d)*dz);
-            } else {
-                d0=(lPos.x()-lC.x())*lR0.x()+(lPos.y()-lC.y())*lR0.y()+(lPos.z()-lC.z())*lR0.z();
-                d1=(lPos.x()-lC.x())*lR1.x()+(lPos.y()-lC.y())*lR1.y()+(lPos.z()-lC.z())*lR1.z();
-                d2=(lPos.x()-lC.x())*lR2.x()+(lPos.y()-lC.y())*lR2.y()+(lPos.z()-lC.z())*lR2.z();
-            }
-
-            // bone-local → world (animated)
-            Vector3f Cw  = new Vector3f(lC);
-            ctx.absTransform().apply(Cw);
-            Vector3f R0w = new Vector3f(lR0);
-            ctx.absTransform().applyDirection(R0w);
-            Vector3f R1w = new Vector3f(lR1);
-            ctx.absTransform().applyDirection(R1w);
-            Vector3f R2w = new Vector3f(lR2);
-            ctx.absTransform().applyDirection(R2w);
-
-            Vector3f p = new Vector3f(Cw);
-            p.x += d0*R0w.x() + d1*R1w.x() + d2*R2w.x();
-            p.y += d0*R0w.y() + d1*R1w.y() + d2*R2w.y();
-            p.z += d0*R0w.z() + d1*R1w.z() + d2*R2w.z();
-            deformed[bi] = p;
-        }
-
         float w0 = boneCtx0.weight(), w1 = boneCtx1.weight();
         float s = w0 + w1;
-        Vector3f posFinal = new Vector3f(deformed[0]).mul(w0/s)
-                .add(new Vector3f(deformed[1]).mul(w1/s));
+        if (!Float.isFinite(s) || Math.abs(s) < 1.0e-6f) {
+            return BDEF.apply(vertex, context);
+        }
+        w0 /= s;
+        w1 /= s;
+
+        // PMX stores C/R0/R1 in model space. Build the two skinning
+        // transforms (animated absolute * inverse bind) before applying the
+        // standard SDEF spherical interpolation formula.
+        Transform skin0 = boneCtx0.absTransform().copy().mul(boneCtx0.invTransform());
+        Transform skin1 = boneCtx1.absTransform().copy().mul(boneCtx1.invTransform());
+        Quaternionf rotation0 = skin0.getRotation().normalize();
+        Quaternionf rotation1 = skin1.getRotation().normalize();
+        if (rotation0.dot(rotation1) < 0.0f) {
+            rotation1.set(-rotation1.x, -rotation1.y, -rotation1.z, -rotation1.w);
+        }
+        Quaternionf rotation = new Quaternionf(rotation0).slerp(rotation1, w1).normalize();
+
+        Vector3f center = sdef.c();
+        Vector3f radiusBlend = new Vector3f(sdef.r0()).mul(w0)
+                .add(new Vector3f(sdef.r1()).mul(w1));
+        Vector3f posFinal = new Vector3f(vertex.getPosition())
+                .sub(center)
+                .sub(radiusBlend);
+        rotation.transform(posFinal);
+        posFinal.add(
+                skin0.apply(new Vector3f(center).add(sdef.r0())).mul(w0)
+                        .add(skin1.apply(new Vector3f(center).add(sdef.r1())).mul(w1))
+        );
 
         HashMap<Mesh, Vector3f> normalFinals = new HashMap<>();
         for (var e : vertex.getNormals().entrySet()) {
-            Vector3f n = e.getValue();
-            Vector3f n0 = new Vector3f(n);
-            boneCtx0.invTransform().normal().transform(n0);
-            boneCtx0.absTransform().normal().transform(n0);
-            Vector3f n1 = new Vector3f(n);
-            boneCtx1.invTransform().normal().transform(n1);
-            boneCtx1.absTransform().normal().transform(n1);
-            Vector3f nf = new Vector3f(n0).mul(w0/s).add(new Vector3f(n1).mul(w1/s));
-            nf.normalize();
+            Vector3f nf = rotation.transform(new Vector3f(e.getValue())).normalize();
             normalFinals.put(e.getKey(), nf);
         }
         return new Vertex(vertex, posFinal, normalFinals);

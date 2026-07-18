@@ -1,5 +1,6 @@
 package lib.kasuga.rendering.models.mc.typo;
 
+import com.mojang.logging.LogUtils;
 import lib.kasuga.rendering.models.mc.Constants;
 import lib.kasuga.rendering.models.mc.backend.RenderState;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTexture;
@@ -23,6 +24,7 @@ import lib.kasuga.rendering.models.uml.structure.material.Texture;
 import lib.kasuga.rendering.models.uml.structure.skeleton.Bone;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.PMXLoader;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.bone.PmxBone;
+import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.bone.PmxBoneBinding;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.header.PmxHeader;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.material.PmxMaterial;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.mesh.PmxMesh;
@@ -35,6 +37,7 @@ import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryUtil;
+import org.slf4j.Logger;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -48,6 +51,8 @@ import java.util.*;
 import java.util.List;
 
 public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipResource, KsgPmxContext> {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private ZipHelper loadingFile;
 
@@ -123,7 +128,19 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     @Override
     public ZipResource getTextureIdentifier(String texturePath) {
         Objects.requireNonNull(loadingFile);
-        return loadingFile.getResource(texturePath.toLowerCase(Locale.ROOT));
+        Objects.requireNonNull(loadingModel);
+        String normalized = ZipHelper.normalizeEntryName(texturePath);
+        int slash = loadingModel.name().lastIndexOf('/');
+        ZipResource relative = slash < 0 ? null : loadingFile.getResource(
+                loadingModel.name().substring(0, slash + 1) + normalized
+        );
+        if (relative != null) return relative;
+        ZipResource direct = loadingFile.getResource(normalized);
+        if (direct == null) {
+            LOGGER.warn("PMX texture '{}' (normalized to '{}') was not found in {}",
+                    texturePath, normalized, loadingFile.getPath());
+        }
+        return direct;
     }
 
     public Texture getTexture(ZipResource s) {
@@ -205,7 +222,10 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
             loadedTextureMap.put(s, mcTexture);
             return mcTexture;
         } catch (Exception e) {
-            return null;
+            LOGGER.warn("Failed to decode PMX texture '{}'; using the missing texture", s.name(), e);
+            loadedTextures.add(Pair.of(s, MISSING));
+            loadedTextureMap.put(s, MISSING);
+            return MISSING;
         }
     }
 
@@ -213,6 +233,11 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     public Vertex getVertex(PmxVertex first, Collection<PmxVertex> vertex) {
         if (vertex.isEmpty() || first == null) {
             throw new IllegalArgumentException("Vertex collection cannot be empty");
+        }
+        if (first.binding.type == PmxBoneBinding.BindingType.SDEF && first.binding.data != null) {
+            first.binding.data.c().mul(modelScale);
+            first.binding.data.r0().mul(modelScale);
+            first.binding.data.r1().mul(modelScale);
         }
         Vector3f position = new Vector3f(first.position).mul(modelScale);
         return new Vertex(position, first);
@@ -330,7 +355,10 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
                 loadingModel = model;
                 registerDefaultTextures();
                 ResourceLocation rl = getLocation(s, model);
-                result.putAll(super.load(rl, input));
+                Map<ResourceLocation, Model> loadedModels = super.load(rl, input);
+                result.putAll(loadedModels);
+                LOGGER.info("Loaded PMX '{}' from {} as {} ({} model entries, {} textures)",
+                        model.name(), s, rl, loadedModels.size(), loadedTextures.size());
                 this.loadedModelMap.computeIfAbsent(s, k -> new HashMap<>()).put(model.name(), rl);
                 loadedTextures.clear();
             }
