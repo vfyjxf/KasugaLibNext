@@ -2,6 +2,7 @@ package lib.kasuga.rendering.models.mc.source.texture;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
+import lib.kasuga.client.loading.LoadingIndicator;
 import lib.kasuga.rendering.models.mc.backend.RenderState;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
 import lib.kasuga.rendering.models.mc.source.texture.bake.PbrBakeCoordinator;
@@ -22,17 +23,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -84,9 +80,8 @@ public class CombinedTextureManager extends KasugaTextureManager {
                 SpriteLoader.create(this.normalMap),
                 SpriteLoader.create(this.specularMap)
         };
-        CompletableFuture<SpriteLoader.Preparations[]> preparations = combinedLoadAndStitch(
-                loaders, 0, backgroundExecutor
-        );
+        CompletableFuture<SpriteLoader.Preparations[]> preparations = preparePbrBakes(backgroundExecutor, gameExecutor)
+                .thenCompose(ignored -> combinedLoadAndStitch(loaders, 0, backgroundExecutor));
         return preparations.thenCompose(param -> {
             List<CompletableFuture<SpriteLoader.Preparations>> l = new ArrayList<>(3);
             for (SpriteLoader.Preparations p : param) {
@@ -111,7 +106,10 @@ public class CombinedTextureManager extends KasugaTextureManager {
                     }
                     loadedSprites.put(k, sprites);
                 })).thenAcceptAsync(any -> this.caches.clear(), gameExecutor)
-                .thenAcceptAsync(any -> this.bakeRequests.clear(), gameExecutor);
+                .thenAcceptAsync(any -> {
+                    this.bakeRequests.clear();
+                    PbrBakeCoordinator.getInstance().releaseMemoryResults();
+                }, gameExecutor);
     }
 
     @Override
@@ -169,13 +167,13 @@ public class CombinedTextureManager extends KasugaTextureManager {
                 @Nullable SpriteContents normalContent = null, specularContent = null;
                 BakeRequest bakeRequest = bakeRequests.get(identifier);
                 PbrBakeResult baked = bakeRequest == null ? null : PbrBakeCoordinator.getInstance().getOrBake(
-                        bakeRequest.source(), PbrBakeProfile.combine(bakeRequest.profiles())
+                        bakeRequest.source(), bakeRequest.profile()
                 );
                 if (baked != null) {
                     try {
                         normalContent = spriteFromImage(content.name(), baked.normalMap());
                         specularContent = spriteFromImage(content.name(), baked.specularMap());
-                    } catch (IOException exception) {
+                    } catch (RuntimeException exception) {
                         LOGGER.warn("Failed to decode baked PBR maps for {}; using defaults", identifier, exception);
                         normalContent = defaultSprites[0].get(content.name(), width, height);
                         specularContent = defaultSprites[1].get(content.name(), width, height);
@@ -215,34 +213,92 @@ public class CombinedTextureManager extends KasugaTextureManager {
 
     public void requestPbrBake(Object identifier, BufferedImage source, PbrBakeProfile profile) {
         bakeRequests.compute(identifier, (ignored, request) -> {
-            if (request == null) request = new BakeRequest(source);
-            request.profiles().add(profile);
+            if (request == null) return new BakeRequest(source, profile);
+            if (request.source() != source || !request.profile().equals(profile)) {
+                throw new IllegalStateException(
+                        "A texture identifier cannot use multiple PBR sources or profiles: " + identifier
+                );
+            }
             return request;
         });
     }
 
-    private static SpriteContents spriteFromImage(ResourceLocation name, BufferedImage image) throws IOException {
-        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            if (!ImageIO.write(image, "png", output)) {
-                throw new IOException("No PNG encoder is available");
+    private CompletableFuture<Void> preparePbrBakes(Executor backgroundExecutor, Executor gameExecutor) {
+        if (bakeRequests.isEmpty()) return CompletableFuture.completedFuture(null);
+        List<BakeRequest> requests = List.copyOf(bakeRequests.values());
+        long batchStart = System.nanoTime();
+        PbrBakeCoordinator coordinator = PbrBakeCoordinator.getInstance();
+        PbrBakeCoordinator.PbrBakeStats before = coordinator.stats();
+        LoadingIndicator.label("Loading " + requests.size() + " PBR cache entries");
+        List<CompletableFuture<BakeRequest>> cacheChecks = requests.stream()
+                .map(request -> CompletableFuture.supplyAsync(
+                        () -> coordinator.loadFromCache(request.source(), request.profile()) ? null : request,
+                        backgroundExecutor
+                ))
+                .toList();
+        CompletableFuture<?>[] checks = cacheChecks.toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(checks).thenRunAsync(() -> {
+            Set<BufferedImage> uniqueSources = Collections.newSetFromMap(new IdentityHashMap<>());
+            long variantPixels = 0L;
+            long cacheMisses = cacheChecks.stream().filter(check -> check.join() != null).count();
+            LoadingIndicator.label(cacheMisses == 0
+                    ? "Stitching cached PBR atlases"
+                    : "GPU baking " + cacheMisses + " PBR textures");
+            for (int i = 0; i < requests.size(); i++) {
+                BakeRequest request = requests.get(i);
+                uniqueSources.add(request.source());
+                variantPixels += (long) request.source().getWidth() * request.source().getHeight();
+                BakeRequest cacheMiss = cacheChecks.get(i).join();
+                if (cacheMiss != null) {
+                    coordinator.getOrBakeGpu(cacheMiss.source(), cacheMiss.profile());
+                }
             }
-            try (ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray())) {
-                NativeImage nativeImage = NativeImage.read(input);
-                return new SpriteContents(
-                        name,
-                        new FrameSize(nativeImage.getWidth(), nativeImage.getHeight()),
-                        nativeImage,
-                        ResourceMetadata.EMPTY
-                );
+            PbrBakeCoordinator.PbrBakeStats after = coordinator.stats();
+            long elapsedNanos = System.nanoTime() - batchStart;
+            LOGGER.info("Prepared {} stylized PBR variants from {} source textures ({}, {}): "
+                            + "GPU {}, CPU {}, disk hits {}, failures {}, elapsed {}",
+                    requests.size(), uniqueSources.size(), formatPixels(variantPixels),
+                    requests.size() - uniqueSources.size() + " shared-source variants",
+                    after.gpuBakes() - before.gpuBakes(),
+                    after.cpuBakes() - before.cpuBakes(),
+                    after.cacheHits() - before.cacheHits(),
+                    after.failures() - before.failures(), formatMillis(elapsedNanos));
+        }, gameExecutor);
+    }
+
+    private static SpriteContents spriteFromImage(ResourceLocation name, BufferedImage image) {
+        NativeImage nativeImage = new NativeImage(image.getWidth(), image.getHeight(), false);
+        try {
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    int argb = image.getRGB(x, y);
+                    int abgr = (argb & 0xff00ff00)
+                            | (argb >>> 16 & 0xff)
+                            | (argb & 0xff) << 16;
+                    nativeImage.setPixelRGBA(x, y, abgr);
+                }
             }
+            return new SpriteContents(
+                    name,
+                    new FrameSize(nativeImage.getWidth(), nativeImage.getHeight()),
+                    nativeImage,
+                    ResourceMetadata.EMPTY
+            );
+        } catch (RuntimeException exception) {
+            nativeImage.close();
+            throw exception;
         }
     }
 
-    private record BakeRequest(BufferedImage source, Queue<PbrBakeProfile> profiles) {
-        private BakeRequest(BufferedImage source) {
-            this(source, new ConcurrentLinkedQueue<>());
-        }
+    private static String formatPixels(long pixels) {
+        return String.format(Locale.ROOT, "%.1f MP", pixels / 1_000_000.0);
     }
+
+    private static String formatMillis(long nanos) {
+        return String.format(Locale.ROOT, "%.1f ms", nanos / 1_000_000.0);
+    }
+
+    private record BakeRequest(BufferedImage source, PbrBakeProfile profile) {}
 
     @Override
     @Deprecated
