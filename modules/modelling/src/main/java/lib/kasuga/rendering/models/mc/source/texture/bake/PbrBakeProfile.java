@@ -1,8 +1,13 @@
 package lib.kasuga.rendering.models.mc.source.texture.bake;
 
+import lib.kasuga.rendering.models.mc.api.pbr.PbrConversionSettings;
 import lib.kasuga.rendering.models.uml.typo.miku_miku_dance.data.material.PmxMaterial;
+import net.minecraft.resources.ResourceLocation;
 
-import java.util.Collection;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 public record PbrBakeProfile(
         float smoothness,
@@ -11,7 +16,7 @@ public record PbrBakeProfile(
         float normalStrength,
         float emissionStrength
 ) {
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
 
     public static PbrBakeProfile from(PmxMaterial material) {
         float normalizedShininess = Math.clamp(material.shininess / 128.0f, 0.0f, 1.0f);
@@ -28,31 +33,38 @@ public record PbrBakeProfile(
         return new PbrBakeProfile(smoothness, f0Code, 0.0f, 0.08f, 0.0f);
     }
 
-    public static PbrBakeProfile combine(Collection<PbrBakeProfile> profiles) {
-        if (profiles.isEmpty()) throw new IllegalArgumentException("At least one PBR profile is required");
-        float smoothness = 0.0f;
-        float f0 = 0.0f;
-        float sss = 0.0f;
-        float normal = 0.0f;
-        float emission = 0.0f;
-        for (PbrBakeProfile profile : profiles) {
-            smoothness += profile.smoothness;
-            f0 += profile.f0Code;
-            sss += profile.sssStrength;
-            normal += profile.normalStrength;
-            emission += profile.emissionStrength;
-        }
-        float divisor = profiles.size();
+    public static PbrBakeProfile from(PbrConversionSettings settings) {
         return new PbrBakeProfile(
-                smoothness / divisor,
-                Math.round(f0 / divisor),
-                sss / divisor,
-                normal / divisor,
-                emission / divisor
+                settings.smoothness(), settings.f0Code(), settings.subsurface(),
+                settings.normalStrength(), settings.emission()
+        );
+    }
+
+    public PbrConversionSettings toSettings() {
+        return new PbrConversionSettings(
+                smoothness, f0Code, sssStrength, normalStrength, emissionStrength
         );
     }
 
     public String cacheDescriptor() {
         return VERSION + ":" + smoothness + ":" + f0Code + ":" + sssStrength + ":" + normalStrength + ":" + emissionStrength;
+    }
+
+    /**
+     * Returns the atlas location for this exact conversion profile. Materials
+     * may share their decoded source image, but they must not share an atlas
+     * sprite when their final PBR settings differ.
+     */
+    public ResourceLocation variantLocation(ResourceLocation source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(cacheDescriptor().getBytes(StandardCharsets.UTF_8));
+            String suffix = HexFormat.of().formatHex(hash, 0, 8);
+            return ResourceLocation.fromNamespaceAndPath(
+                    source.getNamespace(), source.getPath() + "__pbr_" + suffix
+            );
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 }

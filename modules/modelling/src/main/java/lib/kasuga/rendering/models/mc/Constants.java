@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import lib.kasuga.KasugaLib;
+import lib.kasuga.client.loading.LoadingIndicator;
 import lib.kasuga.mixins.client.AccessorOnRegisterRenderTypesEvent;
 import lib.kasuga.rendering.models.mc.backend.*;
 import lib.kasuga.rendering.models.mc.backend.data_type.KasugaShaderInstance;
@@ -60,6 +61,7 @@ import org.joml.Matrix4f;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static lib.kasuga.rendering.models.mc.backend.RenderState.UML_VERTEX_FORMAT;
@@ -263,8 +265,17 @@ public class Constants {
                     Map<String, PbrBakeState> states = PbrBakeCoordinator.getInstance().states();
                     long ready = states.values().stream().filter(state -> state == PbrBakeState.READY).count();
                     long failed = states.values().stream().filter(state -> state == PbrBakeState.FAILED).count();
+                    PbrBakeCoordinator.PbrBakeStats stats = PbrBakeCoordinator.getInstance().stats();
                     context.getSource().sendSuccess(() -> Component.literal(
-                            "Kasuga PBR: " + ready + " ready, " + failed + " failed, " + states.size() + " total"
+                            "Kasuga PBR: " + ready + " ready, " + failed + " failed, " + states.size()
+                                    + " total; GPU=" + stats.gpuBakes() + ", CPU=" + stats.cpuBakes()
+                                    + ", disk-cache=" + stats.cacheHits() + ", memory-cache=" + stats.memoryHits()
+                                    + ", failed=" + stats.failures() + ", requests=" + stats.requests()
+                                    + "; key=" + formatPbrMillis(stats.cacheKeyNanos())
+                                    + ", read=" + formatPbrMillis(stats.diskReadNanos())
+                                    + ", GPU-time=" + formatPbrMillis(stats.gpuBakeNanos())
+                                    + ", CPU-time=" + formatPbrMillis(stats.cpuBakeNanos())
+                                    + ", write=" + formatPbrMillis(stats.diskWriteNanos())
                     ), false);
                     return 1;
                 }))
@@ -282,7 +293,18 @@ public class Constants {
                     ), false);
                     Minecraft.getInstance().execute(() -> Minecraft.getInstance().reloadResourcePacks());
                     return 1;
+                }))
+                .then(Commands.literal("reload_config").executes(context -> {
+                    context.getSource().sendSuccess(() -> Component.literal(
+                            "Reloading Kasuga PBR conversion config and resources"
+                    ), false);
+                    Minecraft.getInstance().execute(() -> Minecraft.getInstance().reloadResourcePacks());
+                    return 1;
                 })));
+    }
+
+    private static String formatPbrMillis(long nanos) {
+        return String.format(Locale.ROOT, "%.1fms", nanos / 1_000_000.0);
     }
 
     @SubscribeEvent
@@ -309,6 +331,10 @@ public class Constants {
     @SubscribeEvent
     public static void renderLevel(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) return;
+        // Resource reload builds models before their new atlas sprites exist.
+        // Keep the currently published generation untouched and skip custom
+        // rendering until textures and models are atomically swapped.
+        if (LoadingIndicator.snapshot().active()) return;
         Camera camera = event.getCamera();
         Frustum frustum = event.getFrustum();
         Matrix4f modelViewMatrix = event.getModelViewMatrix();

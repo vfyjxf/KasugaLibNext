@@ -7,7 +7,8 @@ import java.awt.image.BufferedImage;
  * packing matches ksglib_main.fsh. A render-thread shader backend can replace
  * this implementation without changing the cache or scheduling API.
  */
-public final class StylizedPbrBaker {
+public final class StylizedPbrBaker implements PbrBaker {
+    @Override
     public PbrBakeResult bake(BufferedImage source, PbrBakeProfile profile) {
         int width = source.getWidth();
         int height = source.getHeight();
