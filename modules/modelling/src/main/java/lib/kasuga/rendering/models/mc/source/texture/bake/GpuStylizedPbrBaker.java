@@ -1,10 +1,14 @@
 package lib.kasuga.rendering.models.mc.source.texture.bake;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.logging.LogUtils;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL21;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -12,9 +16,15 @@ import org.lwjgl.system.MemoryUtil;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import org.slf4j.Logger;
 
 /** Render-thread, off-screen implementation of the stylized PBR baker. */
 public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
+    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final String TRACE_PROPERTY = "kasuga.pbr.traceGpuBake";
+    private static final int UPLOAD_STRIPE_ROWS = Math.max(0, Integer.getInteger(
+            "kasuga.pbr.gpuUploadStripeRows", Minecraft.ON_OSX ? 256 : 0
+    ));
     private static final String VERTEX_SHADER = """
             #version 150
             out vec2 texCoord;
@@ -66,6 +76,11 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
 
         int width = source.getWidth();
         int height = source.getHeight();
+        int maxTextureSize = GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE);
+        if (width <= 0 || height <= 0 || width > maxTextureSize || height > maxTextureSize) {
+            throw new IllegalArgumentException("PBR texture dimensions " + width + "x" + height
+                    + " exceed the current OpenGL limit " + maxTextureSize);
+        }
         int framebuffer = 0;
         int sourceTexture = 0;
         int normalTexture = 0;
@@ -79,19 +94,57 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
         int previousActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
         int previousPackAlignment = GL11.glGetInteger(GL11.GL_PACK_ALIGNMENT);
         int previousUnpackAlignment = GL11.glGetInteger(GL11.GL_UNPACK_ALIGNMENT);
+        int previousPackRowLength = GL11.glGetInteger(GL11.GL_PACK_ROW_LENGTH);
+        int previousPackSkipRows = GL11.glGetInteger(GL11.GL_PACK_SKIP_ROWS);
+        int previousPackSkipPixels = GL11.glGetInteger(GL11.GL_PACK_SKIP_PIXELS);
+        int previousUnpackRowLength = GL11.glGetInteger(GL11.GL_UNPACK_ROW_LENGTH);
+        int previousUnpackSkipRows = GL11.glGetInteger(GL11.GL_UNPACK_SKIP_ROWS);
+        int previousUnpackSkipPixels = GL11.glGetInteger(GL11.GL_UNPACK_SKIP_PIXELS);
+        int previousPixelPackBuffer = GL11.glGetInteger(GL21.GL_PIXEL_PACK_BUFFER_BINDING);
+        int previousPixelUnpackBuffer = GL11.glGetInteger(GL21.GL_PIXEL_UNPACK_BUFFER_BINDING);
         boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
         boolean depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
         boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         boolean scissor = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
+
+        if (previousPixelPackBuffer != 0 || previousPixelUnpackBuffer != 0) {
+            LOGGER.warn("Isolating inherited pixel-buffer bindings for a {}x{} PBR bake: pack={}, unpack={}",
+                    width, height, previousPixelPackBuffer, previousPixelUnpackBuffer);
+        }
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer viewport = stack.mallocInt(4);
             GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
 
             GL13.glActiveTexture(GL13.GL_TEXTURE0);
+            // Client-memory pointers passed to glTexImage2D/glReadPixels are
+            // interpreted as byte offsets whenever a pixel buffer is bound.
+            // Resource reloads may run between other render systems, so never
+            // inherit their PBO state.
+            GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, 0);
+            GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, 0);
+            resetPixelStoreLayout();
             int previousTexture0 = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
             try {
                 sourcePixels = imageToRgba(source);
+                long expectedBytes = requiredBytes(width, height);
+                if (sourcePixels.remaining() != expectedBytes) {
+                    throw new IllegalStateException("PBR upload buffer has " + sourcePixels.remaining()
+                            + " bytes, expected " + expectedBytes);
+                }
+                if (Boolean.getBoolean(TRACE_PROPERTY)) {
+                    LOGGER.info("[pbr-gpu-trace] upload size={}x{} bytes={} address=0x{} "
+                                    + "maxTextureSize={} stripeRows={} packPbo={} unpackPbo={} "
+                                    + "packLayout={}/{}/{} unpackLayout={}/{}/{} "
+                                    + "activeTexture={} texture2D={} framebuffer={}",
+                            width, height, sourcePixels.remaining(),
+                            Long.toUnsignedString(MemoryUtil.memAddress(sourcePixels), 16),
+                            maxTextureSize, UPLOAD_STRIPE_ROWS,
+                            previousPixelPackBuffer, previousPixelUnpackBuffer,
+                            previousPackRowLength, previousPackSkipRows, previousPackSkipPixels,
+                            previousUnpackRowLength, previousUnpackSkipRows, previousUnpackSkipPixels,
+                            previousActiveTexture, previousTexture0, previousFramebuffer);
+                }
                 sourceTexture = createTexture(width, height, sourcePixels, true);
                 normalTexture = createTexture(width, height, null, false);
                 specularTexture = createTexture(width, height, null, false);
@@ -151,6 +204,14 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
             GL13.glActiveTexture(previousActiveTexture);
             GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, previousPackAlignment);
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+            GL11.glPixelStorei(GL11.GL_PACK_ROW_LENGTH, previousPackRowLength);
+            GL11.glPixelStorei(GL11.GL_PACK_SKIP_ROWS, previousPackSkipRows);
+            GL11.glPixelStorei(GL11.GL_PACK_SKIP_PIXELS, previousPackSkipPixels);
+            GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, previousUnpackRowLength);
+            GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, previousUnpackSkipRows);
+            GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, previousUnpackSkipPixels);
+            GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, previousPixelPackBuffer);
+            GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, previousPixelUnpackBuffer);
             restoreEnabled(GL11.GL_BLEND, blend);
             restoreEnabled(GL11.GL_DEPTH_TEST, depth);
             restoreEnabled(GL11.GL_CULL_FACE, cull);
@@ -199,8 +260,22 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
         int texture = GL11.glGenTextures();
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
         GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0,
-                GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        if (pixels != null && UPLOAD_STRIPE_ROWS > 0) {
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0,
+                    GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null);
+            int bytesPerRow = Math.toIntExact(requiredBytes(width, 1));
+            for (int y = 0; y < height; y += UPLOAD_STRIPE_ROWS) {
+                int rows = Math.min(UPLOAD_STRIPE_ROWS, height - y);
+                int offset = Math.multiplyExact(y, bytesPerRow);
+                int byteCount = Math.multiplyExact(rows, bytesPerRow);
+                ByteBuffer stripe = pixels.slice(offset, byteCount);
+                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, y, width, rows,
+                        GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, stripe);
+            }
+        } else {
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0,
+                    GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        }
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, source ? GL11.GL_REPEAT : GL12.GL_CLAMP_TO_EDGE);
@@ -209,7 +284,12 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
     }
 
     private static ByteBuffer imageToRgba(BufferedImage image) {
-        ByteBuffer pixels = MemoryUtil.memAlloc(image.getWidth() * image.getHeight() * 4);
+        long byteCount = requiredBytes(image.getWidth(), image.getHeight());
+        if (byteCount > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("PBR source is too large for a direct upload: "
+                    + image.getWidth() + "x" + image.getHeight());
+        }
+        ByteBuffer pixels = MemoryUtil.memAlloc((int) byteCount);
         for (int y = 0; y < image.getHeight(); y++) {
             for (int x = 0; x < image.getWidth(); x++) {
                 int argb = image.getRGB(x, y);
@@ -220,6 +300,21 @@ public final class GpuStylizedPbrBaker implements PbrBaker, AutoCloseable {
             }
         }
         return pixels.flip();
+    }
+
+    private static long requiredBytes(int width, int height) {
+        return Math.multiplyExact(Math.multiplyExact((long) width, height), 4L);
+    }
+
+    private static void resetPixelStoreLayout() {
+        GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
+        GL11.glPixelStorei(GL11.GL_PACK_ROW_LENGTH, 0);
+        GL11.glPixelStorei(GL11.GL_PACK_SKIP_ROWS, 0);
+        GL11.glPixelStorei(GL11.GL_PACK_SKIP_PIXELS, 0);
+        GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
+        GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
+        GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
+        GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
     }
 
     private static BufferedImage readAttachment(int attachment, int width, int height, ByteBuffer pixels) {

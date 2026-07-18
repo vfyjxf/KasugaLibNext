@@ -1,7 +1,11 @@
 package lib.kasuga.rendering.models.mc.typo;
 
 import com.mojang.logging.LogUtils;
+import lib.kasuga.client.loading.LoadingIndicator;
 import lib.kasuga.rendering.models.mc.Constants;
+import lib.kasuga.rendering.models.mc.api.pbr.PbrConversionRegistry;
+import lib.kasuga.rendering.models.mc.api.pbr.PbrConversionSettings;
+import lib.kasuga.rendering.models.mc.api.pbr.PbrMaterialContext;
 import lib.kasuga.rendering.models.mc.backend.RenderState;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTexture;
 import lib.kasuga.rendering.models.mc.java_and_bedrock.data.MCTextureData;
@@ -58,10 +62,13 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     private ZipHelper loadingFile;
 
     private ZipResource loadingModel;
+    private ResourceLocation loadingModelLocation;
+    private int loadingMaterialIndex;
 
     private final List<Pair<ZipResource, Texture>> loadedTextures;
 
     private final HashMap<ZipResource, Texture> loadedTextureMap;
+    private final Map<PbrTextureVariantKey, Texture> loadedPbrTextureVariants;
 
     public final Vector3f modelScale = new Vector3f(1.0f / 12.0f);
 
@@ -73,8 +80,11 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
         super(name);
         loadingFile = null;
         loadingModel = null;
+        loadingModelLocation = null;
+        loadingMaterialIndex = 0;
         loadedTextures = new ArrayList<>();
         loadedTextureMap = new HashMap<>();
+        loadedPbrTextureVariants = new HashMap<>();
         MISSING = new MCTexture("missingno",
                 () -> new net.minecraft.client.resources.model.Material(
                         RenderState.KSG_LAYER_0, MissingTextureAtlasSprite.getLocation()
@@ -98,32 +108,71 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     public void buildMaterial(MaterialSetBuilder builder, PmxMaterial material) {
         boolean useInternalToon = material.usingInternalTexture;
         int index = material.textureIndex.intValue();
+        int materialIndex = loadingMaterialIndex++;
+        Object identifier = getDefaultTextureIdentifier(index, loadedTextures);
         if (index >= 0 && index < loadedTextures.size()) {
+            ZipResource sourceResource = loadedTextures.get(index).getFirst();
             Texture texture = loadedTextures.get(index).getSecond();
             if (texture.getData() instanceof MCTextureData data
                     && data.getIdentifier() instanceof Pair<?, ?> source
+                    && source.getFirst() instanceof ResourceLocation textureId
                     && source.getSecond() instanceof BufferedImage image) {
-                Constants.TEXTURE_BASIC.requestPbrBake(data.getIdentifier(), image, PbrBakeProfile.from(material));
+                PbrBakeProfile automatic = PbrBakeProfile.from(material);
+                PbrMaterialContext conversionContext = new PbrMaterialContext(
+                        Objects.requireNonNull(loadingModelLocation), textureId, materialIndex,
+                        material.localTextureName, material.engTextureName, material.metaData,
+                        material.diffuseColor.x, material.diffuseColor.y, material.diffuseColor.z, material.diffuseColor.w,
+                        material.specularColor.x, material.specularColor.y, material.specularColor.z,
+                        material.ambientColor.x, material.ambientColor.y, material.ambientColor.z,
+                        material.shininess, material.flags.noCull, material.flags.receiveShadow,
+                        image.getWidth(), image.getHeight()
+                );
+                PbrConversionSettings settings = PbrConversionRegistry.apply(
+                        conversionContext, automatic.toSettings()
+                );
+                PbrBakeProfile profile = PbrBakeProfile.from(settings);
+                PbrTextureVariantKey variantKey = new PbrTextureVariantKey(sourceResource, profile);
+                Texture variantTexture = loadedPbrTextureVariants.computeIfAbsent(
+                        variantKey, ignored -> createPbrTextureVariant(texture, textureId, image, profile)
+                );
+                builder.registerTexture(variantKey, variantTexture);
+                Constants.TEXTURE_BASIC.requestPbrBake(
+                        ((MCTextureData) variantTexture.getData()).getIdentifier(), image, profile
+                );
+                identifier = variantKey;
             }
         }
-        final ResourceLocation rl = getDefaultTextureIdentifier(index, loadedTextures);
-        ZipResource id = null;
-        if (rl == null) {
-            id = loadedTextures.get(index).getFirst();
-            builder.useTexture(id);
-        } else {
-            builder.useTexture(rl);
+        if (identifier == null) {
+            identifier = loadedTextures.get(index).getFirst();
         }
-        final Object identifier = id != null ? id : rl;
+        builder.useTexture(identifier);
+        final Object spriteTextureIdentifier = identifier;
         builder.addSpriteBuildingFunc((matb, sprb, mat) -> {
             SpriteSetBuilder spriteBuilder = (SpriteSetBuilder) sprb;
             spriteBuilder
-                    .textureId(identifier)
+                    .textureId(spriteTextureIdentifier)
                     .culled(!material.flags.noCull)
                     .shade(material.flags.drawShadow)
                     .color(new Vector4f(material.diffuseColor))
                     .endSprite();
         }).endMaterial(material);
+    }
+
+    private Texture createPbrTextureVariant(Texture sourceTexture, ResourceLocation sourceLocation,
+                                            BufferedImage image, PbrBakeProfile profile) {
+        ResourceLocation variantLocation = profile.variantLocation(sourceLocation);
+        Pair<ResourceLocation, BufferedImage> variantIdentifier = Pair.of(variantLocation, image);
+        CombinedTextureManager textureManager = Constants.TEXTURE_BASIC;
+        net.minecraft.client.resources.model.Material atlasMaterial =
+                new net.minecraft.client.resources.model.Material(RenderState.KSG_LAYER_0, variantLocation);
+        MCTexture variant = new MCTexture(
+                sourceTexture.getId() + "#" + variantLocation.getPath(),
+                () -> atlasMaterial,
+                sourceTexture.getWidth(), sourceTexture.getHeight(),
+                new MCTextureData(variantIdentifier, textureManager)
+        );
+        textureManager.load(variantIdentifier);
+        return variant;
     }
 
     public ResourceLocation getDefaultTextureIdentifier(int index, List<?> list) {
@@ -226,7 +275,6 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
             Pair<ResourceLocation, BufferedImage> pair = Pair.of(rl, image);
             MCTextureData data = new MCTextureData(pair, textureManager);
             MCTexture mcTexture = new MCTexture(s.name(), () -> mat, w, h, data);
-            textureManager.load(pair);
             loadedTextures.add(Pair.of(s, mcTexture));
             loadedTextureMap.put(s, mcTexture);
             return mcTexture;
@@ -355,15 +403,20 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
     public Map<ResourceLocation, Model> load(ResourceLocation s, ZipHelper input) {
         loadedTextures.clear();
         loadedTextureMap.clear();
+        loadedPbrTextureVariants.clear();
         loadingFile = input;
         try {
             List<ZipResource> models = input.searchNameForResource(name -> name.endsWith(".pmx"));
             if (models.isEmpty()) return new HashMap<>();
             Map<ResourceLocation, Model> result = new HashMap<>();
-            for (ZipResource model : models) {
+            for (int modelIndex = 0; modelIndex < models.size(); modelIndex++) {
+                ZipResource model = models.get(modelIndex);
+                LoadingIndicator.label("Loading PMX " + model.name() + " (" + (modelIndex + 1) + "/" + models.size() + ")");
                 loadingModel = model;
                 registerDefaultTextures();
                 ResourceLocation rl = getLocation(s, model);
+                loadingModelLocation = rl;
+                loadingMaterialIndex = 0;
                 Map<ResourceLocation, Model> loadedModels = super.load(rl, input);
                 result.putAll(loadedModels);
                 LOGGER.info("Loaded PMX '{}' from {} as {} ({} model entries, {} textures)",
@@ -374,9 +427,12 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
             return result;
         } finally {
             loadingModel = null;
+            loadingModelLocation = null;
+            loadingMaterialIndex = 0;
             loadingFile = null;
             loadedTextures.clear();
             loadedTextureMap.clear();
+            loadedPbrTextureVariants.clear();
             materialSetBuilder().clear();
         }
     }
@@ -393,5 +449,7 @@ public class KsgPmxLoader extends PMXLoader<ZipHelper, ResourceLocation, ZipReso
         duplicate.get(bytes);
         return bytes;
     }
+
+    private record PbrTextureVariantKey(ZipResource source, PbrBakeProfile profile) {}
 
 }
