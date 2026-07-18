@@ -1,34 +1,52 @@
 package lib.kasuga.rendering.models.mc.source.texture;
 
+import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.logging.LogUtils;
 import lib.kasuga.rendering.models.mc.backend.RenderState;
 import lib.kasuga.rendering.models.mc.compat.iris.IrisCompat;
+import lib.kasuga.rendering.models.mc.source.texture.bake.PbrBakeCoordinator;
+import lib.kasuga.rendering.models.mc.source.texture.bake.PbrBakeProfile;
+import lib.kasuga.rendering.models.mc.source.texture.bake.PbrBakeResult;
 import lib.kasuga.rendering.models.uml.loaders.sources.Source;
 import lib.kasuga.rendering.models.uml.loaders.sources.SourceType;
 import lib.kasuga.structure.Pair;
 import lombok.NonNull;
 import net.minecraft.Util;
 import net.minecraft.client.renderer.texture.*;
+import net.minecraft.client.resources.metadata.animation.FrameSize;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceMetadata;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.profiling.ProfilerFiller;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class CombinedTextureManager extends KasugaTextureManager {
 
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     protected final TextureAtlas normalMap;
     protected final TextureAtlas specularMap;
     private final Map<Object, SpriteUploader<?>[]> spriteUploaders;
     private final Map<Object, SpriteContents[]> caches;
     private final Map<Object, TextureAtlasSprite[]> loadedSprites;
+    private final Map<Object, BakeRequest> bakeRequests;
     private final Function<ResourceLocation, SpriteContents>[] missingImages;
     private final DefaultSpriteSupplier[] defaultSprites;
 
@@ -49,9 +67,10 @@ public class CombinedTextureManager extends KasugaTextureManager {
         super(type, name, textureManager, textureAtlasLocation, missingImage);
         this.normalMap = new TextureAtlas(normalMapLocation);
         this.specularMap = new TextureAtlas(specularMapLocation);
-        this.spriteUploaders = new HashMap<>();
-        this.caches = new HashMap<>();
-        this.loadedSprites = new HashMap<>();
+        this.spriteUploaders = new ConcurrentHashMap<>();
+        this.caches = new ConcurrentHashMap<>();
+        this.loadedSprites = new ConcurrentHashMap<>();
+        this.bakeRequests = new ConcurrentHashMap<>();
         this.missingImages = new Function[]{missingImage, missingNormalMapImage, missingSpecularMapImage};
         this.defaultSprites = new DefaultSpriteSupplier[]{defaultNormalSprite, defaultSpecularSprite};
         textureManager.register(this.normalMap.location(), this.normalMap);
@@ -91,7 +110,8 @@ public class CombinedTextureManager extends KasugaTextureManager {
                         Objects.requireNonNull(sprites[i], "Failed to find sprite for content: " + content.name());
                     }
                     loadedSprites.put(k, sprites);
-                })).thenAcceptAsync(any -> this.caches.clear(), gameExecutor);
+                })).thenAcceptAsync(any -> this.caches.clear(), gameExecutor)
+                .thenAcceptAsync(any -> this.bakeRequests.clear(), gameExecutor);
     }
 
     @Override
@@ -146,8 +166,21 @@ public class CombinedTextureManager extends KasugaTextureManager {
                 SpriteContents content = uploader[0].loadSprite(null, null);
                 Objects.requireNonNull(content);
                 int width = content.width(), height = content.height();
-                @Nullable SpriteContents normalContent, specularContent;
-                if (uploader[1] == null) {
+                @Nullable SpriteContents normalContent = null, specularContent = null;
+                BakeRequest bakeRequest = bakeRequests.get(identifier);
+                PbrBakeResult baked = bakeRequest == null ? null : PbrBakeCoordinator.getInstance().getOrBake(
+                        bakeRequest.source(), PbrBakeProfile.combine(bakeRequest.profiles())
+                );
+                if (baked != null) {
+                    try {
+                        normalContent = spriteFromImage(content.name(), baked.normalMap());
+                        specularContent = spriteFromImage(content.name(), baked.specularMap());
+                    } catch (IOException exception) {
+                        LOGGER.warn("Failed to decode baked PBR maps for {}; using defaults", identifier, exception);
+                        normalContent = defaultSprites[0].get(content.name(), width, height);
+                        specularContent = defaultSprites[1].get(content.name(), width, height);
+                    }
+                } else if (uploader[1] == null) {
                     normalContent = defaultSprites[0].get(content.name(), width, height);
                 } else {
                     normalContent = uploader[1].loadSprite(null, null);
@@ -155,7 +188,9 @@ public class CombinedTextureManager extends KasugaTextureManager {
                         normalContent = defaultSprites[0].get(content.name(), width, height);
                     }
                 }
-                if (uploader[2] == null) {
+                if (baked != null) {
+                    // Both maps were assigned together above.
+                } else if (uploader[2] == null) {
                     specularContent = defaultSprites[1].get(content.name(), width, height);
                 } else {
                     specularContent = uploader[2].loadSprite(null, null);
@@ -176,6 +211,37 @@ public class CombinedTextureManager extends KasugaTextureManager {
             });
         }
         return combined;
+    }
+
+    public void requestPbrBake(Object identifier, BufferedImage source, PbrBakeProfile profile) {
+        bakeRequests.compute(identifier, (ignored, request) -> {
+            if (request == null) request = new BakeRequest(source);
+            request.profiles().add(profile);
+            return request;
+        });
+    }
+
+    private static SpriteContents spriteFromImage(ResourceLocation name, BufferedImage image) throws IOException {
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            if (!ImageIO.write(image, "png", output)) {
+                throw new IOException("No PNG encoder is available");
+            }
+            try (ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray())) {
+                NativeImage nativeImage = NativeImage.read(input);
+                return new SpriteContents(
+                        name,
+                        new FrameSize(nativeImage.getWidth(), nativeImage.getHeight()),
+                        nativeImage,
+                        ResourceMetadata.EMPTY
+                );
+            }
+        }
+    }
+
+    private record BakeRequest(BufferedImage source, Queue<PbrBakeProfile> profiles) {
+        private BakeRequest(BufferedImage source) {
+            this(source, new ConcurrentLinkedQueue<>());
+        }
     }
 
     @Override

@@ -28,6 +28,8 @@ import lib.kasuga.rendering.models.mc.source.model.str.StrModelSourceManager;
 import lib.kasuga.rendering.models.mc.source.texture.CombinedTextureManager;
 import lib.kasuga.rendering.models.mc.source.texture.FileTextureSource;
 import lib.kasuga.rendering.models.mc.source.texture.JarTextureSource;
+import lib.kasuga.rendering.models.mc.source.texture.bake.PbrBakeCoordinator;
+import lib.kasuga.rendering.models.mc.source.texture.bake.PbrBakeState;
 import lib.kasuga.rendering.models.mc.typo.KsgPmxLoader;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipHelper;
 import lib.kasuga.rendering.models.mc.typo.pmx_entry.ZipResource;
@@ -44,6 +46,7 @@ import net.minecraft.client.gui.screens.AlertScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
@@ -57,6 +60,7 @@ import org.joml.Matrix4f;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static lib.kasuga.rendering.models.mc.backend.RenderState.UML_VERTEX_FORMAT;
 
@@ -250,6 +254,35 @@ public class Constants {
 
         event.registerRenderBuffer(typeDefault);
         event.registerRenderBuffer(typeIris);
+    }
+
+    @SubscribeEvent
+    public static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
+        event.getDispatcher().register(Commands.literal("kasuga_pbr")
+                .then(Commands.literal("status").executes(context -> {
+                    Map<String, PbrBakeState> states = PbrBakeCoordinator.getInstance().states();
+                    long ready = states.values().stream().filter(state -> state == PbrBakeState.READY).count();
+                    long failed = states.values().stream().filter(state -> state == PbrBakeState.FAILED).count();
+                    context.getSource().sendSuccess(() -> Component.literal(
+                            "Kasuga PBR: " + ready + " ready, " + failed + " failed, " + states.size() + " total"
+                    ), false);
+                    return 1;
+                }))
+                .then(Commands.literal("rebake").executes(context -> {
+                    try {
+                        PbrBakeCoordinator.getInstance().clearCache();
+                    } catch (IOException exception) {
+                        context.getSource().sendFailure(Component.literal(
+                                "Failed to clear Kasuga PBR cache: " + exception.getMessage()
+                        ));
+                        return 0;
+                    }
+                    context.getSource().sendSuccess(() -> Component.literal(
+                            "Kasuga PBR cache cleared; reloading resources"
+                    ), false);
+                    Minecraft.getInstance().execute(() -> Minecraft.getInstance().reloadResourcePacks());
+                    return 1;
+                })));
     }
 
     @SubscribeEvent
