@@ -17,6 +17,7 @@ repositories {
 sourceSets {}
 
 useModProject(project(':modules:core'))
+useModProject(project(':modules:modelling'))
 
 base {
     archivesName = mod_id
